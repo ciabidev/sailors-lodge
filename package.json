@@ -1,0 +1,35 @@
+{
+  "name": "sunfish-karoo",
+  "version": "1.0.0",
+  "description": "Helper bot for Sunfish Village",
+  "homepage": "https://github.com/ciabidev/sunfish-karoo#readme",
+  "bugs": {
+    "url": "https://github.com/ciabidev/sunfish-karoo/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ciabidev/sunfish-karoo.git"
+  },
+  "license": "MIT",
+  "author": "github.com/ciabidev",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "postinstall": "node deploy-commands.js",
+    "dev": "npm run postinstall && nodemon index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.84.0",
+    "discord.js": "^14.24.2",
+    "express": "^5.1.0",
+    "mongodb": "^7.0.0",
+    "mongoose": "^9.1.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

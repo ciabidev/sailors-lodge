@@ -18,24 +18,21 @@ module.exports = {
     ),
 
   execute: async (interaction) => {
-
-    const response = await interaction.deferReply({ components: [], flags: [MessageFlags.Ephemeral], withResponse: true });
-
     const db = interaction.client.modules.db;
 
-    // Fetch all parties
+    // Fetch parties
     let parties = await db.getCollection("parties").find({}).toArray();
-
     const searchQuery = interaction.options.getString("search");
     if (searchQuery) {
       parties = parties.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
     }
 
     if (!parties.length) {
-      return interaction.editReply({
+      await interaction.reply({
         content: "No parties found.",
         flags: MessageFlags.Ephemeral,
       });
+      return;
     }
 
     const pages = interaction.client.modules.chunkArray(parties, 3);
@@ -43,14 +40,12 @@ module.exports = {
 
     function renderPage() {
       const page = pages[pageIndex];
-
       const container = new ContainerBuilder().addTextDisplayComponents((t) =>
         t.setContent(`## Browse Parties (Page ${pageIndex + 1}/${pages.length})`)
       );
 
       for (const party of page) {
         const { name, description, owner, members, memberLimit, visibility, joinCode } = party;
-
         container.addTextDisplayComponents(
           (t) => t.setContent(`### ${name}`),
           (t) =>
@@ -61,7 +56,6 @@ module.exports = {
           (t) => t.setContent(`**Description:** ${description || "No description"}`),
           (t) => t.setContent(`**Join Code:** ${joinCode}`)
         );
-
         container.addSeparatorComponents((s) =>
           s.setDivider(true).setSpacing(SeparatorSpacingSize.Large)
         );
@@ -72,39 +66,39 @@ module.exports = {
 
     const mainText = renderPage();
 
-    // Navigation buttons
     const previousPageButton = new ButtonBuilder()
       .setCustomId("previous-page")
       .setLabel("Previous Page")
       .setStyle(ButtonStyle.Secondary);
-
     const nextPageButton = new ButtonBuilder()
       .setCustomId("next-page")
       .setLabel("Next Page")
       .setStyle(ButtonStyle.Secondary);
-
     const pageSelector = new ActionRowBuilder().addComponents(previousPageButton, nextPageButton);
 
-    await interaction.editReply({
+    // Reply directly (no defer)
+    const response = await interaction.reply({
       content: "",
       components: [mainText, pageSelector],
       flags: MessageFlags.IsComponentsV2,
+      withResponse: true,
     });
 
     const collector = response.resource.message.createMessageComponentCollector({
       componentType: ComponentType.Button,
-      time: 3_600_000, // 1 hour
+      time: 3_600_000,
     });
 
-   collector.on("collect", async (i) => {
-     if (i.customId === "next-page" || i.customId === "previous-page") {
-       pageIndex++;
-       if (pageIndex >= pages.length) pageIndex = 0;
+    collector.on("collect", async (i) => {
+      if (i.user.id !== interaction.user.id) return;
 
-       const updatedMainText = renderPage();
-       await i.update({ components: [updatedMainText, pageSelector] }); // correct
-     }
-   });
+      if (i.customId === "previous-page") {
+        pageIndex = (pageIndex - 1 + pages.length) % pages.length;
+      } else if (i.customId === "next-page") {
+        pageIndex = (pageIndex + 1) % pages.length;
+      }
 
+      await i.update({ components: [renderPage(), pageSelector] });
+    });
   },
 };

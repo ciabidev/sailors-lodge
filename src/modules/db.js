@@ -115,8 +115,19 @@ async function removeMemberFromParty(partyId, memberId, interaction) {
 
 async function getParties() {
   const parties = getCollection("parties");
-  return parties.find({ deleted: { $ne: true }, 'members.0' : { $exists: true } }).toArray();
+  return parties
+    .find({
+      deleted: { $ne: true },
+      members: { $type: "array", $ne: [] }, // only arrays with length > 0
+      memberLimit: { $type: "number" }, // ensure memberLimit is numeric
+      $expr: {
+        $lt: [{ $size: "$members" }, "$memberLimit"], // member count < limit
+      },
+    })
+    .toArray();
 }
+
+
 
 async function getCurrentParty(userId) {
   const parties = getCollection("parties");

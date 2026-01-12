@@ -23,7 +23,7 @@ module.exports = {
     const db = interaction.client.modules.db;
 
     // Fetch parties
-    let parties = await db.getCollection("parties").find({}).toArray();
+    let parties = await db.getParties();
     const searchQuery = interaction.options.getString("search");
     if (searchQuery) {
       parties = parties.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));

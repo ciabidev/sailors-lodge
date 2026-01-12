@@ -1,5 +1,7 @@
 const { TextDisplayBuilder } = require("discord.js");
 module.exports = async function updatePartyCards(interaction, party) {
+    if (!party) return;
+    if (!party.cards) return;
   for (const card of party.cards) {
     try {
       const channel = await interaction.client.channels.fetch(card.channelId);

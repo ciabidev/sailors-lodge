@@ -65,8 +65,7 @@ async function partyCardCollector(interaction, party, message) {
         return btn.reply({ content: "Only the party leader can delete.", ephemeral: true });
       }
 
-      await interaction.client.modules.db.deleteParty(party._id);
-      await btn.update({ content: "Party deleted.", components: [] });
+      await interaction.client.modules.db.deleteParty(party._id, interaction);
       collector.stop();
     }
 
@@ -74,6 +73,24 @@ async function partyCardCollector(interaction, party, message) {
     if (btn.customId === "party-join") {
       await interaction.client.modules.joinParty(btn, party.joinCode);
     }
+
+    if (btn.customId === "party-leave") {
+      await interaction.client.modules.leaveParty(btn, party._id);
+    }
+
+    if (btn.customId === "party-refresh") {
+      party = await interaction.client.modules.db.getPartyFromJoinCode(party.joinCode);
+      const updatedCard = await interaction.client.modules.renderPartyCard(party, interaction);
+
+      // Defer interaction to prevent timeout
+      await btn.deferUpdate();
+
+      // Edit ephemeral message
+      await btn.editReply({
+        components: [...updatedCard],
+      });
+    }
+
   });
 }
 

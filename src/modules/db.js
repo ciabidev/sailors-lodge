@@ -45,9 +45,14 @@ async function setSettings(guildId, settings) {
 // create party
 async function createParty(name, description = "", visibility, memberLimit, owner) {
   const parties= getCollection("parties");
-  // generate a random 6 digit number
-  let joinCode = Math.floor(Math.random() * 1000000).toString().padStart(6, "0");
-  joinCode = joinCode.toString();
+  const joinCode = Array.from(
+    { length: 6 },
+    () =>
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[
+        Math.floor(Math.random() * 62)
+      ]
+  ).join("");
+
   const partyData = {
     name,
     description,
@@ -71,47 +76,51 @@ async function getPartyFromJoinCode(joinCode) {
   return parties.findOne({ joinCode: joinCode.toString() });
 }
 
-async function getParty(_id) {
+async function getParty(partyId) {
   const parties = getCollection("parties");
-  return parties.findOne({ _id });
+  return parties.findOne({ _id: partyId });
 }
 
-async function updateParty(_id, update, interaction) { // Also updates all partyCard discord messages
+async function updateParty(partyId, update, interaction) { // Also updates all partyCard discord messages
   const parties = getCollection("parties");
 
   if (!Object.keys(update).some((k) => k.startsWith("$"))) {
     throw new Error("updateParty requires MongoDB operators ($set, $push, etc)");
   }
 
-  await parties.updateOne({ _id }, update);
+  await parties.updateOne({ _id: partyId }, update);
 
   // Fetch the actual updated document
-  const party = await parties.findOne({ _id });
-  
-  for (const card of party.cards) {
-    try {
-      const channel = await interaction.client.channels.fetch(card.channelId);
-      const message = await channel.messages.fetch(card.messageId);
-      if (!message || typeof message.edit !== "function") continue; // skip invalid
-
-      await message.edit({ components: await interaction.client.modules.renderPartyCard(party, interaction) });
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  return party;
+  const party = await getParty(partyId);
+  await interaction.client.modules.updatePartyCards(interaction, party);
+  return party
 }
 
 
-async function addPartyCardMessage(party, card) {
+async function addPartyCardMessage(partyId, card) {
   const parties = getCollection("parties");
-  return parties.updateOne({ _id: party }, { $push: { cards: card } });
+  return parties.updateOne({ _id: partyId }, { $push: { cards: card } });
 }
+
+async function deleteParty(partyId, interaction) {
+  await updateParty(partyId, { $set: { deleted: true } }, interaction);
+  const party = await getParty(partyId);
+  await interaction.client.modules.updatePartyCards(interaction, party);
+}
+
+async function removeMemberFromParty(partyId, memberId, interaction) {
+  return updateParty(partyId, { $pull: { members: { id: memberId } } }, interaction);
+}
+
 
 async function getParties() {
   const parties = getCollection("parties");
-  return parties.find({}).toArray();
+  return parties.find({ deleted: { $ne: true }, 'members.0' : { $exists: true } }).toArray();
+}
+
+async function getCurrentParty(userId) {
+  const parties = getCollection("parties");
+  return parties.findOne({ members: { $elemMatch: { id: userId } } });
 }
 module.exports = {
   getParties,
@@ -122,4 +131,7 @@ module.exports = {
   updateParty,
   getPartyFromJoinCode,
   addPartyCardMessage,
+  getCurrentParty,
+  removeMemberFromParty,
+  deleteParty,
 };

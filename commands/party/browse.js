@@ -7,6 +7,8 @@ const {
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
+  SectionBuilder,
+  TextDisplayBuilder,
 } = require("discord.js");
 
 module.exports = {
@@ -45,9 +47,22 @@ module.exports = {
       );
 
       for (const party of page) {
+ 
         const { name, description, owner, members, memberLimit, visibility, joinCode } = party;
+        const joinButton = new ButtonBuilder()
+          .setCustomId(`join-party-${party.joinCode}`)
+          .setLabel("Join")
+          .setStyle(ButtonStyle.Success);
+       
+        container.addSectionComponents(
+          new SectionBuilder()
+            .setButtonAccessory(
+              joinButton
+            )
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent(`### ${name}`))
+        );
         container.addTextDisplayComponents(
-          (t) => t.setContent(`### ${name}`),
+         
           (t) =>
             t.setContent(
               `**Owner:** <@${owner.id}> | **Members:** ${members.length}/${memberLimit}`
@@ -80,7 +95,7 @@ module.exports = {
     const response = await interaction.reply({
       content: "",
       components: [mainText, pageSelector],
-      flags: MessageFlags.IsComponentsV2,
+      flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
       withResponse: true,
     });
 
@@ -91,7 +106,12 @@ module.exports = {
 
     collector.on("collect", async (i) => {
       if (i.user.id !== interaction.user.id) return;
-
+      if (i.customId.startsWith("join-party-")) {
+        const joinCode = i.customId.split("-")[2];
+        console.log(joinCode);
+        await interaction.client.modules.joinParty(interaction, joinCode);
+        return;
+      }
       if (i.customId === "previous-page") {
         pageIndex = (pageIndex - 1 + pages.length) % pages.length;
       } else if (i.customId === "next-page") {

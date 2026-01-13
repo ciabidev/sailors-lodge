@@ -13,7 +13,11 @@ module.exports = async function renderPartyCard(party, interaction) {
   const members = party.members.map((m) =>
     m.id === party.owner.id ? `👑 <@${m.id}> - ${m.username}` : `<@${m.id}> - ${m.username}`
   );
-
+  let deletedMessage = new TextDisplayBuilder().setContent("This party has been deleted.");
+  if (party.deleted) {
+    deletedMessage = new TextDisplayBuilder().setContent("This party has been deleted.");
+    return [deletedMessage];
+  }
   // Build the container for the party info
   const partyCard = new ContainerBuilder()
     .addTextDisplayComponents((t) => t.setContent(`# ${party.name}`))

@@ -9,13 +9,6 @@ module.exports = async function updatePartyCards(interaction, party) {
       
       if (!message || typeof message.edit !== "function") continue; // skip invalid
 
-      if (party.deleted) {
-        await message.edit({
-          components: [new TextDisplayBuilder().setContent("This party was deleted")],
-        });
-        continue;
-      }
-
       await message.edit({
         components: await interaction.client.modules.renderPartyCard(party, interaction),
       });

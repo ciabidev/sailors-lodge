@@ -1,5 +1,14 @@
 const { Events, MessageFlags } = require("discord.js");
+const {
+  ContainerBuilder,
+  SeparatorSpacingSize,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  TextDisplayBuilder,
+} = require("discord.js");
 
+const { issues } = require("../config.json");
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
@@ -24,9 +33,7 @@ module.exports = {
     const command = client.commands.get(interaction.commandName);
 
     if (!command) {
-      console.error(
-        `No command matching ${interaction.commandName} was found.`
-      );
+      console.error(`No command matching ${interaction.commandName} was found.`);
       return;
     }
 
@@ -42,9 +49,10 @@ module.exports = {
       if (error.code === 50001) {
         content = "I don't have access to this channel.";
       }
+ 
       const replyContent = {
-        content: "### Internal Error \n **Please report this to <@968622168302833735>** immediately \n ```" + content + "```",
-        flags: MessageFlags.Ephemeral,
+        content: `An error occurred while executing this command, please report this to us via our [issue board](${issues})\n\`\`\`${content}\`\`\``,
+        flags: [MessageFlags.Ephemeral],
       };
 
       if (interaction.replied || interaction.deferred) {

@@ -15,9 +15,9 @@ module.exports = {
     .addStringOption((option) =>
       option.setName("code").setDescription("The join code of the party").setRequired(true)
     ),
-
   async execute(interaction) {
     const joinCode = interaction.options.getString("code");
     await interaction.client.modules.joinParty(interaction, joinCode);
+    
   },
 };

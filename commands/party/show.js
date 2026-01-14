@@ -7,6 +7,7 @@ const {
   ComponentType,
   MessageFlags,
 } = require("discord.js");
+const e = require("express");
 
 // show the party card for your current party
 
@@ -29,12 +30,18 @@ module.exports = {
 
     let message;
 
-    if (interaction.deferred || interaction.replied) {
-      message = await interaction.followUp({
+    if (interaction.guildId !== null) { // command used in a server
+      await interaction.reply({
+        content: "Party card will be sent to you in DM",
+        flags: [MessageFlags.Ephemeral],
+      });
+      message = await interaction.user.send({
         components: [...partyCardComponents],
         flags: [MessageFlags.IsComponentsV2],
+        withResponse: true,
       });
     } else {
+      
       const response = await interaction.reply({
         components: [...partyCardComponents],
         flags: [MessageFlags.IsComponentsV2],
@@ -43,9 +50,9 @@ module.exports = {
 
       message = response.resource.message;
     }
-
     await interaction.client.modules.db.addPartyCardMessage(party._id, {
-      channelId: message.channelId,
+      channelId: message.channelId ?? null,
+      userId: interaction.user.id,
       messageId: message.id,
     });
 

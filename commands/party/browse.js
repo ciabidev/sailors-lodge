@@ -31,7 +31,7 @@ module.exports = {
 
     if (!parties.length) {
       await interaction.reply({
-        content: "No parties found.",
+        content: "No parties found. Create the first one with `/party create`.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -48,7 +48,7 @@ module.exports = {
 
       for (const party of page) {
  
-        const { name, description, owner, members, memberLimit, visibility, joinCode } = party;
+        const { name, description, host, members, memberLimit, visibility, joinCode } = party;
         const joinButton = new ButtonBuilder()
           .setCustomId(`join-party-${party.joinCode}`)
           .setLabel("Join")
@@ -65,10 +65,9 @@ module.exports = {
          
           (t) =>
             t.setContent(
-              `**Owner:** <@${owner.id}> | **Members:** ${members.length}/${memberLimit}`
+              `**Host:** <@${host.id}> | **Members:** ${members.length}/${memberLimit}`
             ),
-          (t) => t.setContent(`**Visibility:** ${visibility}`),
-          (t) => t.setContent(`**Description:** ${description || "No description"}`),
+          (t) => t.setContent(`**Description:** ${(description || "No description").length > 100 ? description.slice(0, 100) + "..." : description}`),
           (t) => t.setContent(`**Join Code:** ${joinCode}`)
         );
         container.addSeparatorComponents((s) =>

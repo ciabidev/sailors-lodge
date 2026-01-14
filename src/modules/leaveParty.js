@@ -13,6 +13,7 @@ async function leaveParty(interaction, partyId) {
   let party = await interaction.client.modules.db.getParty(partyId);
 
   async function dynamicReply(interaction, message) {
+    await interaction.deferReply();
     if (interaction.replied || interaction.deferred) {
       // Interaction already handled: update instead
       return interaction
@@ -39,7 +40,7 @@ async function leaveParty(interaction, partyId) {
   }
   party = await interaction.client.modules.db.getParty(party._id);
 
-  if (interaction.user.id === party.owner.id && party.members.length > 1) {
+  if (interaction.user.id === party.host.id && party.members.length > 1) {
     await dynamicReply(interaction, `You have left the party. The new party leader is ${party.members[0].username}.`);
   } else {
     await dynamicReply(interaction, "You have left the party.");
@@ -50,12 +51,12 @@ async function leaveParty(interaction, partyId) {
     return;
   }
 
-  // make the top member the new party leader if it was the owner that left
-  if (interaction.user.id === party.owner.id && party.members.length > 1) {
-    party.owner = party.members[0];
-    await interaction.client.modules.db.updateParty(party._id, { $set: { owner: party.owner } }, interaction);
+  // make the top member the new party leader if it was the host that left
+  if (interaction.user.id === party.host.id && party.members.length > 1) {
+    party.host = party.members[0];
+    await interaction.client.modules.db.updateParty(party._id, { $set: { host: party.host } }, interaction);
     await interaction.client.modules.sendPartyNotification(interaction, "", party, {
-      extra: party.owner.username + " is now the party leader.",
+      extra: party.host.username + " is now the party leader.",
     });
   }
 

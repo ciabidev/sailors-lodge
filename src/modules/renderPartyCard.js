@@ -9,13 +9,12 @@ const {
 
 module.exports = async function renderPartyCard(party, interaction) {
   if (!party || !party.members || !party.name) return [new TextDisplayBuilder().setContent("Invalid party, or this party has been deleted.")];
-  const isOwner = party.owner.id === interaction.user.id;
+  const isHost = party.host.id === interaction.user.id;
   const members = party.members.map((m) =>
-    m.id === party.owner.id ? `👑 <@${m.id}> - ${m.username}` : `<@${m.id}> - ${m.username}`
+    m.id === party.host.id ? `👑 <@${m.id}> - ${interaction.client.modules.escapeMarkdown(m.username)}` : `<@${m.id}> - ${interaction.client.modules.escapeMarkdown(m.username)}`
   );
-  let deletedMessage = new TextDisplayBuilder().setContent("This party has been deleted.");
+  let deletedMessage = new TextDisplayBuilder().setContent(`The party \`${interaction.client.modules.escapeMarkdown(party.name)}\` has been deleted.`);
   if (party.deleted) {
-    deletedMessage = new TextDisplayBuilder().setContent("This party has been deleted.");
     return [deletedMessage];
   }
   // Build the container for the party info
@@ -35,13 +34,13 @@ module.exports = async function renderPartyCard(party, interaction) {
     .setCustomId("party-edit")
     .setLabel("Edit")
     .setStyle(ButtonStyle.Secondary)
-    .setDisabled(!isOwner);
+    .setDisabled(!isHost);
 
   const deleteBtn = new ButtonBuilder()
     .setCustomId("party-delete")
     .setLabel("Delete")
     .setStyle(ButtonStyle.Danger)
-    .setDisabled(!isOwner);
+    .setDisabled(!isHost);
 
 
   const joinBtn = new ButtonBuilder()

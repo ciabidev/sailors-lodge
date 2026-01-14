@@ -43,7 +43,7 @@ async function setSettings(guildId, settings) {
 }
 
 // create party
-async function createParty(name, description = "", visibility, memberLimit, owner) {
+async function createParty(name, description = "", visibility, memberLimit, host) {
   const parties= getCollection("parties");
   const joinCode = Array.from(
     { length: 6 },
@@ -58,8 +58,8 @@ async function createParty(name, description = "", visibility, memberLimit, owne
     description,
     visibility,
     memberLimit,
-    owner,
-    members: [owner],
+    host,
+    members: [host],
     joinCode,
   };
 
@@ -103,6 +103,7 @@ async function addPartyCardMessage(partyId, card) {
 }
 
 async function deleteParty(partyId, interaction) {
+  await updateParty(partyId, { $set: { members: [] } }, interaction);
   await updateParty(partyId, { $set: { deleted: true } }, interaction);
   const party = await getParty(partyId);
   await interaction.client.modules.updatePartyCards(interaction, party);
@@ -113,21 +114,23 @@ async function removeMemberFromParty(partyId, memberId, interaction) {
 }
 
 
-async function getParties() {
+async function getParties(filters = {}) {
   const parties = getCollection("parties");
-  return parties
-    .find({
-      deleted: { $ne: true },
-      members: { $type: "array", $ne: [] }, // only arrays with length > 0
-      memberLimit: { $type: "number" }, // ensure memberLimit is numeric
-      $expr: {
-        $lt: [{ $size: "$members" }, "$memberLimit"], // member count < limit
-      },
-    })
-    .toArray();
+
+  // Define mandatory constraints
+  const baseQuery = {
+    deleted: { $ne: true },
+    members: { $type: "array", $ne: [] },
+    memberLimit: { $type: "number" },
+    $expr: { $lt: [{ $size: "$members" }, "$memberLimit"] },
+  };
+
+  // Merge custom filters into the base query
+  const finalQuery = { ...baseQuery, ...filters };
+
+  // Use the [MongoDB find() method](www.mongodb.com)
+  return parties.find(finalQuery).toArray();
 }
-
-
 
 async function getCurrentParty(userId) {
   const parties = getCollection("parties");

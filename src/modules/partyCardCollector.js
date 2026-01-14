@@ -20,9 +20,9 @@ async function partyCardCollector(interaction, party, message) {
   });
 
   collector.on("collect", async (btn) => {
-    // EDIT button (owner only)
+    // EDIT button (host only)
     if (btn.customId === "party-edit") {
-      if (btn.user.id !== party.owner.id) {
+      if (btn.user.id !== party.host.id) {
         return btn.reply({ content: "Only the party leader can edit.", ephemeral: true });
       }
 
@@ -35,13 +35,13 @@ async function partyCardCollector(interaction, party, message) {
           limit: party.memberLimit || 10,
           visibility: party.visibility || "public",
         },
-        interaction
       );
 
       const editModal = await btn.awaitModalSubmit({
-        filter: (i) => i.customId === "party-modal" && i.user.id === party.owner.id,
+        filter: (i) => i.customId === "party-modal" && i.user.id === party.host.id,
         time: 60_000,
       });
+      await editModal.update({ components: await interaction.client.modules.renderPartyCard(party, interaction) }); // editModal is so impatient for a response lol so we have to put it before the long updateParty 
 
       party = await interaction.client.modules.db.updateParty(
         party._id,
@@ -53,19 +53,17 @@ async function partyCardCollector(interaction, party, message) {
             visibility: editModal.fields.getStringSelectValues("visibility")[0],
           },
         },
-        interaction
+        btn
       );
-
-      await editModal.update({ components: await interaction.client.modules.renderPartyCard(party, interaction) });
     }
 
-    // DELETE button (owner only)
+    // DELETE button (host only)
     if (btn.customId === "party-delete") {
-      if (btn.user.id !== party.owner.id) {
+      if (btn.user.id !== party.host.id) {
         return btn.reply({ content: "Only the party leader can delete.", ephemeral: true });
       }
 
-      await interaction.client.modules.db.deleteParty(party._id, interaction);
+      await interaction.client.modules.db.deleteParty(party._id, btn);
       collector.stop();
     }
 

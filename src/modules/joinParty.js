@@ -7,7 +7,7 @@ const {
   ComponentType,
   MessageFlags,
 } = require("discord.js");
-async function joinParty(interaction, joinCode, ephemeral = true) {
+async function joinParty(interaction, joinCode) {
   let party = await interaction.client.modules.db.getPartyFromJoinCode(joinCode);
 
   async function dynamicReply(interaction, message) {
@@ -30,7 +30,11 @@ async function joinParty(interaction, joinCode, ephemeral = true) {
     return dynamicReply(interaction, "You are already a member of this party.");
   if (party.members.length >= party.memberLimit)
     return dynamicReply(interaction, "This party is full.");
-
+  // check if the user is already in a party
+  const currentParty = await interaction.client.modules.db.getCurrentParty(interaction.user.id);
+  if (currentParty) {
+    return dynamicReply(interaction, "You are already in a party.");
+  }
   // ---- ADD USER TO PARTY ----
   party.members.push(interaction.user);
   await interaction.client.modules.db.updateParty(
@@ -44,24 +48,26 @@ async function joinParty(interaction, joinCode, ephemeral = true) {
   });
 
   const partyCardComponents = await interaction.client.modules.renderPartyCard(party, interaction);
-
+  
   let message;
-  const flags = MessageFlags.IsComponentsV2 | (ephemeral ? MessageFlags.Ephemeral : 0);
   if (interaction.deferred || interaction.replied) {
-    message = await interaction.followUp({
+    message = await interaction.user.send({
       components: [...partyCardComponents],
-      flags: [flags],
+      flags: [MessageFlags.IsComponentsV2 ],
     });
   } else {
     const response = await interaction.reply({
       components: [...partyCardComponents],
-      flags: [flags],
+      flags: [MessageFlags.IsComponentsV2],
       withResponse: true,
     });
 
     message = response.resource.message;
   }
-
+  await interaction.client.modules.db.addPartyCardMessage(party._id, {
+    channelId: message.channelId,
+    messageId: message.id,
+  });
   await interaction.client.modules.partyCardCollector(interaction, party, message);
 
 }

@@ -29,6 +29,7 @@ module.exports = async function renderPartyCard(party, interaction) {
     )
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents((t) => t.setContent(`Join Code: ${party.joinCode}`));
+  
   // Create buttons
   const editBtn = new ButtonBuilder()
     .setCustomId("party-edit")
@@ -40,23 +41,33 @@ module.exports = async function renderPartyCard(party, interaction) {
     .setLabel("Delete")
     .setStyle(ButtonStyle.Danger)
 
-
   const joinBtn = new ButtonBuilder()
     .setCustomId("party-join")
     .setLabel("Join")
     .setStyle(ButtonStyle.Success);
     
- const leaveBtn = new ButtonBuilder()
-   .setCustomId("party-leave")
-   .setLabel("Leave")
-   .setStyle(ButtonStyle.Danger);
+  const leaveBtn = new ButtonBuilder()
+    .setCustomId("party-leave")
+    .setLabel("Leave")
+    .setStyle(ButtonStyle.Danger);
 
- const refreshBtn = new ButtonBuilder()
-   .setCustomId("party-refresh")
-   .setLabel("Refresh")
-   .setStyle(ButtonStyle.Secondary);
+  const refreshBtn = new ButtonBuilder()
+    .setCustomId("party-refresh")
+    .setLabel("Refresh")
+    .setStyle(ButtonStyle.Secondary);
 
-  const row = new ActionRowBuilder().addComponents(editBtn, deleteBtn, joinBtn, leaveBtn, refreshBtn);
+  const manageBtn = new ButtonBuilder()
+    .setCustomId("party-manage")
+    .setLabel("Manage Members")
+    .setStyle(ButtonStyle.Secondary);
+
+  // Host can see all buttons, others see limited buttons
+  let row;
+  if (isHost) {
+    row = new ActionRowBuilder().addComponents(editBtn, deleteBtn, manageBtn, refreshBtn);
+  } else {
+    row = new ActionRowBuilder().addComponents(joinBtn, leaveBtn, refreshBtn);
+  }
 
   // Return as an object ready to send in a message
   return [partyCard, row];

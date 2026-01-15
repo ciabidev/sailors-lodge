@@ -13,7 +13,7 @@ module.exports = async function renderPartyCard(party, interaction) {
   const members = party.members.map((m) =>
     m.id === party.host.id ? `👑 <@${m.id}> - ${interaction.client.modules.escapeMarkdown(m.username)}` : `<@${m.id}> - ${interaction.client.modules.escapeMarkdown(m.username)}`
   );
-  let deletedMessage = new TextDisplayBuilder().setContent(`The party \`${interaction.client.modules.escapeMarkdown(party.name)}\` has been deleted.`);
+  let deletedMessage = new TextDisplayBuilder().setContent(`The party "${interaction.client.modules.escapeMarkdown(party.name)}" has been deleted.`);
   if (party.deleted) {
     return [deletedMessage];
   }
@@ -34,13 +34,11 @@ module.exports = async function renderPartyCard(party, interaction) {
     .setCustomId("party-edit")
     .setLabel("Edit")
     .setStyle(ButtonStyle.Secondary)
-    .setDisabled(!isHost);
 
   const deleteBtn = new ButtonBuilder()
     .setCustomId("party-delete")
     .setLabel("Delete")
     .setStyle(ButtonStyle.Danger)
-    .setDisabled(!isHost);
 
 
   const joinBtn = new ButtonBuilder()

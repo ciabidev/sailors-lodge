@@ -22,8 +22,9 @@ async function partyCardCollector(interaction, party, message) {
   collector.on("collect", async (btn) => {
     // EDIT button (host only)
     if (btn.customId === "party-edit") {
+
       if (btn.user.id !== party.host.id) {
-        return btn.reply({ content: "Only the party leader can edit.", ephemeral: true });
+        return btn.reply({ content: "Only the party leader can edit." });
       }
 
       // Open modal for editing
@@ -60,10 +61,10 @@ async function partyCardCollector(interaction, party, message) {
     // DELETE button (host only)
     if (btn.customId === "party-delete") {
       if (btn.user.id !== party.host.id) {
-        return btn.reply({ content: "Only the party leader can delete.", ephemeral: true });
+        return btn.reply({ content: "Only the party leader can delete." });
       }
 
-      await interaction.client.modules.db.deleteParty(party._id, btn);
+      await interaction.client.modules.deleteParty(btn, party);
       collector.stop();
     }
 

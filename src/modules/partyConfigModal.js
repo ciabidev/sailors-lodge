@@ -24,7 +24,8 @@ module.exports = async function partyConfigModal(interaction, defaults = {}) {
               .setCustomId("name")
               .setStyle(TextInputStyle.Short)
               .setValue(defaults.name ?? `${interaction.user.username}'s party`)
-          )
+              .setMaxLength(150)
+            )
         )
         .addLabelComponents(
           new LabelBuilder().setLabel("Description").setTextInputComponent(
@@ -33,6 +34,7 @@ module.exports = async function partyConfigModal(interaction, defaults = {}) {
               .setStyle(TextInputStyle.Paragraph)
               .setValue(defaults.description ?? "")
               .setRequired(false)
+              .setMaxLength(1000)
           )
         )
         .addLabelComponents(
@@ -41,6 +43,7 @@ module.exports = async function partyConfigModal(interaction, defaults = {}) {
               .setCustomId("limit")
               .setStyle(TextInputStyle.Short)
               .setValue(String(defaults.limit ?? 10))
+              .setMaxLength(3)
           )
         )
         .addLabelComponents(

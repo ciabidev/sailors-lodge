@@ -21,23 +21,18 @@ module.exports = async function deleteParty(interaction, party) {
 
 
     const deleteBtn = new ButtonBuilder()
-      .setCustomId("party-delete-confirm")
+      .setCustomId(`party-delete-confirm:${party._id}`)
       .setLabel("Yes")
       .setStyle(ButtonStyle.Danger);
 
     const cancelBtn = new ButtonBuilder()
-      .setCustomId("party-delete-cancel")
+      .setCustomId(`party-delete-cancel:${party._id}`)
       .setLabel("No")
       .setStyle(ButtonStyle.Secondary);
 
     const row = new ActionRowBuilder().addComponents(deleteBtn, cancelBtn);
     
-    const response = await interaction.deferReply({
-      flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
-      withResponse: true,
-    });
-
-    await interaction.editReply({
+    await interaction.reply({
       components: [ new TextDisplayBuilder().setContent(
       `Are you sure you want to delete the party "${interaction.client.modules.escapeMarkdown(party.name)}"?`
     ),
@@ -45,26 +40,5 @@ module.exports = async function deleteParty(interaction, party) {
       flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
       withResponse: true,
     });
-    const message = response.resource.message;
-    const collector = message.createMessageComponentCollector({
-      componentType: ComponentType.Button,
-      time: 60_000,
-    });
-
-    collector.on("collect", async (i) => {
-      if (i.user.id !== interaction.user.id) return;
-      if (i.customId === "party-delete-confirm") {
-        await interaction.client.modules.db.deleteParty(party._id, interaction);
-        collector.stop();
-        return interaction.editReply({
-          components: [new TextDisplayBuilder().setContent("Party deleted.")],  
-        });
-      }
-      if (i.customId === "party-delete-cancel") {
-        collector.stop();
-        return interaction.editReply({
-          components: [new TextDisplayBuilder().setContent("Cancelled.")],
-        });
-      }
-    });
+  
   };

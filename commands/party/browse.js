@@ -6,10 +6,11 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ComponentType,
   SectionBuilder,
   TextDisplayBuilder,
 } = require("discord.js");
+
+const browsePages = new Map(); // Keeps per-user page state
 
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
@@ -38,38 +39,46 @@ module.exports = {
     }
 
     const pages = interaction.client.modules.chunkArray(parties, 3);
-    let pageIndex = 0;
+    const pageIndex = 0;
 
-    function renderPage() {
-      const page = pages[pageIndex];
+    function renderPage(pageIdx) {
+      const page = pages[pageIdx];
       const container = new ContainerBuilder().addTextDisplayComponents((t) =>
-        t.setContent(`## Browse Parties (Page ${pageIndex + 1}/${pages.length})`)
+        t.setContent(`## Browse Parties (Page ${pageIdx + 1}/${pages.length})`)
       );
 
       for (const party of page) {
- 
-        const { name, description, host, members, memberLimit, visibility, joinCode } = party;
+        const { name, description, host, members, memberLimit, joinCode, _id } = party;
+
         const joinButton = new ButtonBuilder()
-          .setCustomId(`join-party-${party.joinCode}`)
+          .setCustomId(`party-join:${_id}`)
           .setLabel("Join")
           .setStyle(ButtonStyle.Success);
-       
+
         container.addSectionComponents(
           new SectionBuilder()
-            .setButtonAccessory(
-              joinButton
+            .setButtonAccessory(joinButton)
+            .addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(
+                `### ${interaction.client.modules.escapeMarkdown(name)}`
+              )
             )
-            .addTextDisplayComponents(new TextDisplayBuilder().setContent(`### ${name}`))
         );
+
         container.addTextDisplayComponents(
-         
+          (t) =>
+            t.setContent(`**Host:** <@${host.id}> | **Members:** ${members.length}/${memberLimit}`),
           (t) =>
             t.setContent(
-              `**Host:** <@${host.id}> | **Members:** ${members.length}/${memberLimit}`
+              `**Description:** ${
+                (description || "No description").length > 100
+                  ? description.slice(0, 100) + "..."
+                  : description
+              }`
             ),
-          (t) => t.setContent(`**Description:** ${(description || "No description").length > 100 ? description.slice(0, 100) + "..." : description}`),
           (t) => t.setContent(`**Join Code:** ${joinCode}`)
         );
+
         container.addSeparatorComponents((s) =>
           s.setDivider(true).setSpacing(SeparatorSpacingSize.Large)
         );
@@ -78,46 +87,32 @@ module.exports = {
       return container;
     }
 
-    const mainText = renderPage();
-
     const previousPageButton = new ButtonBuilder()
-      .setCustomId("previous-page")
+      .setCustomId("parties-previous-page")
       .setLabel("Previous Page")
       .setStyle(ButtonStyle.Secondary);
+
     const nextPageButton = new ButtonBuilder()
-      .setCustomId("next-page")
+      .setCustomId("parties-next-page")
       .setLabel("Next Page")
       .setStyle(ButtonStyle.Secondary);
+
     const pageSelector = new ActionRowBuilder().addComponents(previousPageButton, nextPageButton);
 
-    // Reply directly (no defer)
-    const response = await interaction.reply({
+    // Send initial reply
+    await interaction.reply({
       content: "",
-      components: [mainText, pageSelector],
+      components: [renderPage(pageIndex), pageSelector],
       flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
-      withResponse: true,
     });
 
-    const collector = response.resource.message.createMessageComponentCollector({
-      componentType: ComponentType.Button,
-      time: 3_600_000,
-    });
-
-    collector.on("collect", async (i) => {
-      if (i.user.id !== interaction.user.id) return;
-      if (i.customId.startsWith("join-party-")) {
-        const joinCode = i.customId.split("-")[2];
-        console.log(joinCode);
-        await interaction.client.modules.joinParty(interaction, joinCode);
-        return;
-      }
-      if (i.customId === "previous-page") {
-        pageIndex = (pageIndex - 1 + pages.length) % pages.length;
-      } else if (i.customId === "next-page") {
-        pageIndex = (pageIndex + 1) % pages.length;
-      }
-
-      await i.update({ components: [renderPage(), pageSelector] });
+    // Save state for this user
+    browsePages.set(interaction.user.id, {
+      pages,
+      pageIndex,
+      pageSelector,
     });
   },
+
+  browsePages, // Export the Map so InteractionCreate can access it
 };

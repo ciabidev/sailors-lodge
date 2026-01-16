@@ -1,75 +1,85 @@
-const {
-  SlashCommandSubcommandBuilder,
-  TextDisplayBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ComponentType,
-  MessageFlags,
-} = require("discord.js");
+const { TextDisplayBuilder, MessageFlags } = require("discord.js");
+
 async function joinParty(interaction, joinCode) {
-  let party = await interaction.client.modules.db.getPartyFromJoinCode(joinCode);
-
-  async function dynamicReply(interaction, message) {
-    if (interaction.replied || interaction.deferred) {
-      // Interaction already handled: update instead
-      return interaction
-        .editReply({
-          components: [new TextDisplayBuilder().setContent(message)],
-        })
-        .catch(() => {});
-    } else {
-      return interaction.reply({
-        components: [new TextDisplayBuilder().setContent(message)],
-        flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
-      });
-    }  }
-
-  if (!party) return dynamicReply(interaction, "Invalid join code.");
-  if (party.members.some((m) => m.id === interaction.user.id))
-    return dynamicReply(interaction, "You are already a member of this party.");
-  if (party.members.length >= party.memberLimit)
-    return dynamicReply(interaction, "This party is full.");
-  // check if the user is already in a party
-  const currentParty = await interaction.client.modules.db.getCurrentParty(interaction.user.id);
-  if (currentParty) {
-    return dynamicReply(interaction, "You are already in a party.");
+  const db = interaction.client.modules.db;
+    // Fetch party
+  let party = await db.getPartyFromJoinCode(joinCode);
+  if (!party) {
+    return interaction.reply({
+      components: [new TextDisplayBuilder().setContent("Invalid join code.")],
+      flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
+    });
   }
-  // ---- ADD USER TO PARTY ----
-  party.members.push(interaction.user);
-  await interaction.client.modules.db.updateParty(
-    party._id,
-    { $set: { members: party.members } },
-    interaction
-  );
+  // check if the party was deleted 
+  if (party.deleted) {
+    return interaction.reply({
+      components: [new TextDisplayBuilder().setContent("This party has been deleted.")],
+      flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
+    });
+  }
+  // Check if user already in party
+  if (party.members.some((m) => m.id === interaction.user.id)) {
+    return interaction.reply({
+      components: [new TextDisplayBuilder().setContent("You are already a member of this party.")],
+      flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
+    });
+  }
 
+  // Check party limit
+  if (party.members.length >= party.memberLimit) {
+    return interaction.reply({
+      components: [new TextDisplayBuilder().setContent("This party is full.")],
+      flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
+    });
+  }
+
+  // Check if user is already in another party
+  const currentParty = await db.getCurrentParty(interaction.user.id);
+  if (currentParty) {
+    return interaction.reply({
+      components: [new TextDisplayBuilder().setContent("You are already in a party.")],
+      flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
+    });
+  }
+
+  // Add user to party
+  party.members.push({ id: interaction.user.id, username: interaction.user.username });
+  await db.updateParty(party._id, { $set: { members: party.members } }, interaction);
+
+  // Send join notification
   await interaction.client.modules.sendPartyNotification(interaction, "join", party, {
     user: interaction.user,
   });
 
+  // Render the party card components
   const partyCardComponents = await interaction.client.modules.renderPartyCard(party, interaction);
-  
+
   let message;
-  if (interaction.deferred || interaction.replied) {
-    message = await interaction.user.send({
-      components: [...partyCardComponents],
-      flags: [MessageFlags.IsComponentsV2 ],
-    });
-  } else {
-    const response = await interaction.reply({
-      components: [...partyCardComponents],
-      flags: [MessageFlags.IsComponentsV2],
-      withResponse: true,
+  if (interaction.guildId) {
+    // Server: ephemeral confirmation + persistent DM
+    await interaction.reply({
+      components: [new TextDisplayBuilder().setContent("Party card will be sent to you in DM")],
+      flags: [MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral],
     });
 
-    message = response.resource.message;
+    // Send persistent card in DM
+    message = await interaction.user.send({
+      components: [...partyCardComponents],
+      flags: [MessageFlags.IsComponentsV2], // persistent
+    });
+  } else {
+    // DM context: persistent card directly
+    message = await interaction.reply({
+      components: [...partyCardComponents],
+      flags: [MessageFlags.IsComponentsV2], // persistent
+    });
   }
-  await interaction.client.modules.db.addPartyCardMessage(party._id, {
+  // Store party card in DB
+  await db.addPartyCardMessage(party._id, {
     channelId: message.channelId,
     messageId: message.id,
   });
-  await interaction.client.modules.partyCardCollector(interaction, party, message);
-
+  await interaction.client.modules.updatePartyCards(interaction, party);
 }
 
 module.exports = joinParty;

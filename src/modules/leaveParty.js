@@ -9,58 +9,78 @@ const {
 } = require("discord.js");
 
 // leave the current party you're in
-async function leaveParty(interaction, partyId) {
-  let party = await interaction.client.modules.db.getParty(partyId);
+// leave the current party you're in
+async function leaveParty(interaction, party) {
 
-  async function dynamicReply(interaction, message) {
-    await interaction.deferReply();
-    if (interaction.replied || interaction.deferred) {
-      // Interaction already handled: update instead
-      return interaction
-        .editReply({
-          components: [new TextDisplayBuilder().setContent(message)],
-          flags: [MessageFlags.IsComponentsV2]
-        })
-        .catch(() => {});
-    } else {
-      return interaction.reply({
-        components: [new TextDisplayBuilder().setContent(message)],
-        flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
-      });
-    }
-  }
+  const db = interaction.client.modules.db;
 
-  if (party.members.some((m) => m.id === interaction.user.id)) {
-      await interaction.client.modules.sendPartyNotification(interaction, "leave", party, {
-        user: interaction.user,
-      });
-    await interaction.client.modules.db.removeMemberFromParty(party._id, interaction.user.id, interaction);
-  } else {
-    return dynamicReply(interaction, "You are not a member of this party.");
-  }
-  party = await interaction.client.modules.db.getParty(party._id);
-
-  if (interaction.user.id === party.host.id && party.members.length > 1) {
-    await dynamicReply(interaction, `You have left the party. The new party leader is ${party.members[0].username}.`);
-  } else {
-    await dynamicReply(interaction, "You have left the party.");
-  }
-  
-  if (party.members.length === 0) {
-    await interaction.client.modules.db.deleteParty(party._id, interaction);
+  if (!party) {
+    await interaction.reply({
+      content: "This party no longer exists.",
+      ephemeral: true,
+    });
     return;
   }
 
-  // make the top member the new party leader if it was the host that left
-  if (interaction.user.id === party.host.id && party.members.length > 1) {
-    party.host = party.members[0];
-    await interaction.client.modules.db.updateParty(party._id, { $set: { host: party.host } }, interaction);
-    await interaction.client.modules.sendPartyNotification(interaction, "", party, {
-      extra: party.host.username + " is now the party leader.",
+  const userId = interaction.user.id;
+  const isMember = party.members.some(m => m.id === userId);
+
+  if (!isMember) {
+    await interaction.reply({
+      content: "You are not a member of this party.",
+      ephemeral: true,
     });
+    return;
   }
 
+  // notify before mutation if required by your design
+  await interaction.client.modules.sendPartyNotification(
+    interaction,
+    "leave",
+    party,
+    { user: interaction.user }
+  );
+
+  await db.removeMemberFromParty(party._id, userId, interaction);
+
+  party = await db.getParty(party._id);
+  if (!party) return;
+
+  let feedback = "You have left the party.";
+
+  if (party.host.id === userId) {
+    if (party.members.length === 0) {
+      await db.deleteParty(party._id, interaction);
+      await interaction.reply({
+        content: "You left the party. The party has been disbanded.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const newHost = party.members[0];
+    await db.updateParty(party._id, {
+      $set: { host: newHost },
+    }, interaction);
+
+    await interaction.client.modules.sendPartyNotification(
+      interaction,
+      "",
+      party,
+      { extra: `${newHost.username} is now the party leader.` }
+    );
+
+    feedback = `You have left the party. The new party leader is ${newHost.username}.`;
+  }
+
+  await interaction.reply({
+    content: feedback,
+    ephemeral: true,
+  });
+
+  await interaction.client.modules.updatePartyCards(interaction, party);
 }
+
 
 module.exports = leaveParty;
 

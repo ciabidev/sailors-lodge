@@ -55,7 +55,5 @@ module.exports = {
       userId: interaction.user.id,
       messageId: message.id,
     });
-
-    await interaction.client.modules.partyCardCollector(interaction, party, message);
   },
 };

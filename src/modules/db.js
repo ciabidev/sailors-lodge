@@ -92,7 +92,6 @@ async function updateParty(partyId, update, interaction) { // Also updates all p
 
   // Fetch the actual updated document
   const party = await getParty(partyId);
-  await interaction.client.modules.updatePartyCards(interaction, party);
   return party
 }
 

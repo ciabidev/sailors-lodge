@@ -1,7 +1,6 @@
 module.exports = async function sendPartyNotification(interaction, type, party, options = {}) {
   let emoji, actionText;
   const now = Math.floor(Date.now() / 1000);
-  console.log(options);
   switch (type) {
     case "join":
       emoji = "🟢";

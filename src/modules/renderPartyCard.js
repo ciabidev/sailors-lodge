@@ -9,7 +9,6 @@ const {
 
 module.exports = async function renderPartyCard(party, interaction) {
   if (!party || !party.members || !party.name) return [new TextDisplayBuilder().setContent("Invalid party, or this party has been deleted.")];
-  const isHost = party.host.id === interaction.user.id;
   const members = party.members.map((m) =>
     m.id === party.host.id ? `👑 <@${m.id}> - ${interaction.client.modules.escapeMarkdown(m.username)}` : `<@${m.id}> - ${interaction.client.modules.escapeMarkdown(m.username)}`
   );
@@ -31,28 +30,28 @@ module.exports = async function renderPartyCard(party, interaction) {
     .addTextDisplayComponents((t) => t.setContent(`Join Code: ${party.joinCode}`));
   // Create buttons
   const editBtn = new ButtonBuilder()
-    .setCustomId("party-edit")
+    .setCustomId(`party-edit:${party._id}`)
     .setLabel("Edit")
     .setStyle(ButtonStyle.Secondary)
 
   const deleteBtn = new ButtonBuilder()
-    .setCustomId("party-delete")
+    .setCustomId(`party-delete:${party._id}`)
     .setLabel("Delete")
     .setStyle(ButtonStyle.Danger)
 
 
   const joinBtn = new ButtonBuilder()
-    .setCustomId("party-join")
+    .setCustomId(`party-join:${party._id}`)
     .setLabel("Join")
     .setStyle(ButtonStyle.Success);
     
  const leaveBtn = new ButtonBuilder()
-   .setCustomId("party-leave")
+   .setCustomId(`party-leave:${party._id}`)
    .setLabel("Leave")
    .setStyle(ButtonStyle.Danger);
 
  const refreshBtn = new ButtonBuilder()
-   .setCustomId("party-refresh")
+   .setCustomId(`party-card-refresh:${party._id}`)
    .setLabel("Refresh")
    .setStyle(ButtonStyle.Secondary);
 

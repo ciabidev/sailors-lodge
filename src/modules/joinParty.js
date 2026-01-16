@@ -68,6 +68,8 @@ async function joinParty(interaction, joinCode) {
     channelId: message.channelId,
     messageId: message.id,
   });
+  await interaction.client.modules.partyCardCollector(interaction, party, message);
+
 }
 
 module.exports = joinParty;

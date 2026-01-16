@@ -114,7 +114,7 @@ async function removeMemberFromParty(partyId, memberId, interaction) {
 }
 
 
-async function getParties(filters = {}, userId = null) {
+async function getParties(filters = {}) {
   const parties = getCollection("parties");
 
   // Define mandatory constraints
@@ -124,11 +124,6 @@ async function getParties(filters = {}, userId = null) {
     memberLimit: { $type: "number" },
     $expr: { $lt: [{ $size: "$members" }, "$memberLimit"] },
   };
-
-  // If userId is provided, exclude parties where user is banned
-  if (userId) {
-    baseQuery.banned = { $not: { $elemMatch: { $eq: userId } } };
-  }
 
   // Merge custom filters into the base query
   const finalQuery = { ...baseQuery, ...filters };
@@ -153,5 +148,4 @@ module.exports = {
   getCurrentParty,
   removeMemberFromParty,
   deleteParty,
-
 };

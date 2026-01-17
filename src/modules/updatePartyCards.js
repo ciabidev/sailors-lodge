@@ -52,6 +52,18 @@ module.exports = async function updatePartyCards(interaction, party) {
 
           if (!message?.edit) return;
 
+          // If user is no longer in the party
+          const isMember = party.members.some((m) => m.id === card.userId);
+          if (!isMember) {
+            const textCard = new TextDisplayBuilder().setContent(
+              `You left the party "${party.name}".`,
+            );
+            await message.edit({ components: [textCard] });
+            await interaction.client.modules.db.removePartyCardMessage(card.messageId);
+            return;
+          }
+
+          // Otherwise, update normally
           await message.edit({ components });
         } catch (err) {
           console.error(

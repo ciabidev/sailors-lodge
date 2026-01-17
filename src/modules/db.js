@@ -108,9 +108,18 @@ async function deleteParty(partyId, interaction) {
   await interaction.client.modules.updatePartyCards(interaction, party);
 }
 
-async function removeMemberFromParty(partyId, memberId, interaction) {
-  return updateParty(partyId, { $pull: { members: { id: memberId } } }, interaction);
+async function removeMembersFromParty(partyId, memberIds, interaction) {
+  const party = await getParty(partyId);
+
+  // Remove the member(s) by matching their id
+party.members = party.members.filter((m) => !memberIds.includes(m.id));
+
+  console.log(party.members); // should no longer include the removed member
+
+  return await updateParty(party._id, { $set: { members: party.members } }, interaction);
+
 }
+
 
 
 async function getParties(filters = {}) {
@@ -135,6 +144,11 @@ async function getCurrentParty(userId) {
   const parties = getCollection("parties");
   return parties.findOne({ members: { $elemMatch: { id: userId } } });
 }
+
+async function removePartyCardMessage(messageId) { 
+  const parties = getCollection("parties");
+  return parties.updateOne({ cards: { $elemMatch: { messageId } } }, { $pull: { cards: { messageId } } });
+}
 module.exports = {
   getParties,
   initDb,
@@ -145,6 +159,7 @@ module.exports = {
   getPartyFromJoinCode,
   addPartyCardMessage,
   getCurrentParty,
-  removeMemberFromParty,
+  removeMembersFromParty,
   deleteParty,
+  removePartyCardMessage,
 };

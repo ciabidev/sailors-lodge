@@ -54,6 +54,7 @@ module.exports = {
       channelId: message.channelId,
       userId: interaction.user.id,
       messageId: message.id,
+      guildId: interaction.guildId,
     });
   },
 };

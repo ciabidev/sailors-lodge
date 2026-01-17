@@ -76,6 +76,7 @@ module.exports = {
               channelId: message.channelId,
               messageId: message.id,
               userId: interaction.user.id,
+              guildId: interaction.guildId,
             });
           } else {
             // EDIT branch

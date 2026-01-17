@@ -17,7 +17,7 @@ module.exports = async function partyConfigModal(interaction, defaults = {}, cus
     interaction.showModal(
       new ModalBuilder()
         .setCustomId(customId)
-        .setTitle("Party Creation") // 
+        .setTitle("Configure your party") // 
         .addLabelComponents(
           new LabelBuilder().setLabel("Party Name").setTextInputComponent(
             new TextInputBuilder()

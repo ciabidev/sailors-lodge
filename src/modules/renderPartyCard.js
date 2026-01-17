@@ -29,16 +29,6 @@ module.exports = async function renderPartyCard(party, interaction) {
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents((t) => t.setContent(`Join Code: ${party.joinCode}`));
   // Create buttons
-  const editBtn = new ButtonBuilder()
-    .setCustomId(`party-edit:${party._id}`)
-    .setLabel("Edit")
-    .setStyle(ButtonStyle.Secondary)
-
-  const deleteBtn = new ButtonBuilder()
-    .setCustomId(`party-delete:${party._id}`)
-    .setLabel("Delete")
-    .setStyle(ButtonStyle.Danger)
-
 
   const joinBtn = new ButtonBuilder()
     .setCustomId(`party-join:${party._id}`)
@@ -55,7 +45,7 @@ module.exports = async function renderPartyCard(party, interaction) {
    .setLabel("Refresh")
    .setStyle(ButtonStyle.Secondary);
 
-  const row = new ActionRowBuilder().addComponents(editBtn, deleteBtn, joinBtn, leaveBtn, refreshBtn);
+  const row = new ActionRowBuilder().addComponents(joinBtn, leaveBtn, refreshBtn);
 
   // Return as an object ready to send in a message
   return [partyCard, row];

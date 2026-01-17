@@ -1,14 +1,14 @@
 // Make sure to run node deploy-commands.js in the same directory as your bot's source code!
 
+require('dotenv').config();
 const { REST, Routes, SlashCommandSubcommandBuilder, SlashCommandBuilder } = require("discord.js");
-const {
-  guildId,
-  devMode,
-  productionToken,
-  devToken,
-  productionClientId,
-  devClientId,
-} = require("./config.json");
+
+const guildId = process.env.GUILD_ID;
+const devMode = process.env.DEV_MODE === 'true';
+const productionToken = process.env.PRODUCTION_TOKEN;
+const devToken = process.env.DEV_TOKEN;
+const productionClientId = process.env.PRODUCTION_CLIENT_ID;
+const devClientId = process.env.DEV_CLIENT_ID;
 
 console.log("dev mode: " + devMode);
 

@@ -1,9 +1,5 @@
-const { TextDisplayBuilder } = require("discord.js");
-
 module.exports = async function updatePartyCards(interaction, party) {
   if (!party?.cards?.length) return;
-
-  const components = await interaction.client.modules.renderPartyCard(party, interaction);
 
   const BATCH_SIZE = 10;
 
@@ -52,18 +48,22 @@ module.exports = async function updatePartyCards(interaction, party) {
 
           if (!message?.edit) return;
 
-          // If user is no longer in the party
-          const isMember = party.members.some((m) => m.id === card.userId);
-          if (!isMember) {
-            const textCard = new TextDisplayBuilder().setContent(
-              `You left the party "${party.name}".`,
-            );
-            await message.edit({ components: [textCard] });
+          // Render the current party card for this user
+          const components = await interaction.client.modules.renderPartyCard(
+            party,
+            interaction,
+            card.userId,
+          );
+
+          // If the party is deleted or the user left, remove the message from the DB
+          if (
+            party.deleted ||
+            (party.members && !party.members.some((m) => m.id === card.userId))
+          ) {
             await interaction.client.modules.db.removePartyCardMessage(card.messageId);
-            return;
           }
 
-          // Otherwise, update normally
+          // Edit the message with the latest card
           await message.edit({ components });
         } catch (err) {
           console.error(

@@ -16,12 +16,13 @@ app.listen(process.env.PORT || 3000, () => {
 // INDEX.JS COPY PASTE TEMPLATE
 
 // Require the necessary discord.js classes
+require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
-const { devMode, devToken, productionToken, productionClientId, devClientId } = require('./config.json');
 
-const token = devMode === true ? devToken : productionToken;
+const devMode = process.env.DEV_MODE === 'true';
+const token = devMode === true ? process.env.DEV_TOKEN : process.env.PRODUCTION_TOKEN;
 
 // Create a new client instance
 const client = new Client({

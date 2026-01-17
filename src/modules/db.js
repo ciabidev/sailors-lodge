@@ -1,5 +1,6 @@
 const { MongoClient, ServerApiVersion } = require("mongodb");
-const { mongoUri, devMode } = require("../../config.json"); // adjust path
+const mongoUri = process.env.MONGO_URI;
+const devMode = process.env.DEV_MODE === 'true';
 const join = require("../../commands/party/join");
 
 const client = new MongoClient(mongoUri, {
@@ -104,8 +105,6 @@ async function addPartyCardMessage(partyId, card) {
 async function deleteParty(partyId, interaction) {
   await updateParty(partyId, { $set: { members: [] } }, interaction);
   await updateParty(partyId, { $set: { deleted: true } }, interaction);
-  const party = await getParty(partyId);
-  await interaction.client.modules.updatePartyCards(interaction, party);
 }
 
 async function removeMembersFromParty(partyId, memberIds, interaction) {

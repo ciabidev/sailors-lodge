@@ -7,16 +7,33 @@ const {
   TextDisplayBuilder,
 } = require("discord.js");
 
-module.exports = async function renderPartyCard(party, interaction) {
-  if (!party || !party.members || !party.name) return [new TextDisplayBuilder().setContent("Invalid party, or this party has been deleted.")];
-  const members = party.members.map((m) =>
-    m.id === party.host.id ? `👑 <@${m.id}> - ${interaction.client.modules.escapeMarkdown(m.username)}` : `<@${m.id}> - ${interaction.client.modules.escapeMarkdown(m.username)}`
-  );
-  let deletedMessage = new TextDisplayBuilder().setContent(`The party "${interaction.client.modules.escapeMarkdown(party.name)}" has been deleted.`);
-  if (party.deleted) {
-    return [deletedMessage];
+module.exports = async function renderPartyCard(party, interaction, userId) {
+  const escape = interaction.client.modules.escapeMarkdown;
+
+  // Invalid party fallback
+  if (!party || !party.members || !party.name) {
+    return [new TextDisplayBuilder().setContent("Invalid party, or this party has been deleted.")];
   }
-  // Build the container for the party info
+  // If the party is deleted
+  if (party?.deleted) {
+    return [
+      new TextDisplayBuilder().setContent(`The party "${escape(party.name)}" has been deleted.`),
+    ];
+  }
+
+  // If a specific user left the party
+  if (userId && party.members && !party.members.some((m) => m.id === userId)) {
+    return [new TextDisplayBuilder().setContent(`You left the party "${escape(party.name)}".`)];
+  }
+
+  // Build member list
+  const members = party.members.map((m) =>
+    m.id === party.host.id
+      ? `👑 <@${m.id}> - ${escape(m.username)}`
+      : `<@${m.id}> - ${escape(m.username)}`,
+  );
+
+  // Build the party card
   const partyCard = new ContainerBuilder()
     .addTextDisplayComponents((t) => t.setContent(`# ${party.name}`))
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Small))
@@ -24,29 +41,28 @@ module.exports = async function renderPartyCard(party, interaction) {
       (t) => t.setContent(party.description || "No description"),
       (t) => t.setContent(`Visibility: ${party.visibility}`),
       (t) =>
-        t.setContent(`**${members.length}/${party.memberLimit} Members**\n${members.join("\n")}`)
+        t.setContent(`**${members.length}/${party.memberLimit} Members**\n${members.join("\n")}`),
     )
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents((t) => t.setContent(`Join Code: ${party.joinCode}`));
-  // Create buttons
 
+  // Buttons
   const joinBtn = new ButtonBuilder()
     .setCustomId(`party-join:${party._id}`)
     .setLabel("Join")
     .setStyle(ButtonStyle.Success);
-    
- const leaveBtn = new ButtonBuilder()
-   .setCustomId(`party-leave:${party._id}`)
-   .setLabel("Leave")
-   .setStyle(ButtonStyle.Danger);
 
- const refreshBtn = new ButtonBuilder()
-   .setCustomId(`party-card-refresh:${party._id}`)
-   .setLabel("Refresh")
-   .setStyle(ButtonStyle.Secondary);
+  const leaveBtn = new ButtonBuilder()
+    .setCustomId(`party-leave:${party._id}`)
+    .setLabel("Leave")
+    .setStyle(ButtonStyle.Danger);
+
+  const refreshBtn = new ButtonBuilder()
+    .setCustomId(`party-card-refresh:${party._id}`)
+    .setLabel("Refresh")
+    .setStyle(ButtonStyle.Secondary);
 
   const row = new ActionRowBuilder().addComponents(joinBtn, leaveBtn, refreshBtn);
 
-  // Return as an object ready to send in a message
   return [partyCard, row];
-};
+};;

@@ -9,7 +9,8 @@ const {
   SectionBuilder,
 } = require("discord.js");
 const { ObjectId } = require("mongodb");
-const { issues } = require("../config.json");
+
+const issues = process.env.ISSUES_URL;
 const { browsePages } = require("../commands/party/browse");
 
 module.exports = {
@@ -108,7 +109,7 @@ module.exports = {
               }); // edit and delete have been made into commands and are no longer buttons, this is just here in case we bring them back
             } catch (err) {
               if (err.code === 10008) { // error if used from a command
-                interaction.followUp({
+                interaction.reply({
                   content: "Party updated successfully!",
                   flags: [MessageFlags.Ephemeral],
                 });
@@ -149,11 +150,14 @@ module.exports = {
             });
             break;
           case "party-delete-confirm":
-            await btn.deferUpdate();
+            await btn.update({
+              components: [new TextDisplayBuilder().setContent("Deleting party...")],
+            });
             await btn.client.modules.db.deleteParty(party._id, btn);
             btn.editReply({
               components: [new TextDisplayBuilder().setContent("Party deleted.")],
             });
+            party = await btn.client.modules.db.getParty(new ObjectId(partyId));
             await btn.client.modules.updatePartyCards(btn, party);
             break;
           case "party-delete-cancel":

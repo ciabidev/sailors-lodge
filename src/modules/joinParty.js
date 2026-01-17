@@ -10,6 +10,14 @@ async function joinParty(interaction, joinCode) {
       flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
     });
   }
+
+  // Check if the party is locked
+  if (party.locked) {
+    return interaction.reply({
+      components: [new TextDisplayBuilder().setContent("This party is locked.")],
+      flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral],
+    });
+  }
   // check if the party was deleted 
   if (party.deleted) {
     return interaction.reply({

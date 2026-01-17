@@ -10,7 +10,7 @@ module.exports = {
     .setDescription("How to use this bot"),
   async execute(interaction) {
     await interaction.reply({
-      content: `Click Learn More to see all commands! \n[Add this bot](https://discord.com/oauth2/authorize?client_id=${clientId})\nIt's also highly recommended you join the official Vetex server to see other people's mentions: https://discord.gg/vetex`,
+      content: `Click Learn More to see all commands! \n[Add this bot](https://discord.com/oauth2/authorize?client_id=${clientId})\nIt's also highly recommended you join the official Vetex server to see other people's mentions: <https://discord.gg/vetex>`,
       flags: MessageFlags.Ephemeral,
     });
   },

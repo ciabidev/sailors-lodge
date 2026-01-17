@@ -13,7 +13,7 @@ const {
 async function leaveParty(interaction, party) {
 
   const db = interaction.client.modules.db;
-
+  
   if (!party) {
     await interaction.reply({
       content: "This party no longer exists.",
@@ -41,7 +41,7 @@ async function leaveParty(interaction, party) {
     { user: interaction.user }
   );
 
-  await db.removeMemberFromParty(party._id, userId, interaction);
+  await db.removeMembersFromParty(party._id, userId, interaction);
 
   party = await db.getParty(party._id);
   if (!party) return;

@@ -4,7 +4,7 @@
         <img src="/static/logo.png" title="sailor's lodge" alt="sailor's lodge logo" width="200" />
     </p>
     <p>
-        A Discord bot for Arcane Odyssey that lets players create, find, and manage parties across discord servers.
+        A Discord bot for Arcane Odyssey that lets players create and find parties across discord servers.
         <br/>
     </p>
     <br/>

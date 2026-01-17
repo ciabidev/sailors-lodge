@@ -39,12 +39,12 @@ module.exports = async function renderPartyCard(party, interaction, userId) {
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(
       (t) => t.setContent(party.description || "No description"),
-      (t) => t.setContent(`Visibility: ${party.visibility}`),
+      (t) => t.setContent(`**Visibility:** ${party.visibility}`),
       (t) =>
-        t.setContent(`**${members.length}/${party.memberLimit} Members**\n${members.join("\n")}`),
+        t.setContent(`**${members.length}/${party.memberLimit} Members**\n-# Discord username will be shown next to mention\n${members.join("\n")}`),
     )
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents((t) => t.setContent(`Join Code: ${party.joinCode}`));
+    .addTextDisplayComponents((t) => t.setContent(`Join Code: ${party.joinCode}\n-# TIP: Use \`!a\` before your message to announce to the party!`));
 
   // Buttons
   const joinBtn = new ButtonBuilder()

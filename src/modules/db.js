@@ -3,7 +3,7 @@ const mongoUri = process.env.MONGO_URI;
 const devMode = process.env.DEV_MODE === 'true';
 const join = require("../../commands/party/join");
 
-const client = new MongoClient(mongoUri, {
+const mongoClient = new MongoClient(mongoUri, {
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
@@ -15,9 +15,9 @@ let db;
 
 // init db 
 async function initDb() {
-  await client.connect();
+  await mongoClient.connect();
   const mongoDbName = devMode ? "development" : "production";
-  db = client.db(mongoDbName);
+  db = mongoClient.db(mongoDbName);
 }
 
 initDb();

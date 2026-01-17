@@ -4,23 +4,23 @@ module.exports = async function sendPartyNotification(interaction, type, party, 
   switch (type) {
     case "join":
       emoji = "🟢";
-      actionText = `${interaction.client.modules.escapeMarkdown(options.user.globalName)} has joined the party "${interaction.client.modules.escapeMarkdown(party.name)}"`;
+      actionText = `${interaction.client.modules.escapeMarkdown(options.user.username)} has joined the party "${interaction.client.modules.escapeMarkdown(party.name)}"`;
       break;
     case "leave":
       emoji = "🟠";
-      actionText = `${interaction.client.modules.escapeMarkdown(options.user.globalName)} has left the party "${interaction.client.modules.escapeMarkdown(party.name)}"`;
+      actionText = `${interaction.client.modules.escapeMarkdown(options.user.username)} has left the party "${interaction.client.modules.escapeMarkdown(party.name)}"`;
       break;
     case "kick":
       emoji = "🔴";
-      actionText = `${interaction.client.modules.escapeMarkdown(options.user.globalName)} was removed from "${interaction.client.modules.escapeMarkdown(party.name)}" by ${interaction.client.modules.escapeMarkdown(options.actor.globalName)}`;
+      actionText = `${interaction.client.modules.escapeMarkdown(options.user.username)} was removed from "${interaction.client.modules.escapeMarkdown(party.name)}" by ${interaction.client.modules.escapeMarkdown(options.actor.username)}`;
       break;
     case "announce":
       emoji = "📢";
-      actionText = `**${interaction.client.modules.escapeMarkdown(options.user.globalName)}:** ${interaction.client.modules.escapeMarkdown(options.message)}`;
+      actionText = `**${interaction.client.modules.escapeMarkdown(options.user.username)}:** ${interaction.client.modules.escapeMarkdown(options.message)}`;
       break;
     case "lock":
       emoji = "🔒";
-      actionText = `${interaction.client.modules.escapeMarkdown(options.user.globalName)} has ${party.locked ? "locked the party. No one can join" : "unlocked the party."}`;
+      actionText = `${interaction.client.modules.escapeMarkdown(options.user.username)} has ${party.locked ? "locked the party. No one can join" : "unlocked the party."}`;
       break;
     default:
       emoji = "ℹ️";

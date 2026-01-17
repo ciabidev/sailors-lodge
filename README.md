@@ -1,4 +1,14 @@
-# Sailor's Lodge
+<div align="center">
+    <br/>
+    <p>
+        <img src="/static/logo.png" title="sailor's lodge" alt="sailor's lodge logo" width="100" />
+    </p>
+    <p>
+        create and discover parties (groups) in Arcane Odyssey
+        <br/>
+    </p>
+    <br/>
+</div>
 Invite link: https://discord.com/oauth2/authorize?client_id=1460833970748002404
 
 Sailor's Lodge is a discord bot for the MMORPG Arcane Odyssey that lets you create and discover parties (groups)

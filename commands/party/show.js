@@ -51,7 +51,7 @@ module.exports = {
       message = response.resource.message;
     }
     await interaction.client.modules.db.addPartyCardMessage(party._id, {
-      channelId: message.channelId ?? null,
+      channelId: message.channelId,
       userId: interaction.user.id,
       messageId: message.id,
     });

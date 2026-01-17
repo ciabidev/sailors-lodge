@@ -2,11 +2,13 @@ const { TextDisplayBuilder } = require("discord.js");
 module.exports = async function updatePartyCards(interaction, party) {
     if (!party) return;
     if (!party.cards) return;
+
   for (const card of party.cards) {
     try {
       let message;
-      console.log(card.channelId);
-      if (!card.channelId) {
+      if (!card.userId) continue;
+      if (!card.guildId) {
+        console.log(`DM ${card.userId}`);
         const user = await interaction.client.users.fetch(card.userId);
         const channel = await user.createDM();
         message = await channel.messages.fetch(card.messageId);
@@ -22,7 +24,7 @@ module.exports = async function updatePartyCards(interaction, party) {
         components: await interaction.client.modules.renderPartyCard(party, interaction),
       });
     } catch (err) {
-      console.error(err);
+      console.error(`${card.userId} Failed to update party card ${card}: ${err.message}`);
     }
   }
 };

@@ -10,6 +10,8 @@ const {
 } = require("discord.js");
 const { ObjectId } = require("mongodb");
 const { issues } = require("../config.json");
+const { browsePages } = require("../commands/party/browse");
+
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
@@ -39,12 +41,7 @@ module.exports = {
             break;
 
           case "party-delete":
-            if (btn.user.id !== party.host.id) {
-              return btn.reply({
-                content: "Only the party leader can delete.",
-                flags: [MessageFlags.Ephemeral],
-              });
-            }
+      
             await btn.client.modules.deleteParty(btn, party);
             break;
           case "party-join":
@@ -62,7 +59,7 @@ module.exports = {
             });
             break;
           case "party-delete-confirm":
-              await btn.deferUpdate();
+              await btn.deferUpdate(); 
               await btn.client.modules.db.deleteParty(party._id, btn);
               btn.editReply({
                 components: [new TextDisplayBuilder().setContent("Party deleted.")],
@@ -82,77 +79,32 @@ module.exports = {
     if (interaction.isButton()) {
       const [action, partyId] = interaction.customId.split(":");
 
-      // Page navigation
-      if (action === "parties-previous-page" || action === "parties-next-page") {
-        const state = require("../commands/party/browse").browsePages.get(interaction.user.id);
-        if (!state) return; // expired or user didn't start browse
+       const id = interaction.customId;
 
-        const { pages, pageSelector } = state;
-        let { pageIndex } = state;
+       if (id === "parties-prev" || id === "parties-next") {
+         const state = browsePages.get(interaction.user.id);
+         if (!state) return;
 
-        if (action === "parties-previous-page") {
-          pageIndex = (pageIndex - 1 + pages.length) % pages.length;
-        } else if (action === "parties-next-page") {
-          pageIndex = (pageIndex + 1) % pages.length;
-        }
+         const { pages } = state;
 
-        // Update pageIndex in state
-        state.pageIndex = pageIndex;
+         state.pageIndex =
+           id === "parties-prev"
+             ? (state.pageIndex - 1 + pages.length) % pages.length
+             : (state.pageIndex + 1) % pages.length;
 
-        // Render new page
-        const newPage = (() => {
-          const page = pages[pageIndex];
-          const container = new ContainerBuilder().addTextDisplayComponents((t) =>
-            t.setContent(`## Browse Parties (Page ${pageIndex + 1}/${pages.length})`)
-          );
+         await interaction.update({
+           components: [
+             renderBrowsePage({
+               pages,
+               pageIndex: state.pageIndex,
+               client: interaction.client,
+             }),
+             interaction.message.components[1],
+           ],
+         });
 
-          for (const party of page) {
-            const { name, description, host, members, memberLimit, joinCode, _id } = party;
-
-            const joinButton = new ButtonBuilder()
-              .setCustomId(`party-join:${_id}`)
-              .setLabel("Join")
-              .setStyle(ButtonStyle.Success);
-
-            container.addSectionComponents(
-              new SectionBuilder()
-                .setButtonAccessory(joinButton)
-                .addTextDisplayComponents(
-                  new TextDisplayBuilder().setContent(
-                    `### ${interaction.client.modules.escapeMarkdown(name)}`
-                  )
-                )
-            );
-
-            container.addTextDisplayComponents(
-              (t) =>
-                t.setContent(
-                  `**Host:** <@${host.id}> | **Members:** ${members.length}/${memberLimit}`
-                ),
-              (t) =>
-                t.setContent(
-                  `**Description:** ${
-                    (description || "No description").length > 100
-                      ? description.slice(0, 100) + "..."
-                      : description
-                  }`
-                ),
-              (t) => t.setContent(`**Join Code:** ${joinCode}`)
-            );
-
-            container.addSeparatorComponents((s) =>
-              s.setDivider(true).setSpacing(SeparatorSpacingSize.Large)
-            );
-          }
-
-          return container;
-        })();
-
-        await interaction.update({
-          components: [newPage, pageSelector],
-        });
-        return;
-      }
+         return;
+       }
 
       // Handle party buttons
       if (partyId) {

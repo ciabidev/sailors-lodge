@@ -66,19 +66,25 @@ async function joinParty(interaction, joinCode) {
     message = await interaction.user.send({
       components: [...partyCardComponents],
       flags: [MessageFlags.IsComponentsV2], // persistent
+      withResponse: true,
     });
   } else {
     // DM context: persistent card directly
-    message = await interaction.reply({
+    response = await interaction.reply({
       components: [...partyCardComponents],
       flags: [MessageFlags.IsComponentsV2], // persistent
+      withResponse: true,
     });
+
+    message = response.resource.message;
   }
   // Store party card in DB
-  await db.addPartyCardMessage(party._id, {
+  await interaction.client.modules.db.addPartyCardMessage(party._id, {
     channelId: message.channelId,
     messageId: message.id,
+    userId: interaction.user.id,
   });
+
   await interaction.client.modules.updatePartyCards(interaction, party);
 }
 

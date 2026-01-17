@@ -32,10 +32,22 @@ module.exports = {
     }
     await interaction.client.modules.partyConfigModal(interaction);
 
-    const modal = await interaction.awaitModalSubmit({
-      filter: (i) => i.customId === "party-modal" && i.user.id === interaction.user.id,
-      time: 60_000,
-    });
+    let modal;
+    try {
+      modal = await interaction.awaitModalSubmit({
+        filter: (i) => i.customId === "party-modal" && i.user.id === interaction.user.id,
+        time: 60_000,
+      });
+    } catch (error) {
+      // Collector timed out or was rejected
+      if (error.code === 'InteractionCollectorError') {
+        return interaction.followUp({
+          content: "Modal submission timed out. Please try again.",
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
+      throw error;
+    }
 
     // Create the party in DB
     const party = await interaction.client.modules.db.createParty(
@@ -76,9 +88,7 @@ module.exports = {
     await interaction.client.modules.db.addPartyCardMessage(party._id, {
       channelId: message.channelId,
       messageId: message.id,
+      userId: interaction.user.id,
     });
-
-    // Delegate button handling to reusable collector
-    await interaction.client.modules.partyCardCollector(interaction, party, message);
   },
 };

@@ -9,14 +9,19 @@ const {
 } = require("discord.js");
 
 module.exports = async function editParty(interaction, party) {
+    if (!party) {
+      return interaction.reply({
+        content: "This party does not exist.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
 
 let currentParty = await interaction.client.modules.db.getCurrentParty(interaction.user.id);
 if (!currentParty) {
-await interaction.reply({
+return interaction.reply({
     content: "You are not in a party.",
     flags: [MessageFlags.Ephemeral],
 });
-return;
 }
   if (interaction.user.id !== party.host.id) {
     return interaction.reply({
@@ -31,10 +36,23 @@ return;
     limit: party.memberLimit || 10,
     visibility: party.visibility || "public",
   });
-  const editModal = await interaction.awaitModalSubmit({
-    filter: (i) => i.customId === "party-modal" && i.user.id === party.host.id,
-    time: 60_000,
-  });
+  
+  let editModal;
+  try {
+    editModal = await interaction.awaitModalSubmit({
+      filter: (i) => i.customId === "party-modal" && i.user.id === party.host.id,
+      time: 60_000,
+    });
+  } catch (error) {
+    // Collector timed out or was rejected
+    if (error.code === 'InteractionCollectorError') {
+      return interaction.followUp({
+        content: "Modal submission timed out. Please try again.",
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+    throw error;
+  }
 
   party = await interaction.client.modules.db.updateParty(
     party._id,

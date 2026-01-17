@@ -54,6 +54,7 @@ module.exports = async function updatePartyCards(interaction, party) {
             interaction,
             card.userId,
           );
+          await message.edit({ components });
 
           // If the party is deleted or the user left, remove the message from the DB
           if (
@@ -64,7 +65,6 @@ module.exports = async function updatePartyCards(interaction, party) {
           }
 
           // Edit the message with the latest card
-          await message.edit({ components });
         } catch (err) {
           console.error(
             `${card.userId} Failed to update party card ${card.messageId}: ${err.message}`,

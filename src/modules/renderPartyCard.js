@@ -23,7 +23,7 @@ module.exports = async function renderPartyCard(party, interaction, userId) {
 
   // If a specific user left the party
   if (userId && party.members && !party.members.some((m) => m.id === userId)) {
-    return [new TextDisplayBuilder().setContent(`You left the party "${escape(party.name)}".`)];
+    return [new TextDisplayBuilder().setContent(`<@${userId}> You left the party "${escape(party.name)}".`)];
   }
 
   // Build member list

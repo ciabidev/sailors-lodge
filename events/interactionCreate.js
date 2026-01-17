@@ -188,7 +188,7 @@ module.exports = {
 
         await interaction.update({
           components: [
-            renderBrowsePage({
+            interaction.client.modules.renderBrowsePage({
               pages,
               pageIndex: state.pageIndex,
               client: interaction.client,

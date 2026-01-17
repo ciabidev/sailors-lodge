@@ -13,6 +13,7 @@ module.exports = {
     // plain text
 
     const introText = `**Click Learn More to see all commands!**
+**IMPORTANT:** You need to enable dms so this bot can send you party notifications and announcements
 It's also highly recommended you join the official Vetex server to see other people's mentions: <https://discord.gg/vetex>
 [Add this bot](https://discord.com/oauth2/authorize?client_id=${clientId})
     `;

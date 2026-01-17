@@ -14,9 +14,16 @@ const e = require("express");
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
     .setName("show")
-    .setDescription("Show the party card for your current party"),
-        
+    .setDescription("Show the party card for your current party")
+    .addBooleanOption((option) =>
+      option
+        .setName("dm")
+        .setDescription("The party message will be messaged to you instead of sent in channel")
+        .setRequired(false),
+    ),
+    
   async execute(interaction) {
+    const dm = interaction.options?.getBoolean("dm") ?? interaction.guildId === null;
     const party = await interaction.client.modules.db.getCurrentParty(interaction.user.id);
     if (!party) {
       await interaction.reply({
@@ -30,16 +37,27 @@ module.exports = {
 
     let message;
 
+
     if (interaction.guildId !== null) { // command used in a server
-      await interaction.reply({
-        content: "Party card will be sent to you in DM",
-        flags: [MessageFlags.Ephemeral],
-      });
-      message = await interaction.user.send({
-        components: [...partyCardComponents],
-        flags: [MessageFlags.IsComponentsV2],
-        withResponse: true,
-      });
+      if (dm) {
+        await interaction.reply({
+          content: "Party card will be sent to you in DM",
+          flags: [MessageFlags.Ephemeral],
+        });
+        message = await interaction.user.send({
+          components: [...partyCardComponents],
+          flags: [MessageFlags.IsComponentsV2],
+          withResponse: true,
+        });
+      } else {
+        const response = await interaction.reply({
+          components: [...partyCardComponents],
+          flags: [MessageFlags.IsComponentsV2],
+          withResponse: true,
+        });
+        message = response.resource.message;
+      }
+      
     } else {
       
       const response = await interaction.reply({

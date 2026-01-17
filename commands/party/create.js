@@ -8,7 +8,7 @@ module.exports = {
       option
         .setName("dm")
         .setDescription("The party message will be messaged to you instead of sent in channel")
-        .setRequired(true),
+        .setRequired(false),
     ),
 
   async execute(interaction) {

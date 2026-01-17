@@ -13,10 +13,10 @@ const {
   ComponentType,
 } = require("discord.js");
 
-module.exports = async function partyConfigModal(interaction, defaults = {}) {
+module.exports = async function partyConfigModal(interaction, defaults = {}, customId = "party-modal") {
     interaction.showModal(
       new ModalBuilder()
-        .setCustomId("party-modal")
+        .setCustomId(customId)
         .setTitle("Party Creation") // 
         .addLabelComponents(
           new LabelBuilder().setLabel("Party Name").setTextInputComponent(

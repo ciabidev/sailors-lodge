@@ -1,7 +1,7 @@
 <div align="center">
     <br/>
     <p>
-        <img src="/static/logo.png" title="sailor's lodge" alt="sailor's lodge logo" width="100" />
+        <img src="/static/logo.png" title="sailor's lodge" alt="sailor's lodge logo" width="300" />
     </p>
     <p>
         create and discover parties (groups) in Arcane Odyssey

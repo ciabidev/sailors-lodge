@@ -3,6 +3,7 @@ const {
   PermissionsBitField,
   MessageFlags,
   Collection,
+  InteractionContextType,
 } = require("discord.js");
 
 const fs = require("node:fs");
@@ -12,8 +13,7 @@ module.exports = {
   data: (() => {
     const builder = new SlashCommandBuilder()
       .setName("party")
-      .setDescription("Party commands")
-
+      .setDescription("Party commands");
     const dir = __dirname; // commands/moderation
     const files = fs.readdirSync(dir).filter((f) => f !== "main.js");
 

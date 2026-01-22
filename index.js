@@ -9,9 +9,9 @@ app.get("/", (req, res) => {
 });
 
 // Render automatically assigns a port in process.env.PORT
-app.listen(process.env.PORT || 3000, () => {
-  console.log("🌐 Express keep-alive server running.");
-});
+app.listen(process.env.PORT || 8000, () => {
+  console.log(`🌐 Express keep-alive server running on port ${process.env.PORT || 8000}`);
+}
 
 // INDEX.JS COPY PASTE TEMPLATE
 

@@ -5,7 +5,7 @@ const app = express();
 
 // This route just confirms the bot is online
 app.get("/", (req, res) => {
-  res.send("✅ Sunfish-Karoo is alive!");
+  res.send("✅ Sailors Lodge is alive!");
 });
 
 // Render automatically assigns a port in process.env.PORT

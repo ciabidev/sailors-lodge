@@ -9,8 +9,7 @@
     </p>
     <br/>
 </div>
-[Add this bot to your Discord Server](https://discord.com/oauth2/authorize?client_id=1460833970748002404)
-
+<a href="https://discord.com/oauth2/authorize?client_id=1460833970748002404">Add this bot to your Discord Server</a>
 
 - For example, you could create an Omen Raid party using `/party create` or look for a party using `/party browse`
 - To see all the commands use `/party help`

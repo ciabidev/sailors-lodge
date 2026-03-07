@@ -15,8 +15,7 @@ module.exports = {
                 user: interaction.user,
               });
               return interaction.reply({
-                content: "Your party is now unlocked.",
-                flags: MessageFlags.Ephemeral,
+                content: `Your party \`${party.name}\` is now unlocked.`,
               });
             } else {
               await interaction.client.modules.db.updateParty(party._id, { $set: { locked: true } }, interaction);
@@ -25,8 +24,7 @@ module.exports = {
                 user: interaction.user,
               });
               return interaction.reply({
-                content: "Your party is now locked.",
-                flags: MessageFlags.Ephemeral,
+                content: `Your party \`${party.name}\` is now locked.`,
               });
             }
             

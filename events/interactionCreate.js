@@ -32,7 +32,7 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit()) {
-      const [prefix, partyId] = interaction.customId.split(":");
+      const [prefix, partyId, dmFlag] = interaction.customId.split(":");
       if (prefix === "party-modal") {
           const name = interaction.fields.getTextInputValue("name");
           const description = interaction.fields.getTextInputValue("description");
@@ -50,7 +50,7 @@ module.exports = {
             );
 
             // Send the party card (DM or channel)
-            let dm = interaction.options?.getBoolean("dm") ?? interaction.guildId === null;
+            let dm = dmFlag === "true";
             let message;
 
             if (dm) {
@@ -60,12 +60,13 @@ module.exports = {
               });
               message = await interaction.user.send({
                 components: await interaction.client.modules.renderPartyCard(party, interaction),
-                flags: MessageFlags.IsComponentsV2,
+                flags: [MessageFlags.IsComponentsV2],
+                withResponse: true,
               });
             } else {
               const response = await interaction.reply({
                 components: await interaction.client.modules.renderPartyCard(party, interaction),
-                flags: MessageFlags.IsComponentsV2,
+                flags: [MessageFlags.IsComponentsV2],
                 withResponse: true,
               });
               message = response.resource.message;

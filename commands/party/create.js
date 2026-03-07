@@ -23,7 +23,8 @@ module.exports = {
       });
     }
 
-    await client.modules.partyConfigModal(interaction);
+    const dm = interaction.options.getBoolean("dm") ?? false;
+    await client.modules.partyConfigModal(interaction, {}, `party-modal::${dm}`);
     // the rest is handled in interactionCreate
   },
 };

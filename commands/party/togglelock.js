@@ -4,7 +4,7 @@ module.exports = {
   data: new SlashCommandSubcommandBuilder()
     .setName("togglelock")
     .setDescription("Lock/Unlock your party from joining"),
-    
+     
     async execute(interaction) {
             let party = await interaction.client.modules.db.getCurrentParty(interaction.user.id); 
             

@@ -49,8 +49,8 @@ async function createParty(name, description = "", visibility, memberLimit, host
   const joinCode = Array.from(
     { length: 6 },
     () =>
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[
-        Math.floor(Math.random() * 62)
+      "0123456789"[
+        Math.floor(Math.random() * 10)
       ]
   ).join("");
 

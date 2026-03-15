@@ -15,7 +15,7 @@ module.exports = {
     const expirationTime = lastCommandUsage + cooldownAmount;
 
     if (now < expirationTime) {
-        const timeLeft = (expirationTime - now) / 60000;
+        const timeLeft = (expirationTime - now) / 600000;
         return interaction.reply({ 
             content: `A global cooldown is active! Please wait ${timeLeft.toFixed(1)} more minutes.`,
             ephemeral: true 
@@ -38,6 +38,10 @@ module.exports = {
       });
     }
     lastCommandUsage = now;
-    await interaction.reply(`${interaction.user} is looking for a group! <@&${LFG_ROLE_ID}> \n Use /join ${party.joinCode} to join the party \`${party.name}\``);
+    await interaction.reply({
+      content: `<@&${LFG_ROLE_ID}>: \`${party.name}\` (Use /join ${party.joinCode} to join the party)`,
+      // Explicitly allow the LFG role mention so Discord pings it.
+      allowedMentions: { roles: [LFG_ROLE_ID] },
+    });
   },
 };

@@ -1,35 +1,6 @@
 const { Events } = require("discord.js");
 const { TextDisplayBuilder, SectionBuilder, MessageFlags } = require("discord.js");
 
-function formatFollowedMessage(message) {
-  const escape = message.client?.modules?.escapeMarkdown || ((text) => text);
-  const raw = (message.content || "").trim();
-  const escaped = escape(raw);
-  return escaped.replace(/\n/g, "\n");
-}
-
-function buildFollowedPingNotice({ groupName, message, roleId, serverPartnerText }) {
-  const label = groupName || "Followed";
-  const followedFormatted = formatFollowedMessage(message);
-  return `${label} party ping from followed server by <@${message.author.id}>! <@&${roleId}>${serverPartnerText}\n\n${followedFormatted}`;
-}
-
-function getFollowedMessageText(message) {
-  const parts = [];
-  if (message.content) parts.push(message.content);
-  if (message.embeds?.length) {
-    for (const embed of message.embeds) {
-      if (embed?.title) parts.push(embed.title);
-      if (embed?.description) parts.push(embed.description);
-    }
-  }
-  return parts.join("\n").toLowerCase();
-}
-
-function normalizeKeyword(value) {
-  return value.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
@@ -89,16 +60,20 @@ module.exports = {
     );
     if (followedGroups.length === 0) return;
 
-    const serverPartnerText = process.env.AFFILIATES_CHANNEL_ID
-      ? `\n-# this host is part of our <#${process.env.AFFILIATES_CHANNEL_ID}>`
-      : "";
-
     if (!message.client.followedPingMessages) {
       message.client.followedPingMessages = new Map();
     }
     const followedPingMessages = message.client.followedPingMessages;
 
-    const messageText = getFollowedMessageText(message);
+    const textParts = [];
+    if (message.content) textParts.push(message.content);
+    if (message.embeds?.length) {
+      for (const embed of message.embeds) {
+        if (embed?.title) textParts.push(embed.title);
+        if (embed?.description) textParts.push(embed.description);
+      }
+    }
+    const messageText = textParts.join("\n").toLowerCase();
     if (!messageText) return;
 
     for (const group of followedGroups) {
@@ -107,7 +82,7 @@ module.exports = {
           ? group.followedKeywords
           : [group.name];
       const keywords = rawKeywords
-        .map((value) => normalizeKeyword(value))
+        .map((value) => value.toLowerCase().replace(/\s+/g, " ").trim())
         .filter((value) => value.length > 0);
 
       const matches = keywords.some((keyword) => {
@@ -120,13 +95,14 @@ module.exports = {
 
       if (!matches) continue;
 
+      const escape = message.client?.modules?.escapeMarkdown || ((text) => text);
+      const raw = (message.content || "").trim();
+      const followedFormatted = escape(raw).replace(/\n/g, "\n");
+      const label = group.name || "Followed";
+      const content = `${label} party ping from followed server by <@${message.author.id}>! <@&${group.roleId}>\n\n${followedFormatted}`;
+
       const sentMessage = await message.channel.send({
-        content: buildFollowedPingNotice({
-          groupName: group.name,
-          message,
-          roleId: group.roleId,
-          serverPartnerText,
-        }),
+        content,
         allowedMentions: { roles: [group.roleId] },
       });
 

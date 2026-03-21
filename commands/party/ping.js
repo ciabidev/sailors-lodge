@@ -26,12 +26,6 @@ module.exports = {
   async execute(interaction) {
     const groupName = interaction.options.getString("role");
     const party = await interaction.client.modules.db.getCurrentParty(interaction.user.id);
-    if (!party) {
-      return interaction.reply({
-        content: "You are not in a party.",
-        flags: MessageFlags.Ephemeral,
-      });
-    }
 
     const settings = await interaction.client.modules.db.getSettings(interaction.guildId);
     const pingGroups = settings.pingGroups ?? [];
@@ -57,9 +51,12 @@ module.exports = {
         flags: MessageFlags.Ephemeral,
       });
     }
-
+    let content = `<@&${pingGroup.roleId}>`;
+    if (party) {
+      content += `: \`${party.name}\` (Use /join ${party.joinCode} to join the party)`;
+    }
     return interaction.reply({
-      content: `<@&${pingGroup.roleId}>: \`${party.name}\` (Use /join ${party.joinCode} to join the party)`,
+      content: content,
       allowedMentions: { roles: [pingGroup.roleId] },
     });
   },

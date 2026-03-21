@@ -14,6 +14,17 @@ console.log("dev mode: " + devMode);
 
 const token = devMode === true ? devToken : productionToken;
 const clientId = devMode === true ? devClientId : productionClientId;
+const effectiveGuildId = devMode === true ? guildId : undefined;
+const missingVars = [];
+
+if (!token) missingVars.push(devMode ? "DEV_TOKEN" : "PRODUCTION_TOKEN");
+if (!clientId) missingVars.push(devMode ? "DEV_CLIENT_ID" : "PRODUCTION_CLIENT_ID");
+if (devMode && !effectiveGuildId) missingVars.push("GUILD_ID");
+
+if (missingVars.length > 0) {
+  console.error(`Missing required env var(s): ${missingVars.join(", ")}`);
+  process.exit(1);
+}
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -55,9 +66,11 @@ const rest = new REST().setToken(token);
   try {
     console.log(`Started refreshing ${commands.length} application (/) commands.`);
 
-    const data = await rest.put(Routes.applicationCommands(clientId), {
-      body: commands,
-    });
+    const route = devMode === true
+      ? Routes.applicationGuildCommands(clientId, effectiveGuildId)
+      : Routes.applicationCommands(clientId);
+
+    const data = await rest.put(route, { body: commands });
 
     console.log(`Successfully reloaded ${data.length} application (/) commands.`);
   } catch (error) {

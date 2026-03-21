@@ -4,13 +4,14 @@ let lastCommandUsage = 0
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
     .setName("lfg")
-    .setDescription("Ping the Looking For Group role. 1 hour cooldown"),
+    .setDescription("Ping the Looking For Group role to gather members for your party."),
 
   async execute(interaction) {
     // get the current party the user is in
     
     
-    const LFG_ROLE_ID = process.env.LFG_ROLE_ID;
+    const settings = await interaction.client.modules.db.getSettings(interaction.guildId);
+    const lfgRoleId = settings.lfgRoleId;
     const now = Date.now();
     const expirationTime = lastCommandUsage + cooldownAmount;
 
@@ -37,11 +38,25 @@ module.exports = {
         flags: MessageFlags.Ephemeral,
       });
     }
-    lastCommandUsage = now;
+   
+    // repeat with every server the bot is in that has an lfg role set in settings
+    try {
+      if (!lfgRoleId) {
+        return interaction.reply({
+          content: "This server does not have an LFG role set.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    } catch (error) {
+      console.error(error);
+    }
+    
     await interaction.reply({
-      content: `<@&${LFG_ROLE_ID}>: \`${party.name}\` (Use /join ${party.joinCode} to join the party)`,
-      // Explicitly allow the LFG role mention so Discord pings it.
-      allowedMentions: { roles: [LFG_ROLE_ID] },
+      content: `<@&${lfgRoleId}>: \`${party.name}\` (Use /join ${party.joinCode} to join the party)`,
+      // Explicitly allow the LFG role mention
+      allowedMentions: { roles: [lfgRoleId] },
     });
+
+    lastCommandUsage = now;
   },
 };

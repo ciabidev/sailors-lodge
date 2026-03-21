@@ -1,5 +1,35 @@
 const { Events } = require("discord.js");
 const { TextDisplayBuilder, SectionBuilder, MessageFlags } = require("discord.js");
+
+function formatFollowedMessage(message) {
+  const escape = message.client?.modules?.escapeMarkdown || ((text) => text);
+  const raw = (message.content || "").trim();
+  const escaped = escape(raw);
+  return escaped.replace(/\n/g, "\n");
+}
+
+function buildFollowedPingNotice({ groupName, message, roleId, serverPartnerText }) {
+  const label = groupName || "Followed";
+  const followedFormatted = formatFollowedMessage(message);
+  return `${label} party ping from followed server by <@${message.author.id}>! <@&${roleId}>${serverPartnerText}\n\n${followedFormatted}`;
+}
+
+function getFollowedMessageText(message) {
+  const parts = [];
+  if (message.content) parts.push(message.content);
+  if (message.embeds?.length) {
+    for (const embed of message.embeds) {
+      if (embed?.title) parts.push(embed.title);
+      if (embed?.description) parts.push(embed.description);
+    }
+  }
+  return parts.join("\n").toLowerCase();
+}
+
+function normalizeKeyword(value) {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
@@ -42,53 +72,67 @@ module.exports = {
       await message.react("📢").catch(() => {});
     }
 
-    const isFromFollowedServer = isWebhookMessage || message.flags.has(MessageFlags.IsCrosspost);
-    console.log("isFromFollowedServer: ", isFromFollowedServer);
+    const isFollowedSource = isWebhookMessage || message.flags.has(MessageFlags.IsCrosspost);
+    if (!isFollowedSource) return;
+    if (!message.guildId || !message.channel?.id) return;
 
+    const settings = await message.client.modules.db.getSettings(message.guildId);
+    const followedPingsEnabled =
+      typeof settings.followedPingsEnabled === "boolean"
+        ? settings.followedPingsEnabled
+        : process.env.FOLLOWED_PINGS_ENABLED === "true";
+    if (!followedPingsEnabled) return;
 
-    if (isFromFollowedServer) { // followed luckping and epiping. currently only available for Sunfish Village since I haven't added per server configs yet
-      const channel = message.channel;
-      const LUCK_PING_ROLE_ID = process.env.LUCK_PING_ROLE_ID;
-      const EPICENTER_PING_ROLE_ID = process.env.EPICENTER_PING_ROLE_ID;
-      const serverPartnerText = `\n-# this host is part of our <#${process.env.AFFILIATES_CHANNEL_ID}>`;
-      const followedPingsEnabled = process.env.FOLLOWED_PINGS_ENABLED === "true";
-      if (!followedPingsEnabled) return;
-      console.log("Received message from followed server: ", message.content);
-      if (!message.content) {
-        const firstEmbed = message.embeds?.[0];
-        console.log("Followed msg debug:", {
-          type: message.type,
-          flags: message.flags?.bitfield,
-          webhookId: message.webhookId,
-          authorBot: message.author?.bot,
-          channelId: message.channel?.id,
-          embedsCount: message.embeds?.length || 0,
-          embedTitle: firstEmbed?.title || null,
-          embedDescription: firstEmbed?.description || null,
-        });
-      }
+    const pingGroups = settings.pingGroups ?? [];
+    const followedGroups = pingGroups.filter(
+      (group) => group.followedChannelId === message.channel.id && group.roleId,
+    );
+    if (followedGroups.length === 0) return;
 
-      if (channel.id === process.env.PARTIES_CHANNEL_ID) {
-        const messageContent = message.content.toLowerCase();
-        // make sure the message is from a followed server
-        if (
-          messageContent.includes("?luckparty") ||
-          messageContent.includes("luckping") ||
-          messageContent.includes("@luck")
-        ) {
-          console.log("Luck ping message received: ", messageContent);
-          await channel.send(
-            `Luck party ping from followed server by <@${message.author.id}>! <@&${LUCK_PING_ROLE_ID}>${serverPartnerText}`,
-          );
-        }
+    const serverPartnerText = process.env.AFFILIATES_CHANNEL_ID
+      ? `\n-# this host is part of our <#${process.env.AFFILIATES_CHANNEL_ID}>`
+      : "";
 
-        if (messageContent.includes("epiping")) {
-          console.log("Epicenter ping message received: ", messageContent);
-          await channel.send(
-            `Epicenter party ping from followed server by <@${message.author.id}>! <@&${EPICENTER_PING_ROLE_ID}>${serverPartnerText}`,
-          );
-        }
-      }
+    if (!message.client.followedPingMessages) {
+      message.client.followedPingMessages = new Map();
+    }
+    const followedPingMessages = message.client.followedPingMessages;
+
+    const messageText = getFollowedMessageText(message);
+    if (!messageText) return;
+
+    for (const group of followedGroups) {
+      const rawKeywords =
+        Array.isArray(group.followedKeywords) && group.followedKeywords.length
+          ? group.followedKeywords
+          : [group.name];
+      const keywords = rawKeywords
+        .map((value) => normalizeKeyword(value))
+        .filter((value) => value.length > 0);
+
+      const matches = keywords.some((keyword) => {
+        const compactKeyword = keyword.replace(/\s+/g, "");
+        return (
+          messageText.includes(keyword) ||
+          (compactKeyword && messageText.includes(compactKeyword))
+        );
+      });
+
+      if (!matches) continue;
+
+      const sentMessage = await message.channel.send({
+        content: buildFollowedPingNotice({
+          groupName: group.name,
+          message,
+          roleId: group.roleId,
+          serverPartnerText,
+        }),
+        allowedMentions: { roles: [group.roleId] },
+      });
+
+      const existing = followedPingMessages.get(message.id) || [];
+      existing.push({ groupName: group.name, roleId: group.roleId, botMessageId: sentMessage.id });
+      followedPingMessages.set(message.id, existing);
     }
   },
 };

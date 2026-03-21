@@ -29,18 +29,53 @@ function getCollection(collectionName) {
 // get settings
 async function getSettings(guildId) {
   const serverSettings = getCollection("serverSettings");
-  return serverSettings.findOne({ guildId });
+  let settings = await serverSettings.findOne({ guildId });
+  if (!settings) {
+    settings = {
+      guildId,
+      pingGroups: [],
+      followedPingsEnabled: false,
+    };
+    await serverSettings.insertOne(settings);
+  }
+  return settings;
 }
 
 // set settings
 async function setSettings(guildId, settings) {
+  // {
+  //         bsonType: "object",
+  //         required: ["guildId"],
+  //         properties: {
+  //           guildId:              { bsonType: "string" },
+  //           lfgRoleId:            { bsonType: "string" },
+  //           followedPingsEnabled: { bsonType: "bool" },
+  //           pingGroups: {
+  //             bsonType: "array",
+  //             items: {
+  //               bsonType: "object",
+  //               required: ["name", "pingRoleId"],
+  //               properties: {
+  //                 name:           { bsonType: "string" },
+  //                 pingRoleId:     { bsonType: "string" },
+  //                 allowedRoleIds: { bsonType: "array", items: { bsonType: "string" } },
+  //                 followedChannelId: { bsonType: "string" },
+  //                 followedKeywords: { bsonType: "array", items: { bsonType: "string" } },
+  //               }
+  //             }
+  //           }
+  //         }
+  //       }
+
   const serverSettings = getCollection("serverSettings");
+  // Only update provided fields; leave others untouched.
+  await serverSettings.updateOne(
+    { guildId },
+    { $set: settings },
+    { upsert: true }
+  );
 
-  // Include guildId to upsert
-  const fullDocument = { guildId, ...settings };
-
-  // Upsert: replace the document if exists, insert if not
-  await serverSettings.replaceOne({ guildId }, fullDocument, { upsert: true });
+  return serverSettings.findOne({ guildId });
 }
 
 // create party
@@ -148,7 +183,10 @@ async function removePartyCardMessage(messageId) {
   const parties = getCollection("parties");
   return parties.updateOne({ cards: { $elemMatch: { messageId } } }, { $pull: { cards: { messageId } } });
 }
+
 module.exports = {
+  getSettings,
+  setSettings,
   getParties,
   initDb,
   getCollection,

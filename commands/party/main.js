@@ -30,4 +30,11 @@ module.exports = {
     const handler = require(path.join(__dirname, `${name}.js`));
     return handler.execute(interaction);
   },
+
+  async autocomplete(interaction) {
+    const name = interaction.options.getSubcommand(true);
+    const handler = require(path.join(__dirname, `${name}.js`));
+    if (!handler.autocomplete) return;
+    return handler.autocomplete(interaction);
+  },
 };

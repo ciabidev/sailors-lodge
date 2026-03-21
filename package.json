@@ -17,7 +17,7 @@
   "scripts": {
     "start": "node index.js",
     "postinstall": "node deploy-commands.js",
-    "dev": "npm run postinstall && nodemon index.js"
+    "dev": "npm run postinstall && npx nodemon index.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",

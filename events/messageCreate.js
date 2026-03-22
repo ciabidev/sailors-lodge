@@ -95,9 +95,8 @@ module.exports = {
 
       if (!matches) continue;
 
-      const escape = message.client?.modules?.escapeMarkdown || ((text) => text);
       const raw = (message.content || "").trim();
-      const followedFormatted = escape(raw).replace(/\n/g, "\n");
+      const followedFormatted = raw
       const label = group.name || "Followed";
       const content = `${label} party ping from followed server by <@${message.author.id}>! <@&${group.roleId}>\n\n${followedFormatted}`;
 

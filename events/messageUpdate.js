@@ -30,9 +30,8 @@ module.exports = {
     if (!channel) return;
 
     for (const entry of entries) {
-      const escape = message.client?.modules?.escapeMarkdown || ((text) => text);
       const raw = (message.content || "").trim();
-      const followedFormatted = escape(raw).replace(/\n/g, "\n");
+      const followedFormatted = raw
       const label = entry.groupName || "Followed";
       const content = `${label} party ping from followed server by <@${message.author.id}>! <@&${entry.roleId}>\n\n${followedFormatted}`;
 

@@ -1,4 +1,4 @@
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const mongoUri = process.env.MONGO_URI;
 const devMode = process.env.DEV_MODE === 'true';
 const join = require("../../commands/party/join");
@@ -12,12 +12,17 @@ const mongoClient = new MongoClient(mongoUri, {
 });
 
 let db;
+const PARTY_TTL_DAYS = 3;
+const PARTY_TTL_MS = PARTY_TTL_DAYS * 24 * 60 * 60 * 1000;
+const PARTY_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // hourly
 
 // init db 
 async function initDb() {
   await mongoClient.connect();
   const mongoDbName = devMode ? "development" : "production";
   db = mongoClient.db(mongoDbName);
+  await deleteExpiredParties();
+  startPartyCleanupScheduler();
 }
 
 initDb();
@@ -97,6 +102,7 @@ async function createParty(name, description = "", visibility, memberLimit, host
     host,
     members: [host],
     joinCode,
+    createdAt: new Date(),
   };
 
   const result = await parties.insertOne(partyData);
@@ -140,6 +146,36 @@ async function addPartyCardMessage(partyId, card) {
 async function deleteParty(partyId, interaction) {
   await updateParty(partyId, { $set: { members: [] } }, interaction);
   await updateParty(partyId, { $set: { deleted: true } }, interaction);
+}
+
+async function deleteExpiredParties() {
+  const parties = getCollection("parties");
+  const cutoff = new Date(Date.now() - PARTY_TTL_MS);
+  const cutoffObjectId = ObjectId.createFromTime(Math.floor(cutoff.getTime() / 1000));
+
+  const expiredParties = await parties.find({
+    deleted: { $ne: true },
+    $or: [
+      { createdAt: { $lte: cutoff } },
+      { createdAt: { $exists: false }, _id: { $lte: cutoffObjectId } },
+    ],
+  }).toArray();
+
+  if (!expiredParties.length) return 0;
+
+  for (const party of expiredParties) {
+    await deleteParty(party._id);
+  }
+
+  return expiredParties.length;
+}
+
+function startPartyCleanupScheduler() {
+  setInterval(() => {
+    deleteExpiredParties().catch((err) => {
+      console.error("[party-cleanup] Failed to delete expired parties:", err);
+    });
+  }, PARTY_CLEANUP_INTERVAL_MS);
 }
 
 async function removeMembersFromParty(partyId, memberIds, interaction) {
@@ -198,5 +234,6 @@ module.exports = {
   getCurrentParty,
   removeMembersFromParty,
   deleteParty,
+  deleteExpiredParties,
   removePartyCardMessage,
 };

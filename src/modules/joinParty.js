@@ -65,10 +65,13 @@ async function joinParty(interaction, joinCode) {
   let message;
   if (interaction.guildId) {
     // Server: ephemeral confirmation + persistent DM
+    try {
     await interaction.reply({
       components: [new TextDisplayBuilder().setContent("Party card will be sent to you in DM")],
       flags: [MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral],
-    });
+    });} catch (error) {
+      console.log(error);
+    }
 
     // Send persistent card in DM
     message = await interaction.user.send({

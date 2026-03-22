@@ -20,7 +20,7 @@ module.exports = {
           .catch(() => {});
         return;
       }
-
+ 
       const announcementContent = message.content.slice(announcePrefix.length).trim();
       if (!announcementContent && message.attachments.size === 0 && message.embeds.length === 0)
         return;

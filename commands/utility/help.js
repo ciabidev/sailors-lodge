@@ -23,13 +23,22 @@ module.exports = {
       .addTextDisplayComponents(
         (t) =>
           t.setContent(
-            `### \`!a <announcement>\`\n- Announce a message or attached image to your party leader or members.For example: !a Hello everyone`,
+            `### \`!a <announcement>\`\n- Announce a message or attached image to your party leader or members. For example: !a Hello everyone`,
           ),
         (t) => t.setContent(`### \`/party create\`\n- Create a party`),
+        (t) =>
+          t.setContent(
+            `### \`/party create dm:true\`\n- Create a party and DM yourself the party card`,
+          ),
         (t) => t.setContent(`### \`/party join\`\n- Join a party`),
         (t) => t.setContent(`### \`/party leave\`\n- Leave your party`),
         (t) => t.setContent(`### \`/party show\`\n- Show the party card for your current party`),
         (t) => t.setContent(`### \`/party browse\`\n- Browse all parties`),
+        (t) => t.setContent(`### \`/party ping\`\n- Ping a set party group (like Luck V Ping, Epicenter Ping, etc).`),
+        (t) =>
+          t.setContent(
+            `### \`/party lfg\`\n- Ping the Looking For Group role to gather members for your Party\n-# Only works if you're in a Party`,
+          ),
         (t) => t.setContent(`# party owner commands`),
         (t) => t.setContent(`### \`/party edit\`\n- Edit your party`),
         (t) => t.setContent(`### \`/party delete\`\n- Delete your party`),

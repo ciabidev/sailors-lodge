@@ -8,12 +8,12 @@ const {
 
 module.exports = {
   data: new SlashCommandSubcommandGroupBuilder()
-    .setName("ping-group")
+    .setName("ping")
     .setDescription("Manage Ping Groups with hosts, pings, and channels (e.g. Luck V).")
     .addSubcommand((subcommand) =>
       subcommand
         .setName("add")
-        .setDescription("Add a ping group.")
+        .setDescription("Add a Ping group.")
         .addStringOption((option) =>
           option.setName("name").setDescription("The name of the ping group.").setRequired(true),
         )

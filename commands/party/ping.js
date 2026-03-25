@@ -47,13 +47,13 @@ module.exports = {
 
     if (!hasAllowedRole) {
       return interaction.reply({
-        content: "You do not have permission to ping that group.",
+        content: `You don't have permission to ping this ${pingGroup.name}. You need atleast one of the following roles: ${allowedRoles.map(roleId => `<@&${roleId}>`).join(', ')}`,
         flags: MessageFlags.Ephemeral,
       });
     }
     let content = `<@&${pingGroup.roleId}>`;
     if (party) {
-      content += `: \`${party.name}\` (Use /join ${party.joinCode} to join the party)`;
+      content += `: ${party.name} (Use /join ${party.joinCode} to join the party)`;
     }
     return interaction.reply({
       content: content,

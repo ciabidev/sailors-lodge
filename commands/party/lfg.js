@@ -4,8 +4,14 @@ let lastCommandUsage = 0
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
     .setName("lfg")
-    .setDescription("Ping the Looking For Group role to gather members for your party."),
-
+    .setDescription("Ping the Looking For Group role to gather members for your party.")
+    .addStringOption((option) =>
+      option
+        .setName("extra")
+        .setDescription("any extra text to add to the ping message")
+        .setRequired(true)
+        .setAutocomplete(true)
+    ),
   async execute(interaction) {
     // get the current party the user is in
     
@@ -30,14 +36,6 @@ module.exports = {
         flags: MessageFlags.Ephemeral,
       });
     }
-
-    if (interaction.guild.id !== process.env.GUILD_ID) {
-      return interaction.reply({
-        content:
-          "This Sailor's Lodge feature is unreleased, so its only available in the [Sunfish Village server](https://discord.gg/pRgeb3pp9P)", // i havent added per server configs yet
-        flags: MessageFlags.Ephemeral,
-      });
-    }
    
     // repeat with every server the bot is in that has an lfg role set in settings
     try {
@@ -51,8 +49,9 @@ module.exports = {
       console.error(error);
     }
     
+    const extra = interaction.options.getString("extra");
     await interaction.reply({
-      content: `<@&${lfgRoleId}>: \`${party.name}\` (Use /join ${party.joinCode} to join the party)`,
+      content: `<@&${lfgRoleId}>: \`${party.name}\` (Use /join ${party.joinCode} to join the party) ${extra}`,
       // Explicitly allow the LFG role mention
       allowedMentions: { roles: [lfgRoleId] },
     });

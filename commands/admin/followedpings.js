@@ -2,7 +2,7 @@ const { SlashCommandSubcommandBuilder, SlashCommandSubcommandGroupBuilder, Messa
 
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
-    .setName("followed-pings")
+    .setName("followedpings")
     .setDescription("enable or disable followed pings")
     .addBooleanOption((option) =>
       option

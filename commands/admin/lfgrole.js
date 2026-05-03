@@ -8,7 +8,7 @@ module.exports = {
       option.setName("role").setDescription("The LFG role to use.").setRequired(true),
     ),
   async execute(interaction) {
-    const { guildId } = interaction.guildId;
+    const guildId = interaction.guildId;
     const settings = await interaction.client.db.getSettings(guildId);
     const lfgRole = interaction.options.getRole("role");
 

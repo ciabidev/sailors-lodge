@@ -9,7 +9,7 @@ module.exports = {
     ),
   async execute(interaction) {
     const guildId = interaction.guildId;
-    const settings = await interaction.client.db.getSettings(guildId);
+    const settings = interaction.client.db.getSettings(guildId);
     const lfgRole = interaction.options.getRole("role");
 
     settings.lfgRoleId = lfgRole.id;

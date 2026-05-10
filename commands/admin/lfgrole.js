@@ -15,7 +15,7 @@ module.exports = {
     settings.lfgRoleId = lfgRole.id;
     await interaction.client.modules.db.setSettings(guildId, settings);
     return interaction.reply({
-      content: `LFG role set to ${lfgRole.name}.`,
+      content: `LFG role set to ${lfgRole}.`,
       flags: MessageFlags.Ephemeral,
     });
   },

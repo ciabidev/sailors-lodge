@@ -9,11 +9,11 @@ module.exports = {
     ),
   async execute(interaction) {
     const guildId = interaction.guildId;
-    const settings = interaction.client.db.getSettings(guildId);
+    const settings = await interaction.client.modules.db.getSettings(guildId);
     const lfgRole = interaction.options.getRole("role");
 
     settings.lfgRoleId = lfgRole.id;
-    await interaction.client.db.setSettings(guildId, settings);
+    await interaction.client.modules.db.setSettings(guildId, settings);
     return interaction.reply({
       content: `LFG role set to ${lfgRole.name}.`,
       flags: MessageFlags.Ephemeral,

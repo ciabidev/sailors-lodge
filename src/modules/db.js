@@ -1,7 +1,6 @@
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const mongoUri = process.env.MONGO_URI;
 const devMode = process.env.DEV_MODE === 'true';
-const join = require("../../commands/party/join");
 
 const mongoClient = new MongoClient(mongoUri, {
   serverApi: {

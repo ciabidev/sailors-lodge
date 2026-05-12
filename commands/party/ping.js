@@ -1,18 +1,36 @@
-const { SlashCommandSubcommandBuilder, MessageFlags, PermissionsBitField } = require("discord.js");
+const { SlashCommandSubcommandBuilder, MessageFlags } = require("discord.js");
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
     .setName("ping")
-    .setDescription("Ping a configured party group.")
+    .setDescription("Ping a Ping Group.")
     .addStringOption((option) =>
       option
         .setName("role")
         .setDescription("The group to ping")
         .setRequired(true)
         .setAutocomplete(true)
+    )
+    .addStringOption((option) =>
+      option.setName("extra").setDescription("any extra text to add to the ping message").setRequired(false)
+    )
+    .addStringOption((option) =>
+      option
+        .setName("time")
+        .setDescription("schedule a time to ping")
+        .setRequired(false)
+        .setAutocomplete(true)
     ),
+   
 
   async autocomplete(interaction) {
+    const focusedOption = interaction.options.getFocused(true);
     const focusedValue = interaction.options.getFocused();
+
+    if (focusedOption.name === "time") {
+      const choices = interaction.client.modules.timeFiltering.filterTimeChoices(focusedValue);
+      return interaction.respond(choices);
+    }
+
     const settings = await interaction.client.modules.db.getSettings(interaction.guildId);
     const pingGroups = settings.pingGroups ?? [];
     const filtered = pingGroups
@@ -25,6 +43,7 @@ module.exports = {
 
   async execute(interaction) {
     const groupName = interaction.options.getString("role");
+    const extra = interaction.options.getString("extra") ?? "";
     const party = await interaction.client.modules.db.getCurrentParty(interaction.user.id);
 
     const settings = await interaction.client.modules.db.getSettings(interaction.guildId);
@@ -40,6 +59,8 @@ module.exports = {
       });
     }
 
+    const pingGroupRole = interaction.guild.roles.cache.get(pingGroup.roleId) ?? `<@&${pingGroup.roleId}>`;
+
     const allowedRoles = pingGroup.allowedRoles ?? [];
     const hasAllowedRole =
       allowedRoles.length === 0 ||
@@ -51,13 +72,82 @@ module.exports = {
         flags: MessageFlags.Ephemeral,
       });
     }
-    let content = `<@&${pingGroup.roleId}>`;
+    const timeInput = interaction.options.getString("time");
+    const escapedExtra = extra;
+    let content = `${pingGroupRole} ${pingGroup.name} ping from ${interaction.user}`;
+
     if (party) {
-      content += `: ${party.name} (Use /join ${party.joinCode} to join the party)`;
+      content = `${pingGroupRole} (${pingGroup.name}) \`${party.name}\` is happening!`;
     }
-    return interaction.reply({
+
+    if (escapedExtra) {
+      content += `\n${escapedExtra}`;
+    }
+
+    if (party) {
+      content += `\n-# Use \`/join ${party.joinCode}\` to join the Discord party`;
+    }
+
+    if (timeInput) {
+      const sendAt = interaction.client.modules.timeFiltering.parseTimeInput(timeInput);
+
+      if (!sendAt || Number.isNaN(sendAt.getTime())) {
+        return interaction.reply({
+          content: "I couldn't understand that scheduled time.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      try {
+        interaction.client.modules.scheduleRolePing(interaction.client, {
+          channelId: interaction.channelId,
+          content,
+          roleId: pingGroup.roleId,
+          sendAt,
+        });
+      } catch (error) {
+        return interaction.reply({
+          content: error.message,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const unixTime = Math.floor(sendAt.getTime() / 1000); // the schedule message will always be a reply to the user so we dont need to mention them
+      let scheduledContent = `${pingGroupRole} ${pingGroup.name} **Scheduled** <t:${unixTime}:R>`;
+
+      if (party) {
+        scheduledContent = `${pingGroupRole} (${pingGroup.name}) \`${party.name}\` **Scheduled** <t:${unixTime}:R>`;
+      }
+
+      if (escapedExtra) {
+        scheduledContent += `\n${escapedExtra}`;
+      }
+
+      if (party) {
+        scheduledContent += `\n-# Use \`/join ${party.joinCode}\` to join the Discord party`;
+      }
+
+      await interaction.reply({
+        content: scheduledContent,
+        allowedMentions: { roles: [pingGroup.roleId] },
+      });
+
+      const message = await interaction.fetchReply();
+      if (message.crosspostable) {
+        await message.crosspost();
+      }
+      return;
+      
+    }
+
+    await interaction.reply({
       content: content,
       allowedMentions: { roles: [pingGroup.roleId] },
     });
+
+    const message = await interaction.fetchReply();
+    if (message.crosspostable) {
+      await message.crosspost();
+    }
   },
 };

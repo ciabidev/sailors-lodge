@@ -67,6 +67,12 @@ module.exports = {
             .setAutocomplete(true)
             .setRequired(true),
         )
+        .addStringOption((option) =>
+          option
+            .setName("newname")
+            .setDescription("New name for the ping group.")
+            .setRequired(false),
+        )
         .addRoleOption((option) =>
           option
             .setName("pingrole")
@@ -107,8 +113,10 @@ module.exports = {
       const name = interaction.options.getString("name");
       const settings = await interaction.client.modules.db.getSettings(interaction.guildId);
       const pingGroups = settings.pingGroups ?? [];
-      const filtered = pingGroups.filter((group) => group.name.startsWith(name));
-      return interaction.respond(filtered.map((group) => ({ name: group.name, value: group.name })));
+      const filtered = pingGroups.filter((group) => group.name.includes(name));
+      return interaction.respond(
+        filtered.map((group) => ({ name: group.name, value: group.name })),
+      );
     }
   },
   async execute(interaction) {
@@ -195,17 +203,11 @@ module.exports = {
 
     if (interaction.options.getSubcommand() === "edit") {
       const name = interaction.options.getString("name");
+      const newname = interaction.options.getString("newname");
       const role = interaction.options.getRole("pingrole");
       const allowedRole = interaction.options.getRole("allowedroles");
       const followedChannel = interaction.options.getChannel("followedchannel");
       const keywordsRaw = interaction.options.getString("keywords");
-
-      if (!name) {
-        return interaction.reply({
-          content: "Please provide a name.",
-          flags: MessageFlags.Ephemeral,
-        });
-      }
 
       const index = pingGroups.findIndex((group) => group.name === name);
       if (index === -1) {
@@ -215,31 +217,61 @@ module.exports = {
         });
       }
 
-      const hasUpdates =
-        role || allowedRole || followedChannel || typeof keywordsRaw === "string";
-      if (!hasUpdates) {
+      if (!role && !allowedRole && !followedChannel && !keywordsRaw && !newname) {
         return interaction.reply({
           content: "Provide at least one field to update.",
           flags: MessageFlags.Ephemeral,
         });
       }
+      const updatedGroup = {
+        ...pingGroups[index],
+        ...(role && { roleId: role.id }),
+        ...(newname && { name: newname }),
+        ...(allowedRole && {
+          allowedRoles: [...(pingGroups[index].allowedRoles ?? []), allowedRole.id],
+        }),
+        ...(followedChannel && { followedChannelId: followedChannel.id }),
+        ...(typeof keywordsRaw === "string" && {
+          followedKeywords: keywordsRaw
+            .split(",")
+            .map((keyword) => keyword.trim())
+            .filter((keyword) => keyword.length > 0),
+        }),
+      };
 
-      const updatedGroup = { ...pingGroups[index] };
-      if (role) updatedGroup.roleId = role.id;
-      if (allowedRole) updatedGroup.allowedRoles = [allowedRole.id];
-      if (followedChannel) updatedGroup.followedChannelId = followedChannel.id;
-      if (typeof keywordsRaw === "string") {
-        updatedGroup.followedKeywords = keywordsRaw
-          .split(",")
-          .map((keyword) => keyword.trim())
-          .filter((keyword) => keyword.length > 0);
+      function buildDiff(oldGroup, updatedGroup) {
+        const diff = new ContainerBuilder().addTextDisplayComponents((t) =>
+          t.setContent(`## Updated ${oldGroup.name}`),
+        );
+        const none = (value) => value || "None";
+        const role = (id) => (id ? `<@&${id}>` : "None");
+        const channel = (id) => (id ? `<#${id}>` : "None");
+        const roles = (ids = []) => (ids.length ? ids.map(role).join(", ") : "None");
+        const list = (items = []) => (items.length ? items.join(", ") : "None");
+
+        [
+          ["Name", oldGroup.name, updatedGroup.name, none],
+          ["Ping role", oldGroup.roleId, updatedGroup.roleId, role],
+          ["Allowed roles", oldGroup.allowedRoles ?? [], updatedGroup.allowedRoles ?? [], roles],
+          ["Followed channel", oldGroup.followedChannelId, updatedGroup.followedChannelId, channel],
+          ["Followed keywords", oldGroup.followedKeywords ?? [], updatedGroup.followedKeywords ?? [], list],
+        ]
+          .filter(([, oldValue, newValue]) => JSON.stringify(oldValue) !== JSON.stringify(newValue))
+          .forEach(([label, oldValue, newValue, format]) =>
+            diff.addTextDisplayComponents((t) =>
+              t.setContent(`**${label}:** ${format(oldValue)} ➡️ ${format(newValue)}`),
+            ),
+          );
+
+        return diff;
       }
 
+      const diff = buildDiff(pingGroups[index], updatedGroup);
       pingGroups[index] = updatedGroup;
       await interaction.client.modules.db.setSettings(guildId, { pingGroups });
       return interaction.reply({
-        content: `Ping group ${name} updated.`,
-        flags: MessageFlags.Ephemeral,
+        components: [diff],
+        flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
       });
     }
 
@@ -262,9 +294,7 @@ module.exports = {
             ? group.allowedRoles.map((roleId) => `<@&${roleId}>`).join(", ")
             : "None";
 
-        const followedChannel = group.followedChannelId
-          ? `<#${group.followedChannelId}>`
-          : "None";
+        const followedChannel = group.followedChannelId ? `<#${group.followedChannelId}>` : "None";
         const followedKeywords =
           Array.isArray(group.followedKeywords) && group.followedKeywords.length
             ? group.followedKeywords.join(", ")
@@ -272,7 +302,7 @@ module.exports = {
 
         container.addTextDisplayComponents((t) =>
           t.setContent(
-            `## ${group.name}\nRole: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nFollowed Channel: ${followedChannel}\nFollowed Keywords: ${followedKeywords}`,
+            `## ${group.name}\nPing role: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nFollowed Channel: ${followedChannel}\nFollowed Keywords: ${followedKeywords}`,
           ),
         );
       }

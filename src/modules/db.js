@@ -83,7 +83,7 @@ async function setSettings(guildId, settings) {
 }
 
 // create party
-async function createParty(name, description = "", visibility, memberLimit, host) {
+async function createParty(name, description = "", status = "not-started", visibility, memberLimit, host) {
   const parties= getCollection("parties");
   const joinCode = Array.from(
     { length: 6 },
@@ -96,6 +96,7 @@ async function createParty(name, description = "", visibility, memberLimit, host
   const partyData = {
     name,
     description,
+    status,
     visibility,
     memberLimit,
     host,
@@ -197,6 +198,7 @@ async function getParties(filters = {}) {
   // Define mandatory constraints
   const baseQuery = {
     deleted: { $ne: true },
+    status: { $ne: "active" },
     members: { $type: "array", $ne: [] },
     memberLimit: { $type: "number" },
     $expr: { $lt: [{ $size: "$members" }, "$memberLimit"] },

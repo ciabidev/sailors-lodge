@@ -35,7 +35,10 @@ module.exports = {
       const [prefix, partyId, dmFlag] = interaction.customId.split(":");
       if (prefix === "party-modal") {
           const name = interaction.fields.getTextInputValue("name");
-          const description = interaction.fields.getTextInputValue("description");
+          const description = interaction.fields.getTextInputValue("description") || "";
+          const selectedStatus = interaction.fields.getStringSelectValues("status")[0];
+          const validStatuses = ["not-started", "starting", "active"];
+          const status = validStatuses.includes(selectedStatus) ? selectedStatus : "not-started";
           const memberLimit = parseInt(interaction.fields.getTextInputValue("limit")) || 10;
           const visibility = interaction.fields.getStringSelectValues("visibility")[0];
 
@@ -44,6 +47,7 @@ module.exports = {
             const party = await interaction.client.modules.db.createParty(
               name,
               description,
+              status,
               visibility,
               memberLimit,
               interaction.user,
@@ -98,7 +102,7 @@ module.exports = {
 
             const updatedParty = await interaction.client.modules.db.updateParty(
               party._id,
-              { $set: { name, description, memberLimit, visibility } },
+              { $set: { name, description, status, memberLimit, visibility } },
               interaction,
             );
 

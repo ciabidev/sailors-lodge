@@ -15,8 +15,7 @@ module.exports = {
     const entries = followedPingMessages.get(message.id);
     if (!entries || entries.length === 0) return;
 
-    const isWebhookMessage = Boolean(message.webhookId);
-    if (message.author?.bot && !isWebhookMessage) return;
+    if (!message.flags.has(MessageFlags.IsCrosspost)) return;
     if (!message.guildId || !message.channel?.id) return;
 
     const settings = await message.client.modules.db.getSettings(message.guildId);

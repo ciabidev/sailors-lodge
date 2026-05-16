@@ -13,7 +13,9 @@ const {
   ComponentType,
 } = require("discord.js");
 
-module.exports = async function partyConfigModal(interaction, defaults = {}, customId = "party-modal") {
+module.exports = async function partyConfigModal(interaction, defaults = {}, customId = "party-modal") { // Defaults are usually set from previous party configs, not exactly hardcoded.
+    const defaultStatus = defaults.status ?? "not-started";
+
     interaction.showModal(
       new ModalBuilder()
         .setCustomId(customId)
@@ -28,15 +30,42 @@ module.exports = async function partyConfigModal(interaction, defaults = {}, cus
             )
         )
         .addLabelComponents(
+          new LabelBuilder().setLabel("Status")
+              .setStringSelectMenuComponent(
+                new StringSelectMenuBuilder()
+                  .setCustomId("status")
+                  .addOptions(
+                    new StringSelectMenuOptionBuilder()
+                      .setLabel("Not Started")
+                      .setEmoji("⏳")
+                      .setValue("not-started")
+                      .setDefault(defaultStatus === "not-started"),
+                    new StringSelectMenuOptionBuilder()
+                      .setLabel("Starting")
+                      .setEmoji("🔥")
+                      .setValue("starting")
+                      .setDefault(defaultStatus === "starting"),
+                    new StringSelectMenuOptionBuilder()
+                      .setLabel("Active")
+                      .setEmoji("☑️")
+                      .setValue("active")
+                      .setDescription("Note: Choosing this setting will hide the party from Browse")
+                      .setDefault(defaultStatus === "active")
+                  )
+              )
+              
+        )
+        .addLabelComponents(
           new LabelBuilder().setLabel("Description").setTextInputComponent(
             new TextInputBuilder()
               .setCustomId("description")
               .setStyle(TextInputStyle.Paragraph)
               .setValue(defaults.description ?? "")
+              .setMaxLength(500)
               .setRequired(false)
-              .setMaxLength(1000)
           )
         )
+        
         .addLabelComponents(
           new LabelBuilder().setLabel("Member Limit").setTextInputComponent(
             new TextInputBuilder()

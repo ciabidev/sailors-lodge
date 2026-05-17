@@ -13,21 +13,22 @@ const {
 async function leaveParty(interaction, party) {
 
   const db = interaction.client.modules.db;
-  if (!party) {
-    await interaction.reply({
-      content: "This party no longer exists.",
-      ephemeral: true,
+
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferReply({
+      flags: MessageFlags.Ephemeral,
     });
+  }
+
+  if (!party) {
+    await interaction.editReply({ content: "This party no longer exists." });
     return;
   }
 
   const isMember = party.members.some(m => m.id === interaction.user.id);
 
   if (!isMember) {
-    await interaction.reply({
-      content: "You are not a member of this party.",
-      ephemeral: true,
-    });
+    await interaction.editReply({ content: "You are not a member of this party." });
     return;
   }
 
@@ -41,7 +42,7 @@ async function leaveParty(interaction, party) {
 
   await db.removeMembersFromParty(party._id, interaction.user.id, interaction);
 
-  party = await db.getParty(party._id); 
+  party = await db.getParty(party._id);
 
   let feedback = "You have left the party.";
 
@@ -67,10 +68,7 @@ async function leaveParty(interaction, party) {
     }
   }
 
-  await interaction.reply({
-    content: feedback,
-    ephemeral: true,
-  });
+  await interaction.editReply({ content: feedback });
 
   let newParty = await db.getParty(party._id);
 
@@ -79,6 +77,3 @@ async function leaveParty(interaction, party) {
 
 
 module.exports = leaveParty;
-
-
-  

@@ -35,7 +35,10 @@ module.exports = {
       const [prefix, partyId, dmFlag] = interaction.customId.split(":");
       if (prefix === "party-modal") {
           const name = interaction.fields.getTextInputValue("name");
-          const description = interaction.fields.getTextInputValue("description");
+          const description = interaction.fields.getTextInputValue("description") || "";
+          const selectedStatus = interaction.fields.getStringSelectValues("status")[0];
+          const validStatuses = ["not-started", "starting", "active"];
+          const status = validStatuses.includes(selectedStatus) ? selectedStatus : "not-started";
           const memberLimit = parseInt(interaction.fields.getTextInputValue("limit")) || 10;
           const visibility = interaction.fields.getStringSelectValues("visibility")[0];
 
@@ -44,6 +47,7 @@ module.exports = {
             const party = await interaction.client.modules.db.createParty(
               name,
               description,
+              status,
               visibility,
               memberLimit,
               interaction.user,
@@ -98,7 +102,7 @@ module.exports = {
 
             const updatedParty = await interaction.client.modules.db.updateParty(
               party._id,
-              { $set: { name, description, memberLimit, visibility } },
+              { $set: { name, description, status, memberLimit, visibility } },
               interaction,
             );
 
@@ -203,6 +207,12 @@ module.exports = {
 
       // Handle party buttons
       if (partyId) {
+        if (action === "party-leave" && !interaction.deferred && !interaction.replied) {
+          await interaction.deferReply({
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
         await handlePartyButton(interaction);
         return;
       }
@@ -235,10 +245,18 @@ module.exports = {
           flags: [MessageFlags.Ephemeral],
         };
 
-        if (interaction.replied || interaction.deferred) {
-          await interaction.followUp(replyContent);
-        } else {
-          await interaction.reply(replyContent);
+        try {
+          if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(replyContent);
+          } else {
+            await interaction.reply(replyContent);
+          }
+        } catch (replyError) {
+          if (replyError.code !== 10062) {
+            throw replyError;
+          }
+
+          console.error("Failed to send command error response: interaction expired.");
         }
       }
     }

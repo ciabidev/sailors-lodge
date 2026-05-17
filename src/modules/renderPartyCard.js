@@ -9,6 +9,11 @@ const {
 
 module.exports = async function renderPartyCard(party, interaction, userId) {
   const escape = interaction.client.modules.escapeMarkdown;
+  const statusLabels = {
+    "not-started": "Not Started",
+    starting: "Starting",
+    active: "Active",
+  };
 
   // Invalid party fallback
   if (!party || !party.members || !party.name) {
@@ -39,12 +44,13 @@ module.exports = async function renderPartyCard(party, interaction, userId) {
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(
       (t) => t.setContent(party.description || "No description"),
+      (t) => t.setContent(`**Status:** ${statusLabels[party.status] || "Not Started"}`),
       (t) => t.setContent(`**Visibility:** ${party.visibility}`),
       (t) =>
-        t.setContent(`**${members.length}/${party.memberLimit} Members**\n-# Discord username will be shown next to mention\n${members.join("\n")}`),
+        t.setContent(`**${members.length}/${party.memberLimit} Members**\n-# Mention - Discord Username\n${members.join("\n")}`),
     )
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents((t) => t.setContent(`Party code: **/join ${party.joinCode}**\n-# TIP: Use \`!a\` before your message to announce a message to your party leader or members. For example: !a Hello everyone. Images work too!`));
+    .addTextDisplayComponents((t) => t.setContent(`Party code: **/join ${party.joinCode}**\n-# TIP: Use \`!a\` to message the party. For example: !a Hello everyone. Images work too`));
 
   // Buttons
   const joinBtn = new ButtonBuilder()

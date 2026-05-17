@@ -33,6 +33,7 @@ module.exports = async function editParty(interaction, party) {
   await interaction.client.modules.partyConfigModal(interaction, {
     name: party.name,
     description: party.description || "",
+    status: party.status || "not-started",
     limit: party.memberLimit || 10,
     visibility: party.visibility || "public",
   }, customId = `party-modal:${party._id}`);

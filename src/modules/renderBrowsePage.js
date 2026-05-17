@@ -9,13 +9,18 @@ const {
 
 module.exports = function renderBrowsePage({ pages, pageIndex, client }) {
   const page = pages[pageIndex];
+  const statusLabels = {
+    "not-started": "Not Started",
+    starting: "Starting",
+    active: "Active",
+  };
 
   const container = new ContainerBuilder().addTextDisplayComponents((t) =>
     t.setContent(`## Browse Parties (Page ${pageIndex + 1}/${pages.length})`),
   );
 
   for (const party of page) {
-    const { name, description, host, members, memberLimit, joinCode, _id } = party;
+    const { name, description, status, host, members, memberLimit, joinCode, _id } = party;
 
     const joinButton = new ButtonBuilder()
       .setCustomId(`party-join:${_id}`)
@@ -31,7 +36,9 @@ module.exports = function renderBrowsePage({ pages, pageIndex, client }) {
     );
 
     container.addTextDisplayComponents((t) =>
-      t.setContent(`**Host:** <@${host.id}> | **Members:** ${members.length}/${memberLimit}`),
+      t.setContent(
+        `**Host:** <@${host.id}> | **Status:** ${statusLabels[status] || "Not Started"} | **Members:** ${members.length}/${memberLimit}`,
+      ),
     );
 
     if (description?.length) {

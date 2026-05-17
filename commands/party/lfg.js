@@ -39,7 +39,7 @@ module.exports = {
       const timeLeft = (expirationTime - now) / 600000;
       return interaction.reply({
         content: `A global cooldown is active! Please wait ${timeLeft.toFixed(1)} more minutes.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 

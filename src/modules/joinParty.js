@@ -96,6 +96,7 @@ async function joinParty(interaction, joinCode) {
     userId: interaction.user.id,
     guildId: interaction.guildId,
   });
+  await interaction.client.modules.sendPartyTip(interaction.user);
 
   await interaction.client.modules.updatePartyCards(interaction, party);
 }

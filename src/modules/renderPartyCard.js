@@ -44,12 +44,12 @@ module.exports = async function renderPartyCard(party, interaction, userId) {
         t.setContent(`**${members.length}/${party.memberLimit} Members**\n-# Discord username will be shown next to mention\n${members.join("\n")}`),
     )
     .addSeparatorComponents((s) => s.setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents((t) => t.setContent(`Party code: **/join ${party.joinCode}**\n-# TIP: Use \`!a\` before your message to announce a message to your party leader or members. For example: !a Hello everyone. Images work too!`));
+    .addTextDisplayComponents((t) => t.setContent(`Party code: **/join ${party.joinCode}**\n-# ℹ️ This is a discord group, not an in-game party`));
 
   // Buttons
   const joinBtn = new ButtonBuilder()
     .setCustomId(`party-join:${party._id}`)
-    .setLabel("Join")
+    .setLabel("Join Group")
     .setStyle(ButtonStyle.Success);
 
   const leaveBtn = new ButtonBuilder()

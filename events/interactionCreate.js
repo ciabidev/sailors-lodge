@@ -13,6 +13,8 @@ const { ObjectId } = require("mongodb");
 const issues = process.env.ISSUES_URL;
 const { browsePages } = require("../commands/party/browse");
 
+
+    // modal submission and button clicks survive through restarts 
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
@@ -79,6 +81,7 @@ module.exports = {
               userId: interaction.user.id,
               guildId: interaction.guildId,
             });
+            await interaction.client.modules.sendPartyTip(interaction.user);
           } else {
             // EDIT branch
             const party = await interaction.client.modules.db.getParty(new ObjectId(partyId));

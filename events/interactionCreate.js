@@ -207,6 +207,12 @@ module.exports = {
 
       // Handle party buttons
       if (partyId) {
+        if (action === "party-leave" && !interaction.deferred && !interaction.replied) {
+          await interaction.deferReply({
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
         await handlePartyButton(interaction);
         return;
       }
@@ -239,10 +245,18 @@ module.exports = {
           flags: [MessageFlags.Ephemeral],
         };
 
-        if (interaction.replied || interaction.deferred) {
-          await interaction.followUp(replyContent);
-        } else {
-          await interaction.reply(replyContent);
+        try {
+          if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(replyContent);
+          } else {
+            await interaction.reply(replyContent);
+          }
+        } catch (replyError) {
+          if (replyError.code !== 10062) {
+            throw replyError;
+          }
+
+          console.error("Failed to send command error response: interaction expired.");
         }
       }
     }

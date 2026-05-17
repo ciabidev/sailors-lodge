@@ -14,7 +14,13 @@ module.exports = {
     .setDescription("Leave your party"),
     
     async execute(interaction) {
-            const party = await interaction.client.modules.db.getCurrentParty(interaction.user.id); 
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.deferReply({
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const party = await interaction.client.modules.db.getCurrentParty(interaction.user.id);
 
       await interaction.client.modules.leaveParty(interaction, party);
     },

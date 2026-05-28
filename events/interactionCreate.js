@@ -1,4 +1,4 @@
-const { Events, MessageFlags } = require("discord.js");
+const { ChannelType, Events, MessageFlags } = require("discord.js");
 const {
   ContainerBuilder,
   SeparatorSpacingSize,
@@ -11,7 +11,7 @@ const {
 const { ObjectId } = require("mongodb");
 
 const issues = process.env.ISSUES_URL;
-const { browsePages } = require("../commands/party/browse");
+const { browsePages: feedBrowsePages } = require("../commands/feed/browse");
 
 
     // modal submission and button clicks survive through restarts 
@@ -34,6 +34,48 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit()) {
+      if (interaction.customId === "feed-publish-modal") {
+        const name = interaction.fields.getTextInputValue("name");
+        const description = interaction.fields.getTextInputValue("description") || "";
+        const keywordsRaw = interaction.fields.getTextInputValue("keywords") || "";
+        const keywords = keywordsRaw
+          .split(/[\n,]/)
+          .map((keyword) => keyword.trim())
+          .filter((keyword) => keyword.length > 0);
+        const channels = interaction.fields.getSelectedChannels(
+          "channels",
+          true,
+          [ChannelType.GuildText, ChannelType.GuildAnnouncement],
+        );
+
+        const publishedFeeds = [];
+        for (const channel of channels.values()) {
+          const result = await interaction.client.modules.db.publishFeedSource(
+            name,
+            interaction.guildId,
+            channel.id,
+            description,
+            {
+              keywords,
+              guildName: interaction.guild?.name,
+              channelName: `#${channel.name}`,
+            },
+          );
+
+          publishedFeeds.push({
+            id: result.insertedId,
+            channel,
+          });
+        }
+
+        return interaction.reply({
+          content: `Published a feed with ${publishedFeeds.length} channel${publishedFeeds.length === 1 ? "" : "s"}: ${publishedFeeds
+            .map((feed) => `<#${feed.channel.id}>`)
+            .join(", ")}.`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       const [prefix, partyId, dmFlag] = interaction.customId.split(":");
       if (prefix === "party-modal") {
           const name = interaction.fields.getTextInputValue("name");
@@ -183,14 +225,14 @@ module.exports = {
 
       const id = interaction.customId;
 
-      if (id === "parties-prev" || id === "parties-next") {
-        const state = browsePages.get(interaction.user.id);
+      if (id === "feeds-prev" || id === "feeds-next") {
+        const state = feedBrowsePages.get(interaction.user.id);
         if (!state) return;
 
         const { pages } = state;
 
         state.pageIndex =
-          id === "parties-prev"
+          id === "feeds-prev"
             ? (state.pageIndex - 1 + pages.length) % pages.length
             : (state.pageIndex + 1) % pages.length;
 
@@ -206,6 +248,13 @@ module.exports = {
         });
 
         return;
+      }
+
+      if (action === "feed-subscribe") {
+        return interaction.reply({
+          content: "Feed subscriptions are coming soon.",
+          flags: MessageFlags.Ephemeral,
+        });
       }
 
       // Handle party buttons

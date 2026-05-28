@@ -221,6 +221,102 @@ async function removePartyCardMessage(messageId) {
   return parties.updateOne({ cards: { $elemMatch: { messageId } } }, { $pull: { cards: { messageId } } });
 }
 
+
+// feed system
+
+// Replace the passive \`/party browse\` system with an active Party Feed — a cross-server Discovery system
+
+// ## Background
+// /party browse shows a list of parties that havent started yet, which would theoretically be useful
+// But the core problem with \`/party browse\` is that it requires hosts to use \`/party create\` and players to repeatedly check for parties. AO party culture is built around passive pinging-and-waiting behavior, not a lobby browse, so browse stays empty and nobody has a reason to use it.
+
+// The feed system flips this: parties come to the player instead.
+
+// ## How it works**
+
+// ### Server side (ping source)
+// - Server owner runs \`/feed publish #channel-name\`
+// - A modal prompts them for a feed title and description (e.g. "Party Central — Omen Hunts")
+// - Their server + channel is added to the Feed Directory
+// - When a host uses \`/party create\` in that channel, the party card is automatically forwarded to all subscribers in other servers 
+//   - If the party is set to Private visibility, it won't be forwarded  
+
+// ### Player side (subscriber)
+// - Player runs \`/feed browse\` to open the feed directory
+// - They see a list of feed channels and all Registered servers (e.g. "Party Central — #luck-parties", "Party Central — #omen-hunts")
+// - They hit Subscribe on any feeds they want
+// - If used in a server channel, they're prompted to pick a channel to pipe the feed into + add a ping
+// - If used in DMs, they simply receive party cards via DM notification
+
+// ## Why \`/party create\` will still be required (no keywords)
+
+// Keyword detection, configured by the Ping Source was considered as a fallback for hosts who don't use \`/party create\`, but dropped for two reasons:
+// - It undermines the incentive for hosts to use \`/party create\`, which is what gives feed subscribers a structured, actionable party card with a join button instead of a raw text ping
+
+// Hosts who use \`/party create\` give subscribers a better experience.
+// /party ping and /party lfg will still be available
+// ## Changes
+
+// - Add \`/feed publish\` command for server owners
+// - Add \`/feeds\` command for players to browse and subscribe to feeds
+// - Add feed directory database table
+// - Add subscriber database table
+// - Relay party cards to feed subscribers on \`/party create\`
+// - Remove \`/party browse\` command
+// - Add onboarding message when bot is added to a new server explaining how the bot works
+
+// ### Breaking changes
+
+// - \`/party browse\` is removed. Existing references to it (help text, onboarding, documentation) need to be updated.
+async function getFeedSources() {
+  const feedSources = getCollection("feedSources");
+  return feedSources.find().toArray();
+}
+
+async function getFeedSource(_id) {
+  const feedSources = getCollection("feedSources");
+  return feedSources.findOne({ _id: new ObjectId(_id) });
+}
+
+async function getFeedSubscribers(sourceId) {
+  const feedSubscribers = getCollection("feedSubscribers");
+  return feedSubscribers.find({ sourceId: new ObjectId(sourceId) }).toArray();
+}
+
+async function publishFeedSource(name, guildId, channelId, description, options = {}) {
+  const feedSources = getCollection("feedSources");
+  return feedSources.insertOne({
+    name,
+    guildId,
+    channelId,
+    description,
+    keywords: options.keywords ?? [],
+    guildName: options.guildName,
+    channelName: options.channelName,
+    createdAt: new Date(),
+  });
+}
+
+async function removeFeedSource(_id) {
+  const feedSources = getCollection("feedSources");
+  await feedSources.deleteOne({ _id: new ObjectId(_id) });
+  // clean up subscribers too
+  const feedSubscribers = getCollection("feedSubscribers");
+  return feedSubscribers.deleteMany({ sourceId: new ObjectId(_id) });
+}
+
+async function addSubscriber(sourceId, subscriber) {
+  const feedSubscribers = getCollection("feedSubscribers");
+  return feedSubscribers.insertOne({ sourceId: new ObjectId(sourceId), ...subscriber });
+}
+
+async function removeSubscriber(sourceId, subscriberId) {
+  const feedSubscribers = getCollection("feedSubscribers");
+  return feedSubscribers.deleteOne({ sourceId: new ObjectId(sourceId), subscriberId });
+}
+
+
+
 module.exports = {
   getSettings,
   setSettings,
@@ -237,4 +333,11 @@ module.exports = {
   deleteParty,
   deleteExpiredParties,
   removePartyCardMessage,
+  getFeedSources,
+  getFeedSource,
+  getFeedSubscribers,
+  publishFeedSource,
+  removeFeedSource,
+  addSubscriber,
+  removeSubscriber,
 };

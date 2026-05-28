@@ -1,40 +1,7 @@
-const {
-  SlashCommandBuilder,
-  PermissionsBitField,
-  MessageFlags,
-  Collection,
-  InteractionContextType,
-} = require("discord.js");
+const registerSubcommandFolder = require("../../src/modules/subcommandFolder");
 
-const fs = require("node:fs");
-const path = require("node:path");
-
-module.exports = {
-  data: (() => {
-    const builder = new SlashCommandBuilder()
-      .setName("party")
-      .setDescription("Party commands");
-    const dir = __dirname; // commands/moderation
-    const files = fs.readdirSync(dir).filter((f) => f !== "main.js");
-
-    for (const file of files) {
-      const sub = require(path.join(dir, file));
-      builder.addSubcommand(() => sub.data);
-    }
-
-    return builder;
-  })(),
-
-  async execute(interaction) {
-    const name = interaction.options.getSubcommand(true);
-    const handler = require(path.join(__dirname, `${name}.js`));
-    return handler.execute(interaction);
-  },
-
-  async autocomplete(interaction) {
-    const name = interaction.options.getSubcommand(true);
-    const handler = require(path.join(__dirname, `${name}.js`));
-    if (!handler.autocomplete) return;
-    return handler.autocomplete(interaction);
-  },
-};
+module.exports = registerSubcommandFolder({
+  name: "party",
+  description: "Party commands",
+  dirname: __dirname,
+});

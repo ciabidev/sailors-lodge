@@ -8,37 +8,34 @@ const {
 } = require("discord.js");
 
 module.exports = function renderBrowsePage({ pages, pageIndex, client }) {
-  const page = pages[pageIndex];
-  const statusLabels = {
-    "not-started": "Not Started",
-    starting: "Starting",
-    active: "Active",
-  };
+  const page = pages[pageIndex] ?? [];
 
   const container = new ContainerBuilder().addTextDisplayComponents((t) =>
-    t.setContent(`## Browse Parties (Page ${pageIndex + 1}/${pages.length})`),
+    t.setContent(`## Browse Feeds (Page ${pageIndex + 1}/${pages.length})`),
   );
 
-  for (const party of page) {
-    const { name, description, status, host, members, memberLimit, joinCode, _id } = party;
+  for (const feed of page) {
+    const { title, name, description, channelName, guildName, channelId, guildId, _id } = feed;
+    const feedTitle = title ?? name ?? "Untitled Feed";
+    const sourceChannel = channelName ?? (channelId ? `#${channelId}` : "Unknown channel");
+    const sourceServer = guildName ?? guildId ?? "Unknown server";
+    const sourceLabel = `${sourceChannel} - ${sourceServer}`;
 
-    const joinButton = new ButtonBuilder()
-      .setCustomId(`party-join:${_id}`)
-      .setLabel("Join")
+    const subscribeButton = new ButtonBuilder()
+      .setCustomId(`feed-subscribe:${_id}`)
+      .setLabel("Subscribe")
       .setStyle(ButtonStyle.Success);
 
     container.addSectionComponents(
       new SectionBuilder()
-        .setButtonAccessory(joinButton)
+        .setButtonAccessory(subscribeButton)
         .addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(`### ${client.modules.escapeMarkdown(name)}`),
+          new TextDisplayBuilder().setContent(`### ${client.modules.escapeMarkdown(feedTitle)}`),
         ),
     );
 
     container.addTextDisplayComponents((t) =>
-      t.setContent(
-        `**Host:** <@${host.id}> | **Status:** ${statusLabels[status] || "Not Started"} | **Members:** ${members.length}/${memberLimit}`,
-      ),
+      t.setContent(`**${client.modules.escapeMarkdown(sourceLabel)}**`),
     );
 
     if (description?.length) {
@@ -46,8 +43,6 @@ module.exports = function renderBrowsePage({ pages, pageIndex, client }) {
         t.setContent(description.length > 100 ? description.slice(0, 100) + "..." : description),
       );
     }
-
-    container.addTextDisplayComponents((t) => t.setContent(`**Join Code:** ${joinCode}`));
 
     container.addSeparatorComponents((s) =>
       s.setDivider(true).setSpacing(SeparatorSpacingSize.Large),

@@ -1,7 +1,7 @@
 const registerSubcommandFolder = require("../../src/modules/subcommandFolder");
 
 module.exports = registerSubcommandFolder({
-  name: "settings",
-  description: "Manage settings for your server.",
+  name: "feed",
+  description: "Browse and manage party feeds.",
   dirname: __dirname,
 });

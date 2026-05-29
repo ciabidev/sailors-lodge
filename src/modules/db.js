@@ -236,7 +236,7 @@ async function removePartyCardMessage(messageId) {
 
 // ### Server side (ping source)
 // - Server owner runs \`/feed publish #channel-name\`
-// - A modal prompts them for a feed title and description (e.g. "Party Central — Omen Hunts")
+// - A modal prompts them for a feed name and description (e.g. "Party Central — Omen Hunts")
 // - Their server + channel is added to the Feed Directory
 // - When a host uses \`/party create\` in that channel, the party card is automatically forwarded to all subscribers in other servers 
 //   - If the party is set to Private visibility, it won't be forwarded  
@@ -283,16 +283,28 @@ async function getFeedSubscribers(sourceId) {
   return feedSubscribers.find({ sourceId: new ObjectId(sourceId) }).toArray();
 }
 
-async function publishFeedSource(name, guildId, channelId, description, options = {}) {
+async function publishFeedSource(
+  name,
+  guildId,
+  channelIds,
+  description = "",
+  keywords = [],
+  publishMode = "manual",
+  subscriptionMode = "open",
+  guildName,
+  channelNames,
+) {
   const feedSources = getCollection("feedSources");
   return feedSources.insertOne({
     name,
     guildId,
-    channelId,
+    channelIds,
     description,
-    keywords: options.keywords ?? [],
-    guildName: options.guildName,
-    channelName: options.channelName,
+    keywords,
+    publishMode,
+    subscriptionMode,
+    guildName,
+    channelNames,
     createdAt: new Date(),
   });
 }

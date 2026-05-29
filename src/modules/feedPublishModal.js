@@ -3,6 +3,8 @@ const {
   ChannelType,
   LabelBuilder,
   ModalBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
 } = require("discord.js");
@@ -60,6 +62,32 @@ module.exports = async function feedPublishModal(interaction) {
               .setPlaceholder("Keyword 1\nKeyword 2\nKeyword 3")
               .setRequired(false)
               .setMaxLength(500),
+          ),
+      )
+      .addLabelComponents(
+        new LabelBuilder()
+          .setLabel("Feed Visibility")
+          .setDescription("Who can subscribe to your feed, and what messages get forwarded")
+          .setStringSelectMenuComponent(
+            new StringSelectMenuBuilder()
+              .setCustomId("feed-visibility")
+              .addOptions(
+                new StringSelectMenuOptionBuilder()
+                  .setLabel("Open - All messages")
+                  .setValue("open-all")
+                  .setDefault(true),
+                new StringSelectMenuOptionBuilder()
+                  .setLabel("Open - Keywords only")
+                  .setValue("open-keywords"),
+             
+                new StringSelectMenuOptionBuilder()
+                  .setLabel("Request To Join - All messages")
+                  .setValue("request-all"),
+                new StringSelectMenuOptionBuilder()
+                  .setLabel("Request To Join - Keywords only")
+                  .setValue("request-keywords"),
+               
+              ),
           ),
       ),
   );

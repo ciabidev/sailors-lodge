@@ -35,6 +35,17 @@ module.exports = {
 
     if (interaction.isModalSubmit()) {
       if (interaction.customId === "feed-publish-modal") {
+        const validPublishModes = ["all", "keywords", "manual"];
+        const validSubscriptionModes = ["open", "request"];
+        const feedVisibility =
+          interaction.fields.getStringSelectValues("feed-visibility")[0] ?? "open-all";
+        const [subscriptionModeRaw, publishModeRaw] = feedVisibility.split("-");
+        const publishMode = validPublishModes.includes(publishModeRaw)
+          ? publishModeRaw
+          : "all";
+        const subscriptionMode = validSubscriptionModes.includes(subscriptionModeRaw)
+          ? subscriptionModeRaw
+          : "open";
         const name = interaction.fields.getTextInputValue("name");
         const description = interaction.fields.getTextInputValue("description") || "";
         const keywordsRaw = interaction.fields.getTextInputValue("keywords") || "";
@@ -42,35 +53,37 @@ module.exports = {
           .split(/[\n,]/)
           .map((keyword) => keyword.trim())
           .filter((keyword) => keyword.length > 0);
+        if (publishMode === "keywords" && keywords.length === 0) {
+          return interaction.reply({
+            content: "Keywords only feeds need at least one ping keyword.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
         const channels = interaction.fields.getSelectedChannels(
           "channels",
           true,
           [ChannelType.GuildText, ChannelType.GuildAnnouncement],
         );
 
-        const publishedFeeds = [];
-        for (const channel of channels.values()) {
-          const result = await interaction.client.modules.db.publishFeedSource(
-            name,
-            interaction.guildId,
-            channel.id,
-            description,
-            {
-              keywords,
-              guildName: interaction.guild?.name,
-              channelName: `#${channel.name}`,
-            },
-          );
-
-          publishedFeeds.push({
-            id: result.insertedId,
-            channel,
-          });
-        }
+        const selectedChannels = Array.from(channels.values());
+        const channelIds = selectedChannels.map((channel) => channel.id);
+        const channelNames = selectedChannels.map((channel) => `#${channel.name}`);
+        const result = await interaction.client.modules.db.publishFeedSource(
+          name,
+          interaction.guildId,
+          channelIds,
+          description,
+          keywords,
+          publishMode,
+          subscriptionMode,
+          interaction.guild?.name,
+          channelNames,
+        );
 
         return interaction.reply({
-          content: `Published a feed with ${publishedFeeds.length} channel${publishedFeeds.length === 1 ? "" : "s"}: ${publishedFeeds
-            .map((feed) => `<#${feed.channel.id}>`)
+          content: `Published a feed with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
+            .map((channel) => `<#${channel.id}>`)
             .join(", ")}.`,
           flags: MessageFlags.Ephemeral,
         });
@@ -251,8 +264,14 @@ module.exports = {
       }
 
       if (action === "feed-subscribe") {
+        const source = await interaction.client.modules.db.getFeedSource(partyId);
+        const subscriptionMode = source?.subscriptionMode ?? "open";
+
         return interaction.reply({
-          content: "Feed subscriptions are coming soon.",
+          content:
+            subscriptionMode === "request"
+              ? "Feed subscription requests are coming soon."
+              : "Feed subscriptions are coming soon.",
           flags: MessageFlags.Ephemeral,
         });
       }

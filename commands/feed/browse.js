@@ -9,21 +9,6 @@ const {
 
 const browsePages = new Collection();
 
-async function getSourceLabels(client, source) {
-  const guild = source.guildId
-    ? await client.guilds.fetch(source.guildId).catch(() => null)
-    : null;
-
-  const channel = source.channelId
-    ? await client.channels.fetch(source.channelId).catch(() => null)
-    : null;
-
-  return {
-    ...source,
-    guildName: guild?.name ?? source.guildName ?? "Unknown server",
-    channelName: channel?.name ? `#${channel.name}` : source.channelName ?? `#${source.channelId}`,
-  };
-}
 
 module.exports = {
   browsePages,
@@ -32,19 +17,46 @@ module.exports = {
     .setName("browse")
     .setDescription("Browse available party feeds.")
     .addStringOption((option) =>
-      option.setName("search").setDescription("Search feeds by title, server, or channel."),
+      option.setName("search").setDescription("Search feeds by name, server, or channel."),
     ),
 
   async execute(interaction) {
+
+    async function getSourceLabels(source) {
+      const guild = source.guildId
+        ? await interaction.client.guilds.fetch(source.guildId).catch(() => null)
+        : null;
+
+      const channelIds = source.channelIds;
+      const channels = await Promise.all(
+        channelIds.map((channelId) =>
+          interaction.client.channels.fetch(channelId).catch(() => null),
+        ),
+      );
+      const channelNames = channels.map((channel, index) => {
+        if (channel?.name) return `#${channel.name}`;
+        if (source.channelNames[index]) return source.channelNames[index];
+        return `#${channelIds[index]}`;
+      });
+
+      return {
+        ...source,
+        guildName: guild?.name ?? source.guildName ?? "Unknown server",
+        channelIds,
+        channelNames,
+        guildIconURL: guild?.iconURL({ extension: "png", size: 64 }),
+      };
+    }
+
     const db = interaction.client.modules.db;
     const search = interaction.options.getString("search")?.toLowerCase();
 
     let feeds = await db.getFeedSources();
-    feeds = await Promise.all(feeds.map((feed) => getSourceLabels(interaction.client, feed)));
+    feeds = await Promise.all(feeds.map((feed) => getSourceLabels(feed)));
 
     if (search) {
       feeds = feeds.filter((feed) =>
-        [feed.title, feed.name, feed.description, feed.channelName, feed.guildName]
+        [feed.name, feed.description, feed.guildName, ...(feed.channelNames ?? [])]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(search)),
       );

@@ -309,6 +309,17 @@ async function publishFeedSource(
   });
 }
 
+async function updateFeedSource(_id, update) {
+  const feedSources = getCollection("feedSources");
+
+  if (!Object.keys(update).some((key) => key.startsWith("$"))) {
+    throw new Error("updateFeedSource requires MongoDB operators ($set, $push, etc)");
+  }
+
+  await feedSources.updateOne({ _id: new ObjectId(_id) }, update);
+  return getFeedSource(_id);
+}
+
 async function removeFeedSource(_id) {
   const feedSources = getCollection("feedSources");
   await feedSources.deleteOne({ _id: new ObjectId(_id) });
@@ -349,6 +360,7 @@ module.exports = {
   getFeedSource,
   getFeedSubscribers,
   publishFeedSource,
+  updateFeedSource,
   removeFeedSource,
   addSubscriber,
   removeSubscriber,

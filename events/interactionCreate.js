@@ -34,7 +34,8 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit()) {
-      if (interaction.customId === "feed-publish-modal") {
+      const [modalId, feedId] = interaction.customId.split(":");
+      if (modalId === "feed-publish-modal") {
         const validPublishModes = ["all", "keywords", "manual"];
         const validSubscriptionModes = ["open", "request"];
         const feedVisibility =
@@ -69,7 +70,40 @@ module.exports = {
         const selectedChannels = Array.from(channels.values());
         const channelIds = selectedChannels.map((channel) => channel.id);
         const channelNames = selectedChannels.map((channel) => `#${channel.name}`);
-        const result = await interaction.client.modules.db.publishFeedSource(
+
+        if (feedId) {
+          const source = await interaction.client.modules.db.getFeedSource(feedId);
+
+          if (!source || source.guildId !== interaction.guildId) {
+            return interaction.reply({
+              content: "I couldn't find that feed in this server.",
+              flags: MessageFlags.Ephemeral,
+            });
+          }
+
+          await interaction.client.modules.db.updateFeedSource(feedId, {
+            $set: {
+              name,
+              guildId: interaction.guildId,
+              channelIds,
+              description,
+              keywords,
+              publishMode,
+              subscriptionMode,
+              guildName: interaction.guild?.name,
+              channelNames,
+            },
+          });
+
+          return interaction.reply({
+            content: `Updated feed with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
+              .map((channel) => `<#${channel.id}>`)
+              .join(", ")}.`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        await interaction.client.modules.db.publishFeedSource(
           name,
           interaction.guildId,
           channelIds,

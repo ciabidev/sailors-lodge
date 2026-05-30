@@ -222,65 +222,87 @@ async function removePartyCardMessage(messageId) {
 }
 
 
-// feed system
-
-// Replace the passive \`/party browse\` system with an active Party Feed — a cross-server Discovery system
+// **Replace `/party browse` with Party Feed System**
 
 // ## Background
-// /party browse shows a list of parties that havent started yet, which would theoretically be useful
-// But the core problem with \`/party browse\` is that it requires hosts to use \`/party create\` and players to repeatedly check for parties. AO party culture is built around passive pinging-and-waiting behavior, not a lobby browse, so browse stays empty and nobody has a reason to use it.
+// `/party browse` shows a list of parties that haven't started yet, which would theoretically be useful. But the core problem is that it requires players to repeatedly check for parties. AO party culture is built around passive pinging-and-waiting behavior, not a lobby browser, so browse stays empty and nobody has a reason to use it.
 
 // The feed system flips this: parties come to the player instead.
 
-// ## How it works**
+// ---
 
-// ### Server side (ping source)
-// - Server owner runs \`/feed publish #channel-name\`
-// - A modal prompts them for a feed name and description (e.g. "Party Central — Omen Hunts")
-// - Their server + channel is added to the Feed Directory
-// - When a host uses \`/party create\` in that channel, the party card is automatically forwarded to all subscribers in other servers 
-//   - If the party is set to Private visibility, it won't be forwarded  
+// ## How it works
+
+// ### Server side (feed source)
+// - Server owner runs `/feed publish #channel-name`
+// - A modal prompts them for a feed title, description, and configuration options
+// - Their server + channel is added to the Feed Directory with a unique `source` ID
+// - Messages are forwarded to subscribers based on the server owner's configured publish mode (see Feed Configuration below)
+// - If a party is set to Private visibility, it is never forwarded regardless of publish mode
 
 // ### Player side (subscriber)
-// - Player runs \`/feed browse\` to open the feed directory
-// - They see a list of feed channels and all Registered servers (e.g. "Party Central — #luck-parties", "Party Central — #omen-hunts")
-// - They hit Subscribe on any feeds they want
-// - If used in a server channel, they're prompted to pick a channel to pipe the feed into + add a ping
-// - If used in DMs, they simply receive party cards via DM notification
+// - Player runs `/feed browse` to open the feed directory (only shows feeds with directory visibility enabled)
+// - They see a list of registered feed channels across all servers (e.g. "Party Central — #luck-parties", "Party Central — #omen-hunts")
+// - They hit Subscribe on any feed they want, or use `/feed subscribe <source>` to subscribe directly
+// - If a subscription request is required, the server owner is notified and must approve before the subscription is active
+// - If subscribing in a server channel, the player is prompted to pick a channel to pipe the feed into and optionally configure a ping role
+// - If subscribing in DMs, they receive forwarded messages as DM notifications
+// - `/party create` cards are always forwarded as full interactive party cards with a join button
 
-// ## Why \`/party create\` will still be required (no keywords)
+// ---
 
-// Keyword detection, configured by the Ping Source was considered as a fallback for hosts who don't use \`/party create\`, but dropped for two reasons:
-// - It undermines the incentive for hosts to use \`/party create\`, which is what gives feed subscribers a structured, actionable party card with a join button instead of a raw text ping
+// ## Feed Configuration
+// Server owners can configure the following options per feed when running `/feed publish` or later via `/feed edit`:
 
-// Hosts who use \`/party create\` give subscribers a better experience.
-// /party ping and /party lfg will still be available
+// ### Feed Visibility
+// **Open**
+// Open — All messages — anyone can follow instantly, every message is forwarded
+// Open — Keywords only — anyone can follow instantly, only keyword-matching messages are forwarded
+// Open — Manual only — anyone can follow instantly, only /party create cards are forwarded
+// **Request To Join**
+// Request — All messages — server owner must approve follow requests, every message is forwarded
+// Request — Keywords only — server owner must approve follow requests, only keyword-matching messages are forwarded
+// Request — Manual only — server owner must approve follow requests, only /party create cards are forwarded
+
+// ---
+
 // ## Changes
+// - [x] Add `feedSources` collection (`source` as primary identifier, server id, channel id, title, description, publish mode, keywords, directory visibility, subscription mode)
+// - [x] Add `feedSubscribers` collection (source, subscriber id, type: dm or channel)
+// - [x] Add `/feed publish` command with modal 
+// - [x] Add `/feed browse` command displaying the public feed directory with subscribe buttons
+// - [x] Add `/feed edit` command for server owners to view, edit, and remove their feed sources
+// - [ ] Add `/feed subscribe <source>` command for direct subscription via feed ID
+// - [ ] Forward messages to feed subscribers based on configured publish mode on every message sent in a registered feed channel
+// - [ ] Forward full interactive party card to subscribers when `/party create` is used in a registered feed channel
+// - [ ] Skip forwarding for private parties
+// - [ ] Handle subscription request flow — notify server owner, await approval before activating subscription
+// - [x] Remove `/party browse` command
+// - [ ] Add onboarding message when bot is added explaining how the bot works and encouraging hosts to register feed channels
+// - [ ] Add disclaimer footer to party cards clarifying it is a Discord coordination group, not an in-game party
+// - [ ] Update `/party create` to include optional `ping` parameter that triggers a configured ping group on creation
 
-// - Add \`/feed publish\` command for server owners
-// - Add \`/feeds\` command for players to browse and subscribe to feeds
-// - Add feed directory database table
-// - Add subscriber database table
-// - Relay party cards to feed subscribers on \`/party create\`
-// - Remove \`/party browse\` command
-// - Add onboarding message when bot is added to a new server explaining how the bot works
+// ## Breaking Changes
+// - `/party browse` is removed. All references in help text, onboarding messages, and documentation must be updated.
 
-// ### Breaking changes
+// note: `source` is only in feedSubscribers table, while feedSources uses _id. Both are the same 
 
-// - \`/party browse\` is removed. Existing references to it (help text, onboarding, documentation) need to be updated.
 async function getFeedSources() {
   const feedSources = getCollection("feedSources");
-  return feedSources.find().toArray();
+  return feedSources.find({}, { projection: { guildName: 0, channelNames: 0 } }).toArray();
 }
 
-async function getFeedSource(_id) {
+async function getFeedSource(sourceId) {
   const feedSources = getCollection("feedSources");
-  return feedSources.findOne({ _id: new ObjectId(_id) });
+  return feedSources.findOne(
+    { _id: new ObjectId(sourceId) },
+    { projection: { guildName: 0, channelNames: 0 } },
+  );
 }
 
 async function getFeedSubscribers(sourceId) {
   const feedSubscribers = getCollection("feedSubscribers");
-  return feedSubscribers.find({ sourceId: new ObjectId(sourceId) }).toArray();
+  return feedSubscribers.find({ source: new ObjectId(sourceId) }).toArray();
 }
 
 async function publishFeedSource(
@@ -291,8 +313,6 @@ async function publishFeedSource(
   keywords = [],
   publishMode = "manual",
   subscriptionMode = "open",
-  guildName,
-  channelNames,
 ) {
   const feedSources = getCollection("feedSources");
   return feedSources.insertOne({
@@ -303,41 +323,48 @@ async function publishFeedSource(
     keywords,
     publishMode,
     subscriptionMode,
-    guildName,
-    channelNames,
     createdAt: new Date(),
   });
 }
 
-async function updateFeedSource(_id, update) {
+async function updateFeedSource(sourceId, update) {
   const feedSources = getCollection("feedSources");
 
   if (!Object.keys(update).some((key) => key.startsWith("$"))) {
     throw new Error("updateFeedSource requires MongoDB operators ($set, $push, etc)");
   }
 
-  await feedSources.updateOne({ _id: new ObjectId(_id) }, update);
-  return getFeedSource(_id);
+  await feedSources.updateOne({ _id: new ObjectId(sourceId) }, update);
+  return getFeedSource(sourceId);
 }
 
-async function removeFeedSource(_id) {
+async function removeFeedSource(sourceId) {
   const feedSources = getCollection("feedSources");
-  await feedSources.deleteOne({ _id: new ObjectId(_id) });
-  // clean up subscribers too
+  await feedSources.deleteOne({ _id: new ObjectId(sourceId) });
   const feedSubscribers = getCollection("feedSubscribers");
-  return feedSubscribers.deleteMany({ sourceId: new ObjectId(_id) });
+  return feedSubscribers.deleteMany({ source: new ObjectId(sourceId) });
 }
 
-async function addSubscriber(sourceId, subscriber) {
+async function addSubscriber(sourceId, userId, channelId = null, pingRoleIds = []) {
   const feedSubscribers = getCollection("feedSubscribers");
-  return feedSubscribers.insertOne({ sourceId: new ObjectId(sourceId), ...subscriber });
+  return feedSubscribers.insertOne({
+    source: new ObjectId(sourceId),
+    userId,
+    channelId,
+    type: channelId ? "channel" : "dm",
+    pingRoleIds,
+  });
 }
 
-async function removeSubscriber(sourceId, subscriberId) {
+async function removeSubscriber(sourceId, userId) {
   const feedSubscribers = getCollection("feedSubscribers");
-  return feedSubscribers.deleteOne({ sourceId: new ObjectId(sourceId), subscriberId });
+  return feedSubscribers.deleteOne({ source: new ObjectId(sourceId), userId });
 }
 
+async function getSubscriber(sourceId, userId) {
+  const feedSubscribers = getCollection("feedSubscribers");
+  return feedSubscribers.findOne({ source: new ObjectId(sourceId), userId });
+}
 
 
 module.exports = {
@@ -364,4 +391,5 @@ module.exports = {
   removeFeedSource,
   addSubscriber,
   removeSubscriber,
+  getSubscriber,
 };

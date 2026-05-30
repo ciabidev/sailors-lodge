@@ -1,20 +1,31 @@
-const { ChannelType, Events, MessageFlags } = require("discord.js");
 const {
   ContainerBuilder,
   SeparatorSpacingSize,
   ButtonBuilder,
   ButtonStyle,
   TextDisplayBuilder,
-  ActionRowBuilder,
   SectionBuilder,
+  ModalBuilder,
+  LabelBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  SlashCommandSubcommandBuilder,
+  ActionRowBuilder,
+  MessageFlags,
+  ComponentType,
+  ChannelType,
+  Events,
+  RoleSelectMenuBuilder,
+  ChannelSelectMenuBuilder,
 } = require("discord.js");
 const { ObjectId } = require("mongodb");
 
 const issues = process.env.ISSUES_URL;
 const { browsePages: feedBrowsePages } = require("../commands/feed/browse");
 
-
-    // modal submission and button clicks survive through restarts 
+// modal submission and button clicks survive through restarts
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
@@ -34,17 +45,19 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit()) {
-      const [modalId, feedId] = interaction.customId.split(":");
-      if (modalId === "feed-publish-modal") {
-        const validPublishModes = ["all", "keywords", "manual"];
-        const validSubscriptionModes = ["open", "request"];
-        const feedVisibility =
-          interaction.fields.getStringSelectValues("feed-visibility")[0] ?? "open-all";
-        const [subscriptionModeRaw, publishModeRaw] = feedVisibility.split("-");
-        const publishMode = validPublishModes.includes(publishModeRaw)
+      let modalId;
+      let feedId;
+      let partyId;
+      let dmFlag;
+      let sourceId;
+
+      [modalId, feedId] = interaction.customId.split(":");
+      if (modalId === "feed-publish-modal") {          
+        const [subscriptionModeRaw, publishModeRaw] = interaction.fields.getStringSelectValues("feed-visibility")[0].split("-");
+        const publishMode = ["all", "keywords", "manual"].includes(publishModeRaw)
           ? publishModeRaw
           : "all";
-        const subscriptionMode = validSubscriptionModes.includes(subscriptionModeRaw)
+        const subscriptionMode = ["open", "request"].includes(subscriptionModeRaw)
           ? subscriptionModeRaw
           : "open";
         const name = interaction.fields.getTextInputValue("name");
@@ -61,15 +74,17 @@ module.exports = {
           });
         }
 
-        const channels = interaction.fields.getSelectedChannels(
-          "channels",
-          true,
-          [ChannelType.GuildText, ChannelType.GuildAnnouncement],
-        );
+        const channels = interaction.fields.getSelectedChannels("channels", true, [
+          ChannelType.GuildText,
+          ChannelType.GuildAnnouncement,
+        ]);
 
         const selectedChannels = Array.from(channels.values());
         const channelIds = selectedChannels.map((channel) => channel.id);
-        const channelNames = selectedChannels.map((channel) => `#${channel.name}`);
+
+        if (!(await interaction.client.modules.feedPermissions.check(interaction, selectedChannels))) {
+          return;
+        }
 
         if (feedId) {
           const source = await interaction.client.modules.db.getFeedSource(feedId);
@@ -90,8 +105,10 @@ module.exports = {
               keywords,
               publishMode,
               subscriptionMode,
-              guildName: interaction.guild?.name,
-              channelNames,
+            },
+            $unset: {
+              guildName: "",
+              channelNames: "",
             },
           });
 
@@ -111,8 +128,6 @@ module.exports = {
           keywords,
           publishMode,
           subscriptionMode,
-          interaction.guild?.name,
-          channelNames,
         );
 
         return interaction.reply({
@@ -123,105 +138,132 @@ module.exports = {
         });
       }
 
-      const [prefix, partyId, dmFlag] = interaction.customId.split(":");
-      if (prefix === "party-modal") {
-          const name = interaction.fields.getTextInputValue("name");
-          const description = interaction.fields.getTextInputValue("description") || "";
-          const selectedStatus = interaction.fields.getStringSelectValues("status")[0];
-          const validStatuses = ["not-started", "starting", "active"];
-          const status = validStatuses.includes(selectedStatus) ? selectedStatus : "not-started";
-          const memberLimit = parseInt(interaction.fields.getTextInputValue("limit")) || 10;
-          const visibility = interaction.fields.getStringSelectValues("visibility")[0];
+      [modalId, partyId, dmFlag] = interaction.customId.split(":");
+      if (modalId === "party-modal") {
+        const name = interaction.fields.getTextInputValue("name");
+        const description = interaction.fields.getTextInputValue("description") || "";
+        const selectedStatus = interaction.fields.getStringSelectValues("status")[0];
+        const status = ["not-started", "starting", "active"].includes(selectedStatus) ? selectedStatus : "not-started";
+        const memberLimit = parseInt(interaction.fields.getTextInputValue("limit")) || 10;
+        const visibility = interaction.fields.getStringSelectValues("visibility")[0];
 
-          if (!partyId) {
-            // CREATE branch
-            const party = await interaction.client.modules.db.createParty(
-              name,
-              description,
-              status,
-              visibility,
-              memberLimit,
-              interaction.user,
-            );
+        if (!partyId) {
+          // CREATE branch
+          const party = await interaction.client.modules.db.createParty(
+            name,
+            description,
+            status,
+            visibility,
+            memberLimit,
+            interaction.user,
+          );
 
-            // Send the party card (DM or channel)
-            let dm = dmFlag === "true";
-            let message;
+          // Send the party card (DM or channel)
+          let dm = dmFlag === "true";
+          let message;
 
-            if (dm) {
-              await interaction.reply({
-                content: "Party card will be sent to you in DM",
-                flags: [MessageFlags.Ephemeral],
-              });
-              message = await interaction.user.send({
-                components: await interaction.client.modules.renderPartyCard(party, interaction),
-                flags: [MessageFlags.IsComponentsV2],
-                withResponse: true,
-              });
-            } else {
-              const response = await interaction.reply({
-                components: await interaction.client.modules.renderPartyCard(party, interaction),
-                flags: [MessageFlags.IsComponentsV2],
-                withResponse: true,
-              });
-              message = response.resource.message;
-            }
-
-            // Store message in DB
-            await interaction.client.modules.db.addPartyCardMessage(party._id, {
-              channelId: message.channelId,
-              messageId: message.id,
-              userId: interaction.user.id,
-              guildId: interaction.guildId,
+          if (dm) {
+            await interaction.reply({
+              content: "Party card will be sent to you in DM",
+              flags: [MessageFlags.Ephemeral],
             });
-            await interaction.client.modules.sendPartyTip(interaction.user);
+            message = await interaction.user.send({
+              components: await interaction.client.modules.renderPartyCard(party, interaction),
+              flags: [MessageFlags.IsComponentsV2],
+              withResponse: true,
+            });
           } else {
-            // EDIT branch
-            const party = await interaction.client.modules.db.getParty(new ObjectId(partyId));
-
-            if (!party) {
-              return interaction.reply({
-                content: "This party does not exist.",
-                flags: [MessageFlags.Ephemeral],
-              });
-            }
-            if (interaction.user.id !== party.host.id) {
-              return interaction.reply({
-                content: "Only the leader can submit this.",
-                flags: [MessageFlags.Ephemeral],
-              });
-            }
-
-            const updatedParty = await interaction.client.modules.db.updateParty(
-              party._id,
-              { $set: { name, description, status, memberLimit, visibility } },
-              interaction,
-            );
-
-            try {
-              await interaction.update({
-                components: await interaction.client.modules.renderPartyCard(
-                  updatedParty,
-                  interaction,
-                ),
-              }); // edit and delete have been made into commands and are no longer buttons, this is just here in case we bring them back
-            } catch (err) {
-              if (err.code === 10008) { // error if used from a command
-                interaction.reply({
-                  content: "Party updated successfully!",
-                  flags: [MessageFlags.Ephemeral],
-                });
-              }
-            }
-
-            await interaction.client.modules.updatePartyCards(interaction, updatedParty);
+            const response = await interaction.reply({
+              components: await interaction.client.modules.renderPartyCard(party, interaction),
+              flags: [MessageFlags.IsComponentsV2],
+              withResponse: true,
+            });
+            message = response.resource.message;
           }
+
+          // Store message in DB
+          await interaction.client.modules.db.addPartyCardMessage(party._id, {
+            channelId: message.channelId,
+            messageId: message.id,
+            userId: interaction.user.id,
+            guildId: interaction.guildId,
+          });
+          await interaction.client.modules.sendPartyTip(interaction.user);
+        } else {
+          // EDIT branch
+          const party = await interaction.client.modules.db.getParty(new ObjectId(partyId));
+
+          if (!party) {
+            return interaction.reply({
+              content: "This party does not exist.",
+              flags: [MessageFlags.Ephemeral],
+            });
+          }
+          if (interaction.user.id !== party.host.id) {
+            return interaction.reply({
+              content: "Only the leader can submit this.",
+              flags: [MessageFlags.Ephemeral],
+            });
+          }
+
+          const updatedParty = await interaction.client.modules.db.updateParty(
+            party._id,
+            { $set: { name, description, status, memberLimit, visibility } },
+            interaction,
+          );
+
+          try {
+            await interaction.update({
+              components: await interaction.client.modules.renderPartyCard(
+                updatedParty,
+                interaction,
+              ),
+            }); // edit and delete have been made into commands and are no longer buttons, this is just here in case we bring them back
+          } catch (err) {
+            if (err.code === 10008) {
+              // error if used from a command
+              interaction.reply({
+                content: "Party updated successfully!",
+                flags: [MessageFlags.Ephemeral],
+              });
+            }
+          }
+
+          await interaction.client.modules.updatePartyCards(interaction, updatedParty);
+        }
+      }
+
+      [modalId, sourceId] = interaction.customId.split(":");
+      if (modalId === "feed-subscribe-modal") {
+        const channels = interaction.fields.getSelectedChannels("feed-subscribe-channel", true, [
+          ChannelType.GuildText,
+          ChannelType.GuildAnnouncement,
+        ]);
+        const [channelId] = channels.keys();
+        const [channel] = channels.values();
+        const roles = interaction.fields.getSelectedRoles("feed-subscribe-ping-roles", false);
+        const roleIds = roles ? Array.from(roles.keys()) : [];
+
+        if (!(await interaction.client.modules.feedPermissions.check(interaction, channel))) {
+          return;
+        }
+
+        await interaction.client.modules.db.addSubscriber(
+          sourceId,
+          interaction.user.id,
+          channelId,
+          roleIds,
+        );
+        return interaction.reply({
+          content: "Subscribed to feed.",
+          flags: MessageFlags.Ephemeral,
+        });
       }
     }
 
     async function handlePartyButton(interaction) {
       const btn = interaction;
-      const [action, partyId] = btn.customId.split(":");
+      let [action, partyId] = btn.customId.split(":");
       if (partyId) {
         let party = await btn.client.modules.db.getParty(new ObjectId(partyId));
         switch (action) {
@@ -268,18 +310,17 @@ module.exports = {
     }
 
     if (interaction.isButton()) {
-      const [action, partyId] = interaction.customId.split(":");
+      const buttonId = interaction.customId;
+      let [action] = buttonId.split(":");
 
-      const id = interaction.customId;
-
-      if (id === "feeds-prev" || id === "feeds-next") {
-        const state = feedBrowsePages.get(interaction.user.id);
+      if (buttonId === "feeds-prev" || buttonId === "feeds-next") {
+        let state = feedBrowsePages.get(interaction.user.id);
         if (!state) return;
 
-        const { pages } = state;
+        let { pages } = state;
 
         state.pageIndex =
-          id === "feeds-prev"
+          buttonId === "feeds-prev"
             ? (state.pageIndex - 1 + pages.length) % pages.length
             : (state.pageIndex + 1) % pages.length;
 
@@ -298,19 +339,54 @@ module.exports = {
       }
 
       if (action === "feed-subscribe") {
-        const source = await interaction.client.modules.db.getFeedSource(partyId);
-        const subscriptionMode = source?.subscriptionMode ?? "open";
+        let [, sourceId] = buttonId.split(":");
+        let source = await interaction.client.modules.db.getFeedSource(sourceId);
+        let subscriptionMode = source?.subscriptionMode ?? "open";
 
-        return interaction.reply({
-          content:
-            subscriptionMode === "request"
-              ? "Feed subscription requests are coming soon."
-              : "Feed subscriptions are coming soon.",
-          flags: MessageFlags.Ephemeral,
-        });
+        // return interaction.reply({
+        //   content:
+        //     subscriptionMode === "request"
+        //       ? "Feed subscription requests are coming soon."
+        //       : "Feed subscriptions are coming soon.",
+        //   flags: MessageFlags.Ephemeral,
+        // });
+
+        if (interaction.inGuild()) {
+          interaction.showModal(
+            new ModalBuilder()
+              .setTitle("Modal")
+              .setCustomId(`feed-subscribe-modal:${sourceId}`)
+              .addLabelComponents(
+                new LabelBuilder()
+                  .setLabel("Set ping roles")
+                  .setDescription(
+                    "These roles will be pinged whenever this feed receives a new party ping or keyword match",
+                  )
+                  .setRoleSelectMenuComponent(
+                    new RoleSelectMenuBuilder()
+                      .setCustomId("feed-subscribe-ping-roles")
+                      .setMaxValues(25)
+                      .setRequired(false)
+                  ),
+              )
+              .addLabelComponents(
+                new LabelBuilder()
+                  .setLabel("Set receiving channel")
+                  .setDescription("Select the channel to receive messages from this feed")
+                  .setChannelSelectMenuComponent(
+                    new ChannelSelectMenuBuilder()
+                      .setCustomId("feed-subscribe-channel")
+                      .setChannelTypes([ChannelType.GuildText, ChannelType.GuildAnnouncement])
+                      .setMinValues(1)
+                      .setMaxValues(1),
+                  ),
+              ),
+          );
+        }
       }
 
       // Handle party buttons
+      let [, partyId] = buttonId.split(":");
       if (partyId) {
         if (action === "party-leave" && !interaction.deferred && !interaction.replied) {
           await interaction.deferReply({
@@ -367,4 +443,3 @@ module.exports = {
     }
   },
 };
- 

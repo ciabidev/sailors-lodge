@@ -27,7 +27,7 @@ module.exports = {
         ? await interaction.client.guilds.fetch(source.guildId).catch(() => null)
         : null;
 
-      const channelIds = source.channelIds;
+      const channelIds = source.channelIds ?? [];
       const channels = await Promise.all(
         channelIds.map((channelId) =>
           interaction.client.channels.fetch(channelId).catch(() => null),
@@ -35,13 +35,12 @@ module.exports = {
       );
       const channelNames = channels.map((channel, index) => {
         if (channel?.name) return `#${channel.name}`;
-        if (source.channelNames[index]) return source.channelNames[index];
         return `#${channelIds[index]}`;
       });
 
       return {
         ...source,
-        guildName: guild?.name ?? source.guildName ?? "Unknown server",
+        guildName: guild?.name ?? source.guildId ?? "Unknown server",
         channelIds,
         channelNames,
         guildIconURL: guild?.iconURL({ extension: "png", size: 64 }),

@@ -1,4 +1,4 @@
-const { Events, MessageFlags } = require("discord.js");
+const { Events } = require("discord.js");
 
 module.exports = {
   name: Events.MessageUpdate,
@@ -9,30 +9,29 @@ module.exports = {
       if (!message) return;
     }
 
-    const followedPingMessages = message.client.followedPingMessages;
-    if (!followedPingMessages) return;
+    const keywordPingMessages = message.client.keywordPingMessages;
+    if (!keywordPingMessages) return;
 
-    const entries = followedPingMessages.get(message.id);
+    const entries = keywordPingMessages.get(message.id);
     if (!entries || entries.length === 0) return;
 
-    if (!message.flags.has(MessageFlags.IsCrosspost)) return;
     if (!message.guildId || !message.channel?.id) return;
 
     const settings = await message.client.modules.db.getSettings(message.guildId);
-    const followedPingsEnabled =
-      typeof settings.followedPingsEnabled === "boolean"
-        ? settings.followedPingsEnabled
-        : process.env.FOLLOWED_PINGS_ENABLED === "true";
-    if (!followedPingsEnabled) return;
+    const keywordPingsEnabled =
+      typeof settings.keywordPingsEnabled === "boolean"
+        ? settings.keywordPingsEnabled
+        : (process.env.KEYWORD_PINGS_ENABLED ?? process.env.FOLLOWED_PINGS_ENABLED) === "true";
+    if (!keywordPingsEnabled) return;
 
     const channel = message.channel;
     if (!channel) return;
 
     for (const entry of entries) {
       const raw = (message.content || "").trim();
-      const followedFormatted = raw
-      const label = entry.groupName || "Followed";
-      const content = `${label} party ping from followed server by <@${message.author.id}>! <@&${entry.roleId}>\n\n${followedFormatted}`;
+      const keywordFormatted = raw
+      const label = entry.groupName || "Keyword";
+      const content = `${label} party ping triggered by <@${message.author.id}>! <@&${entry.roleId}>\n\n${keywordFormatted}`;
 
       const botMessage = await channel.messages.fetch(entry.botMessageId).catch(() => null);
       if (!botMessage) continue;

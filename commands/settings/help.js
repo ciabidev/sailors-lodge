@@ -11,11 +11,11 @@ module.exports = {
       .addTextDisplayComponents(
         (t) =>
           t.setContent(
-            `### tiny glossary \n- **Ping role**: The role that gets @mentioned when someone uses \`/party ping\` for a group (like Luck Party Ping, Epicenter Party Ping, etc.).\n- **Allowed roles**: Roles that are permitted to use \`/party ping\` for that group. Leave empty to allow everyone.\n- **Followed channel**: A channel where this bot listens for announcements from other servers for parties (detects keywords).\n- **Keywords**: Words or phrases (comma-separated) that appear in those followed announcements to trigger a ping. There are none by default, you have to add keywords yourself`,
+            `### tiny glossary \n- **Ping role**: The role that gets @mentioned when someone uses \`/party ping\` for a group (like Luck Party Ping, Epicenter Party Ping, etc.).\n- **Allowed roles**: Roles that are permitted to use \`/party ping\` for that group. Leave empty to allow everyone.\n- **Keyword channel**: A channel where this bot watches messages from anyone for keyword matches.\n- **Keywords**: Words or phrases (comma-separated) that trigger a ping. There are none by default, you have to add keywords yourself`,
           ),
         (t) =>
           t.setContent(
-            `### \`/settings ping add\`\n- Create a new ping group. You pick its name, the ping role to mention, who can use it (allowed roles), and optional followed channel/keywords.`,
+            `### \`/settings ping add\`\n- Create a new ping group. You pick its name, the ping role to mention, who can use it (allowed roles), and optional keyword channel/keywords.`,
           ),
         (t) =>
           t.setContent(
@@ -23,15 +23,15 @@ module.exports = {
           ),
         (t) =>
           t.setContent(
-            `### \`/settings ping edit\`\n- Update an existing group. You can change the ping role, allowed roles, followed channel, or keywords.`,
+            `### \`/settings ping edit\`\n- Update an existing group. You can change the ping role, allowed roles, keyword channel, or keywords.`,
           ),
         (t) =>
           t.setContent(
-            `### \`/settings ping list\`\n- Show all ping groups with their roles, allowed roles, and followed settings.`,
+            `### \`/settings ping list\`\n- Show all ping groups with their roles, allowed roles, and keyword settings.`,
           ),
         (t) =>
           t.setContent(
-            `### \`/settings followedpings\`\n- Turn followed pings on or off for this server.`,
+            `### \`/settings keywordpings\`\n- Turn keyword pings on or off for this server.`,
           ),
         (t) =>
           t.setContent(

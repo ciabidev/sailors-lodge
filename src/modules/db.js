@@ -386,9 +386,23 @@ async function getFeedSource(sourceId) {
   );
 }
 
+const getFeedSourcesFromChannelId = async (channelId) => {
+  // channelIds is an array of channel ids
+  const feedSources = getCollection("feedSources");
+  return feedSources.find(
+    { channelIds: channelId },
+    { projection: { guildName: 0, channelNames: 0 } },
+  ).toArray();
+}
+
 async function getFeedSubscribers(sourceId) {
   const feedSubscribers = getCollection("feedSubscribers");
   return feedSubscribers.find({ source: new ObjectId(sourceId) }).toArray();
+}
+
+async function getManyFeedSubscribers(sourceIds) {
+  const feedSubscribers = getCollection("feedSubscribers");
+  return feedSubscribers.find({ source: { $in: sourceIds } }).toArray();
 }
 
 async function publishFeedSource(
@@ -478,4 +492,6 @@ module.exports = {
   addSubscriber,
   removeSubscriber,
   getSubscriber,
+  getFeedSourcesFromChannelId,
+  getManyFeedSubscribers,
 };

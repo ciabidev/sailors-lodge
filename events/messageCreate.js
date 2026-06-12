@@ -52,16 +52,9 @@ module.exports = {
       message.client.keywordPingMessages = new Map();
     }
     const keywordPingMessages = message.client.keywordPingMessages;
-
-    const textParts = [];
-    if (message.content) textParts.push(message.content);
-    if (message.embeds?.length) {
-      for (const embed of message.embeds) {
-        if (embed?.title) textParts.push(embed.title);
-        if (embed?.description) textParts.push(embed.description);
-      }
-    }
-    const messageText = textParts.join("\n").toLowerCase();
+    let messageText;
+    if (message.content) messageText = message.content;
+    
     if (messageText) {;
 
       for (const group of keywordGroups) {
@@ -98,5 +91,36 @@ module.exports = {
         // keywordPingMessages.set(message.id, existing);
       }
     }
-  },
+
+    // feeds - source
+
+    const guildId = message.guildId;
+    let feedSource = null;
+    // a channel can be a source for multiple feeds
+    const feedSources = await message.client.modules.db.getFeedSourcesFromChannelId(message.channel.id);
+    const feedSubscribers = await message.client.modules.db.getManyFeedSubscribers(feedSources.map(feed => feed._id));
+      
+    console.log(feedSubscribers)
+    if (settings && feedSources && feedSubscribers) {
+      
+      console.log(feedSubscribers);
+      for (const feedSubscriber of feedSubscribers) {
+        feedSource = feedSources.find(feed => feed._id.equals(feedSubscriber.source));
+        const feedSubscriberChannel = await message.client.channels.fetch(feedSubscriber.channelId);
+        if (feedSource.publishMode === "keywords" && !message.content?.includes(feedSource.keywords.join(" "))) continue;
+
+        const webhook = await feedSubscriberChannel.createWebhook({
+          name: `${feedSource.name}`,
+          avatar: feedSource.guildIconURL,
+        });
+        await webhook.send({
+          username: `${message.author.username} [${feedSource.name}]`,
+          avatarURL: message.author.displayAvatarURL(),
+          content: message.content || null, // Ensures empty strings don't crash it
+          embeds: message.embeds || [], // Forwards the array of embeds
+          files: message.attachments.map((attachment) => attachment.url) || [],
+        });
+        await webhook.delete();
+      }
+  }}
 };

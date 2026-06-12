@@ -62,40 +62,41 @@ module.exports = {
       }
     }
     const messageText = textParts.join("\n").toLowerCase();
-    if (!messageText) return;
+    if (messageText) {;
 
-    for (const group of keywordGroups) {
-      const rawKeywords =
-        Array.isArray(group.keywords) && group.keywords.length
-          ? group.keywords
-          : [group.name];
-      const keywords = rawKeywords
-        .map((value) => value.toLowerCase().replace(/\s+/g, " ").trim())
-        .filter((value) => value.length > 0);
+      for (const group of keywordGroups) {
+        const rawKeywords =
+          Array.isArray(group.keywords) && group.keywords.length
+            ? group.keywords
+            : [group.name];
+        const keywords = rawKeywords
+          .map((value) => value.toLowerCase().replace(/\s+/g, " ").trim())
+          .filter((value) => value.length > 0);
 
-      const matches = keywords.some((keyword) => {
-        const compactKeyword = keyword.replace(/\s+/g, "");
-        return (
-          messageText.includes(keyword) ||
-          (compactKeyword && messageText.includes(compactKeyword))
-        );
-      });
+        const matches = keywords.some((keyword) => {
+          const compactKeyword = keyword.replace(/\s+/g, "");
+          return (
+            messageText.includes(keyword) ||
+            (compactKeyword && messageText.includes(compactKeyword))
+          );
+        });
 
-      if (!matches) continue;
+        if (!matches) continue;
 
-      const raw = (message.content || "").trim();
-      const keywordFormatted = raw
-      const label = group.name || "Keyword";
-      const content = `${label} party ping triggered by <@${message.author.id}>! <@&${group.roleId}>\n\n${keywordFormatted}`;
+        const raw = (message.content || "").trim();
+        const keywordFormatted = raw
+        const label = group.name || "Keyword";
+        const content = `${label} party ping triggered by <@${message.author.id}>! <@&${group.roleId}>`;
 
-      const sentMessage = await message.channel.send({
-        content,
-        allowedMentions: { roles: [group.roleId] },
-      });
+        const sentMessage = await message.reply({
+          content,
+          allowedMentions: { roles: [group.roleId], repliedUser: false },
+        });
 
-      const existing = keywordPingMessages.get(message.id) || [];
-      existing.push({ groupName: group.name, roleId: group.roleId, botMessageId: sentMessage.id });
-      keywordPingMessages.set(message.id, existing);
+        // const existing = keywordPingMessages.get(message.id) || [];
+        // existing.push({ groupName: group.name, roleId: group.roleId, botMessageId: sentMessage.id });
+        // keywordPingMessages.set(message.id, existing);
+      }
     }
   },
 };

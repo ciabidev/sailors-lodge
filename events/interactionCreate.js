@@ -358,19 +358,6 @@ module.exports = {
               .setCustomId(`feed-subscribe-modal:${sourceId}`)
               .addLabelComponents(
                 new LabelBuilder()
-                  .setLabel("Set ping roles")
-                  .setDescription(
-                    "These roles will be pinged whenever this feed receives a new party ping or keyword match",
-                  )
-                  .setRoleSelectMenuComponent(
-                    new RoleSelectMenuBuilder()
-                      .setCustomId("feed-subscribe-ping-roles")
-                      .setMaxValues(25)
-                      .setRequired(false)
-                  ),
-              )
-              .addLabelComponents(
-                new LabelBuilder()
                   .setLabel("Set receiving channel")
                   .setDescription("Select the channel to receive messages from this feed")
                   .setChannelSelectMenuComponent(
@@ -380,7 +367,21 @@ module.exports = {
                       .setMinValues(1)
                       .setMaxValues(1),
                   ),
-              ),
+              )
+              .addLabelComponents(
+                new LabelBuilder()
+                  .setLabel("Set ping roles")
+                  .setDescription(
+                    "These roles will be pinged whenever a party ping is recieved",
+                  )
+                  .setRoleSelectMenuComponent(
+                    new RoleSelectMenuBuilder()
+                      .setCustomId("feed-subscribe-ping-roles")
+                      .setMaxValues(25)
+                      .setRequired(false)
+                  ),
+              )
+              
           );
         }
       }

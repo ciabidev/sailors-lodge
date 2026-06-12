@@ -12,32 +12,31 @@ const REQUIRED_FEED_PERMISSIONS = [
 ];
 
 const REQUIRED_FEED_PERMISSION_FLAGS = REQUIRED_FEED_PERMISSIONS.map(({ flag }) => flag);
-const REQUIRED_FEED_PERMISSION_LABELS = REQUIRED_FEED_PERMISSIONS.map(
-  ({ label }) => `- ${label}`,
-).join("\n");
-
 async function check(interaction, channels) {
   const selectedChannels = Array.isArray(channels) ? channels : [channels];
   const botMember = interaction.guild?.members.me ?? (await interaction.guild?.members.fetchMe());
 
-  const hasRequiredPermissions = selectedChannels.every((channel) =>
-    botMember && channel?.permissionsFor(botMember)?.has(REQUIRED_FEED_PERMISSION_FLAGS),
+  const missingPermissions = REQUIRED_FEED_PERMISSIONS.filter(
+    ({ flag }) => selectedChannels.every((channel) => !channel?.permissionsFor(botMember)?.has(flag)),
   );
+ 
 
-  if (hasRequiredPermissions) return true;
+  if (missingPermissions.length > 0) {
+    const response = {
+      content: `I am missing one or more of these permissions for these channels/myself:\n${missingPermissions.map(label => `- ${label.label}`).join("\n")}`,
+      flags: MessageFlags.Ephemeral,
+    };
 
-  const response = {
-    content: `I am missing one or more of these permissions for these channels/myself:\n${REQUIRED_FEED_PERMISSION_LABELS}`,
-    flags: MessageFlags.Ephemeral,
-  };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(response);
+    } else {
+      await interaction.reply(response);
+    }
 
-  if (interaction.replied || interaction.deferred) {
-    await interaction.followUp(response);
-  } else {
-    await interaction.reply(response);
+    return false;
   }
 
-  return false;
+    return true;
 }
 
 module.exports = {

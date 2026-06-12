@@ -34,7 +34,7 @@ module.exports = function renderBrowsePage({ pages, pageIndex, client }) {
     const sourceServer = guildName ?? guildId ?? "Unknown server";
     const sourceLabel = `${sourceServer} - ${sourceChannel}`;
 
-    const subscribeButton = new ButtonBuilder()
+    const subscribeButton = new ButtonBuilder() // subscribing is handled in interactionCreate
       .setCustomId(`feed-subscribe:${_id}`)
       .setLabel(subscriptionMode === "request" ? "Request To Join" : "Subscribe")
       .setStyle(ButtonStyle.Success);

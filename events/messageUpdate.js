@@ -26,7 +26,7 @@ module.exports = {
     if (!followedPingsEnabled) return;
 
     const channel = message.channel;
-    if (!channel) return;
+    if (channel) {
 
     for (const entry of entries) {
       const raw = (message.content || "").trim();
@@ -40,6 +40,6 @@ module.exports = {
         content,
         allowedMentions: { roles: [entry.roleId] },
       }).catch(() => {});
-    }
+    }}
   },
 };

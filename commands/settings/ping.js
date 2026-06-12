@@ -31,16 +31,16 @@ module.exports = {
         )
         .addChannelOption((option) =>
           option
-            .setName("followedchannel")
+            .setName("keywordchannel")
             .setDescription(
-              "The channel listening for other server's announcement keywords (followed announcements)",
+              "The channel to watch for keyword matches.",
             )
             .setRequired(false),
         )
         .addStringOption((option) =>
           option
             .setName("keywords")
-            .setDescription("Comma-separated keywords for followed pings (optional).")
+            .setDescription("Comma-separated keywords for keyword pings (optional).")
             .setRequired(false),
         ),
     )
@@ -87,16 +87,16 @@ module.exports = {
         )
         .addChannelOption((option) =>
           option
-            .setName("followedchannel")
+            .setName("keywordchannel")
             .setDescription(
-              "The channel listening for other server's announcement keywords (followed announcements)",
+              "The channel to watch for keyword matches.",
             )
             .setRequired(false),
         )
         .addStringOption((option) =>
           option
             .setName("keywords")
-            .setDescription("Comma-separated keywords for followed pings (optional).")
+            .setDescription("Comma-separated keywords for keyword pings (optional).")
             .setRequired(false),
         ),
     )
@@ -136,7 +136,7 @@ module.exports = {
       const name = interaction.options.getString("name");
       const role = interaction.options.getRole("pingrole");
       const allowedRole = interaction.options.getRole("allowedroles");
-      const followedChannel = interaction.options.getChannel("followedchannel");
+      const keywordChannel = interaction.options.getChannel("keywordchannel");
       const keywordsRaw = interaction.options.getString("keywords");
 
       if (!name || !role) {
@@ -157,8 +157,8 @@ module.exports = {
         name,
         roleId: role.id,
         allowedRoles: allowedRole ? [allowedRole.id] : [],
-        followedChannelId: followedChannel?.id ?? null,
-        followedKeywords: keywordsRaw
+        keywordChannelId: keywordChannel?.id ?? null,
+        keywords: keywordsRaw
           ? keywordsRaw
               .split(",")
               .map((keyword) => keyword.trim())
@@ -167,7 +167,10 @@ module.exports = {
       };
 
       pingGroups.push(pingGroup);
-      await interaction.client.modules.db.setSettings(guildId, { pingGroups });
+      await interaction.client.modules.db.setSettings(guildId, {
+        pingGroups,
+        ...(keywordChannel || keywordsRaw ? { keywordPingsEnabled: true } : {}),
+      });
       return interaction.reply({
         content: `Ping group ${name} added.`,
         flags: MessageFlags.Ephemeral,
@@ -206,7 +209,7 @@ module.exports = {
       const newname = interaction.options.getString("newname");
       const role = interaction.options.getRole("pingrole");
       const allowedRole = interaction.options.getRole("allowedroles");
-      const followedChannel = interaction.options.getChannel("followedchannel");
+      const keywordChannel = interaction.options.getChannel("keywordchannel");
       const keywordsRaw = interaction.options.getString("keywords");
 
       const index = pingGroups.findIndex((group) => group.name === name);
@@ -217,7 +220,7 @@ module.exports = {
         });
       }
 
-      if (!role && !allowedRole && !followedChannel && !keywordsRaw && !newname) {
+      if (!role && !allowedRole && !keywordChannel && !keywordsRaw && !newname) {
         return interaction.reply({
           content: "Provide at least one field to update.",
           flags: MessageFlags.Ephemeral,
@@ -230,9 +233,9 @@ module.exports = {
         ...(allowedRole && {
           allowedRoles: [...(pingGroups[index].allowedRoles ?? []), allowedRole.id],
         }),
-        ...(followedChannel && { followedChannelId: followedChannel.id }),
+        ...(keywordChannel && { keywordChannelId: keywordChannel.id }),
         ...(typeof keywordsRaw === "string" && {
-          followedKeywords: keywordsRaw
+          keywords: keywordsRaw
             .split(",")
             .map((keyword) => keyword.trim())
             .filter((keyword) => keyword.length > 0),
@@ -253,8 +256,8 @@ module.exports = {
           ["Name", oldGroup.name, updatedGroup.name, none],
           ["Ping role", oldGroup.roleId, updatedGroup.roleId, role],
           ["Allowed roles", oldGroup.allowedRoles ?? [], updatedGroup.allowedRoles ?? [], roles],
-          ["Followed channel", oldGroup.followedChannelId, updatedGroup.followedChannelId, channel],
-          ["Followed keywords", oldGroup.followedKeywords ?? [], updatedGroup.followedKeywords ?? [], list],
+          ["Keyword channel", oldGroup.keywordChannelId, updatedGroup.keywordChannelId, channel],
+          ["Keywords", oldGroup.keywords ?? [], updatedGroup.keywords ?? [], list],
         ]
           .filter(([, oldValue, newValue]) => JSON.stringify(oldValue) !== JSON.stringify(newValue))
           .forEach(([label, oldValue, newValue, format]) =>
@@ -268,7 +271,10 @@ module.exports = {
 
       const diff = buildDiff(pingGroups[index], updatedGroup);
       pingGroups[index] = updatedGroup;
-      await interaction.client.modules.db.setSettings(guildId, { pingGroups });
+      await interaction.client.modules.db.setSettings(guildId, {
+        pingGroups,
+        ...(keywordChannel || keywordsRaw ? { keywordPingsEnabled: true } : {}),
+      });
       return interaction.reply({
         components: [diff],
         flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
@@ -294,15 +300,15 @@ module.exports = {
             ? group.allowedRoles.map((roleId) => `<@&${roleId}>`).join(", ")
             : "None";
 
-        const followedChannel = group.followedChannelId ? `<#${group.followedChannelId}>` : "None";
-        const followedKeywords =
-          Array.isArray(group.followedKeywords) && group.followedKeywords.length
-            ? group.followedKeywords.join(", ")
+        const keywordChannel = group.keywordChannelId ? `<#${group.keywordChannelId}>` : "None";
+        const keywords =
+          Array.isArray(group.keywords) && group.keywords.length
+            ? group.keywords.join(", ")
             : "None";
 
         container.addTextDisplayComponents((t) =>
           t.setContent(
-            `## ${group.name}\nPing role: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nFollowed Channel: ${followedChannel}\nFollowed Keywords: ${followedKeywords}`,
+            `## ${group.name}\nPing role: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nKeyword Channel: ${keywordChannel}\nKeywords: ${keywords}`,
           ),
         );
       }

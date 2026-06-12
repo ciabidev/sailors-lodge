@@ -20,6 +20,7 @@ async function initDb() {
   await mongoClient.connect();
   const mongoDbName = devMode ? "development" : "production";
   db = mongoClient.db(mongoDbName);
+  // await migrateServerSettings();
   await deleteExpiredParties();
   startPartyCleanupScheduler();
 }
@@ -38,12 +39,93 @@ async function getSettings(guildId) {
     settings = {
       guildId,
       pingGroups: [],
-      followedPingsEnabled: false,
+      keywordPingsEnabled: true,
     };
     await serverSettings.insertOne(settings);
   }
   return settings;
 }
+
+// async function migrateServerSettings() { // this function is written by chatgpt lol
+//   const migrations = getCollection("migrations");
+//   const migrationId = "keyword-pings-schema-v1";
+//   const existingMigration = await migrations.findOne({ _id: migrationId });
+//   if (existingMigration) return;
+
+//   const serverSettings = getCollection("serverSettings");
+//   const settings = await serverSettings.find().toArray();
+//   let migratedCount = 0;
+
+//   for (const server of settings) {
+//     const update = { $set: {}, $unset: {} };
+//     const existingPingGroups = Array.isArray(server.pingGroups) ? server.pingGroups : [];
+//     const hasKeywordConfig = existingPingGroups.some((group) =>
+//       group.keywordChannelId ||
+//       group.followedChannelId ||
+//       (Array.isArray(group.keywords) && group.keywords.length > 0) ||
+//       (Array.isArray(group.followedKeywords) && group.followedKeywords.length > 0)
+//     );
+
+//     if (typeof server.keywordPingsEnabled !== "boolean") {
+//       update.$set.keywordPingsEnabled =
+//         typeof server.followedPingsEnabled === "boolean"
+//           ? server.followedPingsEnabled
+//           : true;
+//     } else if (server.keywordPingsEnabled === false && hasKeywordConfig && !("followedPingsEnabled" in server)) {
+//       update.$set.keywordPingsEnabled = true;
+//     }
+
+//     if ("followedPingsEnabled" in server) {
+//       update.$unset.followedPingsEnabled = "";
+//     }
+
+//     if (!Array.isArray(server.pingGroups)) {
+//       update.$set.pingGroups = [];
+//     } else {
+//       const pingGroups = server.pingGroups.map((group) => {
+//         const next = { ...group };
+
+//         if (!("keywordChannelId" in next) && "followedChannelId" in next) {
+//           next.keywordChannelId = next.followedChannelId;
+//         }
+
+//         if (!("keywords" in next) && "followedKeywords" in next) {
+//           next.keywords = next.followedKeywords;
+//         }
+
+//         delete next.followedChannelId;
+//         delete next.followedKeywords;
+
+//         if (!Array.isArray(next.keywords)) {
+//           next.keywords = [];
+//         }
+
+//         return next;
+//       });
+
+//       if (JSON.stringify(pingGroups) !== JSON.stringify(server.pingGroups)) {
+//         update.$set.pingGroups = pingGroups;
+//       }
+//     }
+
+//     if (!Object.keys(update.$set).length) delete update.$set;
+//     if (!Object.keys(update.$unset).length) delete update.$unset;
+//     if (!Object.keys(update).length) continue;
+
+//     await serverSettings.updateOne({ _id: server._id }, update);
+//     migratedCount++;
+//   }
+
+//   if (migratedCount > 0) {
+//     console.log(`[db] Migrated ${migratedCount} server settings document${migratedCount === 1 ? "" : "s"}.`);
+//   }
+
+//   await migrations.updateOne(
+//     { _id: migrationId },
+//     { $set: { ranAt: new Date() } },
+//     { upsert: true },
+//   );
+// }
 
 // set settings
 async function setSettings(guildId, settings) {
@@ -53,7 +135,7 @@ async function setSettings(guildId, settings) {
   //         properties: {
   //           guildId:              { bsonType: "string" },
   //           lfgRoleId:            { bsonType: "string" },
-  //           followedPingsEnabled: { bsonType: "bool" },
+  //           keywordPingsEnabled: { bsonType: "bool" },
   //           pingGroups: {
   //             bsonType: "array",
   //             items: {
@@ -63,8 +145,8 @@ async function setSettings(guildId, settings) {
   //                 name:           { bsonType: "string" },
   //                 pingRoleId:     { bsonType: "string" },
   //                 allowedRoleIds: { bsonType: "array", items: { bsonType: "string" } },
-  //                 followedChannelId: { bsonType: "string" },
-  //                 followedKeywords: { bsonType: "array", items: { bsonType: "string" } },
+  //                 keywordChannelId: { bsonType: "string" },
+  //                 keywords: { bsonType: "array", items: { bsonType: "string" } },
   //               }
   //             }
   //           }
@@ -72,10 +154,14 @@ async function setSettings(guildId, settings) {
   //       }
 
   const serverSettings = getCollection("serverSettings");
+  const settingsToSet = { ...settings };
+  delete settingsToSet._id;
+  delete settingsToSet.guildId;
+
   // Only update provided fields; leave others untouched.
   await serverSettings.updateOne(
     { guildId },
-    { $set: settings },
+    { $set: settingsToSet },
     { upsert: true }
   );
 

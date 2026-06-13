@@ -1,7 +1,7 @@
 const registerSubcommandFolder = require("../../src/modules/subcommandFolder");
 
 module.exports = registerSubcommandFolder({
-  name: "feed",
-  description: "Browse and manage party feeds.",
+  name: "dock",
+  description: "Browse and manage Docks.",
   dirname: __dirname,
 });

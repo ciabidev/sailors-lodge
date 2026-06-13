@@ -15,19 +15,19 @@ module.exports = {
 
   data: new SlashCommandSubcommandBuilder()
     .setName("browse")
-    .setDescription("Browse available party feeds.")
+    .setDescription("Browse available Docks.")
     .addStringOption((option) =>
-      option.setName("search").setDescription("Search feeds by name, server, or channel."),
+      option.setName("search").setDescription("Search Docks by name, server, or channel."),
     ),
 
   async execute(interaction) {
 
-    async function getSourceLabels(source) {
-      const guild = source.guildId
-        ? await interaction.client.guilds.fetch(source.guildId).catch(() => null)
+    async function getDockLabels(dock) {
+      const guild = dock.guildId
+        ? await interaction.client.guilds.fetch(dock.guildId).catch(() => null)
         : null;
 
-      const channelIds = source.channelIds ?? [];
+      const channelIds = dock.channelIds ?? [];
       const channels = await Promise.all(
         channelIds.map((channelId) =>
           interaction.client.channels.fetch(channelId).catch(() => null),
@@ -39,8 +39,8 @@ module.exports = {
       });
 
       return {
-        ...source,
-        guildName: guild?.name ?? source.guildId ?? "Unknown server",
+        ...dock,
+        guildName: guild?.name ?? dock.guildId ?? "Unknown server",
         channelIds,
         channelNames,
         guildIconURL: guild?.iconURL({ extension: "png", size: 64 }),
@@ -50,34 +50,34 @@ module.exports = {
     const db = interaction.client.modules.db;
     const search = interaction.options.getString("search")?.toLowerCase();
 
-    let feeds = await db.getFeedSources();
-    feeds = await Promise.all(feeds.map((feed) => getSourceLabels(feed)));
+    let docks = await db.getDocks();
+    docks = await Promise.all(docks.map((dock) => getDockLabels(dock)));
 
     if (search) {
-      feeds = feeds.filter((feed) =>
-        [feed.name, feed.description, feed.guildName, ...(feed.channelNames ?? [])]
+      docks = docks.filter((dock) =>
+        [dock.name, dock.description, dock.guildName, ...(dock.channelNames ?? [])]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(search)),
       );
     }
 
-    if (!feeds.length) {
+    if (!docks.length) {
       return interaction.reply({
-        content: search ? "No feeds matched that search." : "No feeds are published yet.",
+        content: search ? "No Docks matched that search." : "No Docks are published yet.",
         flags: MessageFlags.Ephemeral,
       });
     }
 
-    const pages = interaction.client.modules.chunkArray(feeds, 3);
+    const pages = interaction.client.modules.chunkArray(docks, 3);
     const pageIndex = 0;
     const pageSelector = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId("feeds-prev")
+        .setCustomId("docks-prev")
         .setLabel("Previous")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(pages.length <= 1),
       new ButtonBuilder()
-        .setCustomId("feeds-next")
+        .setCustomId("docks-next")
         .setLabel("Next")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(pages.length <= 1),
@@ -85,7 +85,7 @@ module.exports = {
 
     await interaction.reply({
       components: [
-        interaction.client.modules.renderBrowsePage({ pages, pageIndex, client: interaction.client }),
+        interaction.client.modules.renderDockBrowsePage({ pages, pageIndex, client: interaction.client }),
         pageSelector,
       ],
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,

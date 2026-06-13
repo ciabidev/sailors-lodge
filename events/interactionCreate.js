@@ -23,7 +23,7 @@ const {
 const { ObjectId } = require("mongodb");
 
 const issues = process.env.ISSUES_URL;
-const { browsePages: feedBrowsePages } = require("../commands/feed/browse");
+const { browsePages: dockBrowsePages } = require("../commands/dock/browse");
 
 // modal submission and button clicks survive through restarts
 module.exports = {
@@ -46,19 +46,18 @@ module.exports = {
 
     if (interaction.isModalSubmit()) {
       let modalId;
-      let feedId;
+      let dockId;
       let partyId;
       let dmFlag;
-      let sourceId;
 
-      [modalId, feedId] = interaction.customId.split(":");
-      if (modalId === "feed-publish-modal") {          
-        const [subscriptionModeRaw, publishModeRaw] = interaction.fields.getStringSelectValues("feed-visibility")[0].split("-");
+      [modalId, dockId] = interaction.customId.split(":");
+      if (modalId === "dock-publish-modal") {
+        const [accessModeRaw, publishModeRaw] = interaction.fields.getStringSelectValues("dock-visibility")[0].split("-");
         const publishMode = ["all", "keywords", "manual"].includes(publishModeRaw)
           ? publishModeRaw
           : "all";
-        const subscriptionMode = ["open", "request"].includes(subscriptionModeRaw)
-          ? subscriptionModeRaw
+        const accessMode = ["open", "request"].includes(accessModeRaw)
+          ? accessModeRaw
           : "open";
         const name = interaction.fields.getTextInputValue("name");
         const description = interaction.fields.getTextInputValue("description") || "";
@@ -69,7 +68,7 @@ module.exports = {
           .filter((keyword) => keyword.length > 0);
         if (publishMode === "keywords" && keywords.length === 0) {
           return interaction.reply({
-            content: "Keywords only feeds need at least one ping keyword.",
+            content: "Keywords-only Docks need at least one ping keyword.",
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -82,56 +81,71 @@ module.exports = {
         const selectedChannels = Array.from(channels.values());
         const channelIds = selectedChannels.map((channel) => channel.id);
 
-        if (!(await interaction.client.modules.feedPermissions.check(interaction, selectedChannels))) {
+        if (!(await interaction.client.modules.dockPermissions.check(interaction, selectedChannels))) {
           return;
         }
 
-        if (feedId) {
-          const source = await interaction.client.modules.db.getFeedSource(feedId);
+        if (dockId) {
+          const dock = await interaction.client.modules.db.getDock(dockId);
 
-          if (!source || source.guildId !== interaction.guildId) {
+          if (!dock || dock.guildId !== interaction.guildId) {
             return interaction.reply({
-              content: "I couldn't find that feed in this server.",
+              content: "I couldn't find that Dock in this server.",
               flags: MessageFlags.Ephemeral,
             });
           }
 
-          await interaction.client.modules.db.updateFeedSource(feedId, {
+          await interaction.client.modules.db.updateDock(dockId, {
             $set: {
               name,
               guildId: interaction.guildId,
+              guildName: interaction.guild.name,
               channelIds,
               description,
               keywords,
               publishMode,
-              subscriptionMode,
+              accessMode,
             },
             $unset: {
-              guildName: "",
               channelNames: "",
             },
           });
+          await interaction.client.modules.db.setDockServer(
+            dockId,
+            interaction.guildId,
+            interaction.guild.name,
+            channelIds[0],
+            [],
+          );
 
           return interaction.reply({
-            content: `Updated feed with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
+            content: `Updated Dock with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
               .map((channel) => `<#${channel.id}>`)
               .join(", ")}.`,
             flags: MessageFlags.Ephemeral,
           });
         }
 
-        await interaction.client.modules.db.publishFeedSource(
+        const createdDock = await interaction.client.modules.db.createDock(
           name,
           interaction.guildId,
+          interaction.guild.name,
           channelIds,
           description,
           keywords,
           publishMode,
-          subscriptionMode,
+          accessMode,
+        );
+        await interaction.client.modules.db.setDockServer(
+          createdDock.insertedId,
+          interaction.guildId,
+          interaction.guild.name,
+          channelIds[0],
+          [],
         );
 
         return interaction.reply({
-          content: `Published a feed with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
+          content: `Published a Dock with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
             .map((channel) => `<#${channel.id}>`)
             .join(", ")}.`,
           flags: MessageFlags.Ephemeral,
@@ -233,29 +247,36 @@ module.exports = {
         }
       }
 
-      [modalId, sourceId] = interaction.customId.split(":");
-      if (modalId === "feed-subscribe-modal") {
-        const channels = interaction.fields.getSelectedChannels("feed-subscribe-channel", true, [
+      [modalId, dockId] = interaction.customId.split(":");
+      if (modalId === "dock-connect-modal") {
+        const channels = interaction.fields.getSelectedChannels("dock-connect-channel", true, [
           ChannelType.GuildText,
           ChannelType.GuildAnnouncement,
         ]);
         const [channelId] = channels.keys();
         const [channel] = channels.values();
-        const roles = interaction.fields.getSelectedRoles("feed-subscribe-ping-roles", false);
+        const roles = interaction.fields.getSelectedRoles("dock-connect-ping-roles", false);
         const roleIds = roles ? Array.from(roles.keys()) : [];
 
-        if (!(await interaction.client.modules.feedPermissions.check(interaction, channel))) {
+        if (!(await interaction.client.modules.dockPermissions.check(interaction, channel))) {
           return;
         }
-
-        await interaction.client.modules.db.addSubscriber(
-          sourceId,
-          interaction.user.id,
+        // check if this server is already connected to this Dock
+        if (await interaction.client.modules.db.getDockServer(dockId, interaction.guildId)) {
+          return interaction.reply({
+            content: "This server is already connected to this Dock.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        await interaction.client.modules.db.addDockServer(
+          dockId,
+          interaction.guildId,
+          interaction.guild.name,
           channelId,
           roleIds,
         );
         return interaction.reply({
-          content: "Subscribed to feed.",
+          content: "Connected to Dock.",
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -313,20 +334,20 @@ module.exports = {
       const buttonId = interaction.customId;
       let [action] = buttonId.split(":");
 
-      if (buttonId === "feeds-prev" || buttonId === "feeds-next") {
-        let state = feedBrowsePages.get(interaction.user.id);
+      if (buttonId === "docks-prev" || buttonId === "docks-next") {
+        let state = dockBrowsePages.get(interaction.user.id);
         if (!state) return;
 
         let { pages } = state;
 
         state.pageIndex =
-          buttonId === "feeds-prev"
+          buttonId === "docks-prev"
             ? (state.pageIndex - 1 + pages.length) % pages.length
             : (state.pageIndex + 1) % pages.length;
 
         await interaction.update({
           components: [
-            interaction.client.modules.renderBrowsePage({
+            interaction.client.modules.renderDockBrowsePage({
               pages,
               pageIndex: state.pageIndex,
               client: interaction.client,
@@ -338,16 +359,16 @@ module.exports = {
         return;
       }
 
-      if (action === "feed-subscribe") {
-        let [, sourceId] = buttonId.split(":");
-        let source = await interaction.client.modules.db.getFeedSource(sourceId);
-        let subscriptionMode = source?.subscriptionMode ?? "open";
+      if (action === "dock-connect") {
+        let [, dockId] = buttonId.split(":");
+        let dock = await interaction.client.modules.db.getDock(dockId);
+        let accessMode = dock?.accessMode ?? "open";
 
         // return interaction.reply({
         //   content:
-        //     subscriptionMode === "request"
-        //       ? "Feed subscription requests are coming soon."
-        //       : "Feed subscriptions are coming soon.",
+        //     accessMode === "request"
+        //       ? "Dock request-to-join is coming soon."
+        //       : "Dock servers are coming soon.",
         //   flags: MessageFlags.Ephemeral,
         // });
 
@@ -355,14 +376,14 @@ module.exports = {
           interaction.showModal(
             new ModalBuilder()
               .setTitle("Modal")
-              .setCustomId(`feed-subscribe-modal:${sourceId}`)
+              .setCustomId(`dock-connect-modal:${dockId}`)
               .addLabelComponents(
                 new LabelBuilder()
                   .setLabel("Set receiving channel")
-                  .setDescription("Select the channel to receive messages from this feed")
+                  .setDescription("Select the channel to receive messages from this Dock")
                   .setChannelSelectMenuComponent(
                     new ChannelSelectMenuBuilder()
-                      .setCustomId("feed-subscribe-channel")
+                      .setCustomId("dock-connect-channel")
                       .setChannelTypes([ChannelType.GuildText, ChannelType.GuildAnnouncement])
                       .setMinValues(1)
                       .setMaxValues(1),
@@ -376,7 +397,7 @@ module.exports = {
                   )
                   .setRoleSelectMenuComponent(
                     new RoleSelectMenuBuilder()
-                      .setCustomId("feed-subscribe-ping-roles")
+                      .setCustomId("dock-connect-ping-roles")
                       .setMaxValues(25)
                       .setRequired(false)
                   ),

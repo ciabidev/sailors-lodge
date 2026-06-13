@@ -51,7 +51,7 @@ module.exports = {
 
     // await interaction.reply({
     //   components: [
-    //     interaction.client.modules.renderBrowsePage({ pages, pageIndex, client: interaction.client }),
+    //     interaction.client.modules.renderDockBrowsePage({ pages, pageIndex, client: interaction.client }),
     //     pageSelector,
     //   ],
     //   flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
@@ -63,7 +63,7 @@ module.exports = {
     // });
 
     return interaction.reply({
-      content: "`/party browse` was removed in favor of the feed system. Use `/feed browse` instead",
+      content: "`/party browse` was removed in favor of Docks. Use `/dock browse` instead",
       flags: MessageFlags.Ephemeral,
     });
   },

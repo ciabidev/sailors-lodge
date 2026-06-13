@@ -9,10 +9,10 @@ const {
   TextInputStyle,
 } = require("discord.js");
 
-module.exports = async function feedPublishModal(
+module.exports = async function dockPublishModal(
   interaction,
   defaults = {},
-  customId = "feed-publish-modal",
+  customId = "dock-publish-modal",
 ) {
   const channelsSelect = new ChannelSelectMenuBuilder()
     .setCustomId("channels")
@@ -28,11 +28,11 @@ module.exports = async function feedPublishModal(
   return interaction.showModal(
     new ModalBuilder()
       .setCustomId(customId)
-      .setTitle("Publish a Feed")
+      .setTitle("Publish a Dock")
       .addLabelComponents(
         new LabelBuilder()
-          .setLabel("Feed Name")
-          .setDescription("Name of this specific feed")
+          .setLabel("Dock Name")
+          .setDescription("Name of this specific Dock")
           .setTextInputComponent(
             new TextInputBuilder()
               .setCustomId("name")
@@ -46,7 +46,7 @@ module.exports = async function feedPublishModal(
         new LabelBuilder().setLabel("Channel(s)").setChannelSelectMenuComponent(channelsSelect),
       )
       .addLabelComponents(
-        new LabelBuilder().setLabel("Feed Description").setTextInputComponent(
+        new LabelBuilder().setLabel("Dock Description").setTextInputComponent(
           new TextInputBuilder()
             .setCustomId("description")
             .setStyle(TextInputStyle.Paragraph)
@@ -59,7 +59,7 @@ module.exports = async function feedPublishModal(
         new LabelBuilder()
           .setLabel("Ping Keywords")
           .setDescription(
-            "Whenever one of these keywords is included in a message, subscribers will be pinged",
+            "Whenever one of these keywords is included in a message, connected servers will be pinged",
           )
           .setTextInputComponent(
             new TextInputBuilder()
@@ -73,30 +73,30 @@ module.exports = async function feedPublishModal(
       )
       .addLabelComponents(
         new LabelBuilder()
-          .setLabel("Feed Visibility")
-          .setDescription("Who can subscribe to your feed, and what messages get forwarded")
+          .setLabel("Dock Visibility")
+          .setDescription("Who can connect to your Dock, and what messages get forwarded")
           .setStringSelectMenuComponent(
-            new StringSelectMenuBuilder().setCustomId("feed-visibility").addOptions(
+            new StringSelectMenuBuilder().setCustomId("dock-visibility").addOptions(
               new StringSelectMenuOptionBuilder()
                 .setLabel("Open - All messages")
                 .setValue("open-all")
-                .setDefault(`${defaults.subscriptionMode}-${defaults.publishMode}` === "open-all"),
+                .setDefault(`${defaults.accessMode}-${defaults.publishMode}` === "open-all"),
               new StringSelectMenuOptionBuilder()
                 .setLabel("Open - Keywords only")
                 .setValue("open-keywords")
                 .setDefault(
-                  `${defaults.subscriptionMode}-${defaults.publishMode}` === "open-keywords",
+                  `${defaults.accessMode}-${defaults.publishMode}` === "open-keywords",
                 ),
 
               new StringSelectMenuOptionBuilder()
                 .setLabel("Request To Join - All messages")
                 .setValue("request-all")
-                .setDefault(`${defaults.subscriptionMode}-${defaults.publishMode}` === "request-all"),
+                .setDefault(`${defaults.accessMode}-${defaults.publishMode}` === "request-all"),
               new StringSelectMenuOptionBuilder()
                 .setLabel("Request To Join - Keywords only")
                 .setValue("request-keywords")
                 .setDefault(
-                  `${defaults.subscriptionMode}-${defaults.publishMode}` === "request-keywords",
+                  `${defaults.accessMode}-${defaults.publishMode}` === "request-keywords",
                 ),
             ),
           ),

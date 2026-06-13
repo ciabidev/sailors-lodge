@@ -371,7 +371,7 @@ async function removePartyCardMessage(messageId) {
 
 // ## Changes
 // - [x] Add `docks` collection (server id/name, channel ids, title, description, publish mode, keywords, directory visibility, access mode)
-// - [x] Add `dockServers` collection (dock id, connected server id/name, receiving channel, ping roles)
+// - [x] Add `dockServers` collection (dock id, connected server id/name, receiving channels, ping roles)
 // - [x] Add `/dock publish` command with modal
 // - [x] Add `/dock browse` command displaying the public dock directory with connect buttons
 // - [x] Add `/dock edit` command for server owners to view, edit, and remove their docks
@@ -421,9 +421,9 @@ async function getManyDockServers(dockIds) {
   return dockServers.find({ dockId: { $in: dockIds } }).toArray();
 }
 
-async function getDockServersFromChannelId(channelId) {
+async function getDockServerByChannelId(channelId) {
   const dockServers = getCollection("dockServers");
-  return dockServers.find({ channelId }).toArray();
+  return dockServers.findOne({ channelIds: channelId });
 }
 
 async function createDock(
@@ -468,25 +468,25 @@ async function removeDock(dockId) {
   return dockServers.deleteMany({ dockId: new ObjectId(dockId) });
 }
 
-async function addDockServer(dockId, guildId, guildName, channelId = null, pingRoleIds = []) {
+async function addDockServer(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
   const dockServers = getCollection("dockServers");
   return dockServers.insertOne({
     dockId: new ObjectId(dockId),
     guildId,
     guildName,
-    channelId,
+    channelIds,
     pingRoleIds,
   });
 }
 
-async function setDockServer(dockId, guildId, guildName, channelId = null, pingRoleIds = []) {
+async function setDockServer(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
   const dockServers = getCollection("dockServers");
   return dockServers.updateOne(
     { dockId: new ObjectId(dockId), guildId },
     {
       $set: {
         guildName,
-        channelId,
+        channelIds,
         pingRoleIds,
       },
       $setOnInsert: {
@@ -627,7 +627,7 @@ module.exports = {
   setDockWebhook,
   getDocksFromChannelId,
   getManyDockServers,
-  getDockServersFromChannelId,
+  getDockServerByChannelId,
   indexDockMessage,
   getDockMessageFromRoot,
   addDockMessageDeliveries,

@@ -114,7 +114,7 @@ module.exports = {
             dockId,
             interaction.guildId,
             interaction.guild.name,
-            channelIds[0],
+            channelIds,
             [],
           );
 
@@ -140,7 +140,7 @@ module.exports = {
           createdDock.insertedId,
           interaction.guildId,
           interaction.guild.name,
-          channelIds[0],
+          channelIds,
           [],
         );
 
@@ -272,13 +272,23 @@ module.exports = {
           dockId,
           interaction.guildId,
           interaction.guild.name,
-          channelId,
+          [channelId],
           roleIds,
         );
-        return interaction.reply({
-          content: "Connected to Dock.",
+        const dock = await interaction.client.modules.db.getDock(dockId);
+        
+        interaction.reply({
+          content: `Connected to Dock \`${dock.name}\` in <#${channelId}>.`,
           flags: MessageFlags.Ephemeral,
         });
+
+        interaction.client.modules.dockRelay({
+          client: interaction.client,
+          dockId,
+          content: `🎊 The server **${interaction.guild.name}** has connected to \`${interaction.client.modules.escapeMarkdown(dock.name)}\` in <#${channelId}>.`,
+        });
+
+        return;
       }
     }
 

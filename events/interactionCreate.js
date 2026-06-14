@@ -85,6 +85,33 @@ module.exports = {
           return;
         }
 
+        for (const channelId of channelIds) {
+          const docks = await interaction.client.modules.db.getDocksFromChannelId(channelId);
+          const conflictingDock = docks.find(
+            (dock) => !dockId || dock._id.toString() !== dockId,
+          );
+          if (conflictingDock) {
+            return interaction.reply({
+              content: `<#${channelId}> is already the source channel for another Dock.`,
+              flags: MessageFlags.Ephemeral,
+            });
+          }
+
+          const dockServers = await interaction.client.modules.db.getDockServersByChannelId(channelId);
+          const existingReceiver = dockServers.find(
+            (dockServer) =>
+              !dockId ||
+              dockServer.dockId.toString() !== dockId ||
+              dockServer.guildId !== interaction.guildId,
+          );
+          if (existingReceiver) {
+            return interaction.reply({
+              content: `<#${channelId}> is already following another Dock. Choose a channel that is not following any Docks yet.`,
+              flags: MessageFlags.Ephemeral,
+            });
+          }
+        }
+
         if (dockId) {
           const dock = await interaction.client.modules.db.getDock(dockId);
 
@@ -119,7 +146,7 @@ module.exports = {
           );
 
           return interaction.reply({
-            content: `Updated Dock with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
+            content: `Updated ${dock.name} with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
               .map((channel) => `<#${channel.id}>`)
               .join(", ")}.`,
             flags: MessageFlags.Ephemeral,
@@ -264,10 +291,26 @@ module.exports = {
         // check if this server is already connected to this Dock
         if (await interaction.client.modules.db.getDockServer(dockId, interaction.guildId)) {
           return interaction.reply({
-            content: "This server is already connected to this Dock.",
+            content: "This server is already following this Dock.",
             flags: MessageFlags.Ephemeral,
           });
         }
+
+        const docks = await interaction.client.modules.db.getDocksFromChannelId(channelId);
+        if (docks.length > 0) {
+          return interaction.reply({
+            content: `<#${channelId}> is already the source channel for docks: ${docks.map((dock) => interaction.client.modules.escapeMarkdown(dock.name)).join(", ")}. Choose a channel that is not used by Docks yet.`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        if (await interaction.client.modules.db.getDockServerByChannelId(channelId)) {
+          return interaction.reply({
+            content: `<#${channelId}> is already following docks. Choose a channel that is not following any docks yet`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
         await interaction.client.modules.db.addDockServer(
           dockId,
           interaction.guildId,
@@ -357,7 +400,7 @@ module.exports = {
 
         await interaction.update({
           components: [
-            interaction.client.modules.renderDockBrowsePage({
+            interaction.client.modules.dockBrowsePage({
               pages,
               pageIndex: state.pageIndex,
               client: interaction.client,

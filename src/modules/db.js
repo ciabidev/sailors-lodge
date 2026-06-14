@@ -426,6 +426,11 @@ async function getDockServerByChannelId(channelId) {
   return dockServers.findOne({ channelIds: channelId });
 }
 
+async function getDockServersByChannelId(channelId) {
+  const dockServers = getCollection("dockServers");
+  return dockServers.find({ channelIds: channelId }).toArray();
+}
+
 async function createDock(
   name,
   guildId,
@@ -469,20 +474,14 @@ async function removeDock(dockId) {
 }
 
 async function addDockServer(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
-  const dockServers = getCollection("dockServers");
-  return dockServers.insertOne({
-    dockId: new ObjectId(dockId),
-    guildId,
-    guildName,
-    channelIds,
-    pingRoleIds,
-  });
+  return setDockServer(dockId, guildId, guildName, channelIds, pingRoleIds);
 }
 
 async function setDockServer(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
   const dockServers = getCollection("dockServers");
+  const dockObjectId = new ObjectId(dockId);
   return dockServers.updateOne(
-    { dockId: new ObjectId(dockId), guildId },
+    { dockId: dockObjectId, guildId },
     {
       $set: {
         guildName,
@@ -490,7 +489,7 @@ async function setDockServer(dockId, guildId, guildName, channelIds = [], pingRo
         pingRoleIds,
       },
       $setOnInsert: {
-        dockId: new ObjectId(dockId),
+        dockId: dockObjectId,
         guildId,
         createdAt: new Date(),
       },
@@ -534,9 +533,6 @@ async function setDockWebhook(guildId, guildName, webhookId, webhookToken) { // 
   );
 }
 
-function getRootMessageQuery(rootChannelId, rootMessageId) {
-  return { rootChannelId, rootMessageId };
-}
 
 async function indexDockMessage({
   dockId,
@@ -547,7 +543,7 @@ async function indexDockMessage({
 }) {
   const dockMessages = getCollection("dockMessages");
   return dockMessages.updateOne(
-    getRootMessageQuery(rootChannelId, rootMessageId),
+    {rootChannelId, rootMessageId},
     {
       $setOnInsert: {
         dockId: new ObjectId(dockId),
@@ -565,13 +561,13 @@ async function indexDockMessage({
 
 async function getDockMessageFromRoot(rootChannelId, rootMessageId) {
   const dockMessages = getCollection("dockMessages");
-  return dockMessages.findOne(getRootMessageQuery(rootChannelId, rootMessageId));
+  return dockMessages.findOne({rootChannelId, rootMessageId});
 }
 
 async function addDockMessageDeliveries(rootChannelId, rootMessageId, deliveries) {
   const dockMessages = getCollection("dockMessages");
   return dockMessages.updateOne(
-    getRootMessageQuery(rootChannelId, rootMessageId),
+    {rootChannelId, rootMessageId},
     {
       $push: { deliveries: { $each: deliveries } },
       $set: { updatedAt: new Date() },
@@ -582,7 +578,7 @@ async function addDockMessageDeliveries(rootChannelId, rootMessageId, deliveries
 async function setDockMessageDeliveries(rootChannelId, rootMessageId, deliveries) {
   const dockMessages = getCollection("dockMessages");
   return dockMessages.updateOne(
-    getRootMessageQuery(rootChannelId, rootMessageId),
+    {rootChannelId, rootMessageId},
     {
       $set: {
         deliveries,
@@ -594,7 +590,7 @@ async function setDockMessageDeliveries(rootChannelId, rootMessageId, deliveries
 
 async function removeDockMessageFromRoot(rootChannelId, rootMessageId) {
   const dockMessages = getCollection("dockMessages");
-  return dockMessages.deleteOne(getRootMessageQuery(rootChannelId, rootMessageId));
+  return dockMessages.deleteOne({rootChannelId, rootMessageId});
 }
 
 module.exports = {
@@ -628,6 +624,7 @@ module.exports = {
   getDocksFromChannelId,
   getManyDockServers,
   getDockServerByChannelId,
+  getDockServersByChannelId,
   indexDockMessage,
   getDockMessageFromRoot,
   addDockMessageDeliveries,

@@ -1,13 +1,13 @@
-async function getDockWebhook(client, dockChannel, dockServer) {
+async function getDockWebhook(client, channel, dockServer) {
   const savedWebhook = await client.modules.db.getDockWebhook(dockServer.guildId);
   if (savedWebhook?.webhookId) {
     const webhook = await client
       .fetchWebhook(savedWebhook.webhookId, savedWebhook.webhookToken)
       .catch(() => null);
-    if (webhook?.channelId === dockChannel.id) return webhook;
+    if (webhook?.channelId === channel.id) return webhook;
   }
 
-  const webhook = await dockChannel.createWebhook({
+  const webhook = await channel.createWebhook({
     name: "Sailors Lodge Dock Webhook",
     avatar: client.user.displayAvatarURL(),
   });
@@ -23,14 +23,14 @@ async function getDockWebhook(client, dockChannel, dockServer) {
 }
 
 async function relayMessage(message) {
-  const activeDockServer = await message.client.modules.db.getDockServerByChannelId(
+  const sendingServer = await message.client.modules.db.getDockServerByChannelId(
     message.channel.id,
   );
 
-  const dock = await message.client.modules.db.getDock(activeDockServer?.dockId);
+  const dock = await message.client.modules.db.getDock(sendingServer?.dockId);
   if (!dock) return;
 
-  const receivingDockServers = (await message.client.modules.db.getDockServers(dock._id))
+  const receivingServers = (await message.client.modules.db.getDockServers(dock._id))
     .map((dockServer) => ({
       ...dockServer,
       channelIds: (dockServer.channelIds ?? [dockServer.channelId]).filter(
@@ -38,7 +38,7 @@ async function relayMessage(message) {
       ),
     }))
     .filter((dockServer) => dockServer.channelIds.length > 0);
-  if (receivingDockServers.length === 0) return;
+  if (receivingServers.length === 0) return;
 
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
@@ -48,29 +48,51 @@ async function relayMessage(message) {
     deliveries: [],
   });
 
-  for (const receivingDockServer of receivingDockServers) {
-    for (const channelId of receivingDockServer.channelIds) {
-      const dockChannel = await message.client.channels.fetch(channelId);
-      const webhook = await getDockWebhook(message.client, dockChannel, receivingDockServer);
-      const username = `${message.author.username} [${dock.name}] [${activeDockServer.guildName}]`;
+  if (dock.publishMode === "keywords") {
+    // get the keywords of the dock
+    // get dockKeywords is not a function.
+    const keywords = dock.keywords;
+    // check if the message contains any of the keywords
+    if (!keywords.some((keyword) => message.content?.includes(keyword)) || !message.content) return;
+  }
+  
+  for (const receivingServer of receivingServers) {
+    for (const channelId of receivingServer.channelIds) {
+      const channel = await message.client.channels.fetch(channelId).catch(() => null);
+      if (!channel) continue;
+
+      const webhook = await getDockWebhook(message.client, channel, receivingServer);
+      const username = `${message.author.username} [${dock.name}] [${sendingServer.guildName}]`;
       const formattedUsername =
         Array.from(username).length > 80
           ? Array.from(username).slice(0, 76).join("") + "..."
           : username;
-
-      const relayedMessage = await webhook.send({
+      
+      const messagePayload = {
         username: formattedUsername,
         avatarURL: message.author.displayAvatarURL(),
         content: message.content || null,
         embeds: message.embeds || [],
         files: message.attachments.map((attachment) => attachment.url) || [],
         allowedMentions: { users: [message.author.id] },
-      });
+      };
+      if (dock.publishMode === "keywords") {
+        // get the ping role for this server if it exists
+        const pingRoles = receivingServer.pingRoleIds ?? [];
+        if (pingRoles.length > 0) {
+          const pingRole = await channel.guild.roles.fetch(pingRoles[0]).catch(() => null);
+          if (pingRole) {
+            messagePayload.allowedMentions.roles = [pingRole.id];
+          }
+          messagePayload.content = `${pingRoles.map((roleId) => `<@&${roleId}>`).join(" ")} ${message.content}`;
+        }
+      }
+      const relayedMessage = await webhook.send(messagePayload);
 
       await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
         {
-          guildId: receivingDockServer.guildId,
-          guildName: receivingDockServer.guildName,
+          guildId: receivingServer.guildId,
+          guildName: receivingServer.guildName,
           channelId,
           messageId: relayedMessage.id,
         },

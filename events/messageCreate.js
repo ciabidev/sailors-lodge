@@ -32,7 +32,7 @@ module.exports = {
     }
 
     if (!message.guildId || !message.channel?.id) return;
-    if (message.author.bot || message.webhookId) return;
+    if (message.webhookId) return;
     const settings = await message.client.modules.db.getSettings(message.guildId);
     const keywordPingsEnabled =
       typeof settings.keywordPingsEnabled === "boolean"

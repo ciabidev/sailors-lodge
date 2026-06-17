@@ -11,7 +11,7 @@ const {
 
 module.exports = function dockManagePage({ pages, pageIndex, mode, guildId, client }) {
   const page = pages[pageIndex] ?? [];
-  const title = mode === "published" ? "Manage Published Docks" : "Manage Followed Docks";
+  const title = mode === "published" ? "👑 Manage Published Docks" : "🌐 Manage Followed Docks";
   const container = new ContainerBuilder().addTextDisplayComponents((t) =>
     t.setContent(`## ${title} (Page ${pageIndex + 1}/${Math.max(pages.length, 1)})`),
   );
@@ -37,12 +37,12 @@ module.exports = function dockManagePage({ pages, pageIndex, mode, guildId, clie
 
     if (fromThisGuild) {
       button = new ButtonBuilder()
-        .setCustomId(`dock-edit-owner:${_id}`)
-        .setLabel("Edit")
+        .setCustomId(`dock-configure-owner:${_id}`)
+        .setLabel("Configure")
         .setStyle(ButtonStyle.Secondary);
     } else {
       button = new ButtonBuilder()
-        .setCustomId(`dock-edit-follower:${_id}`)
+        .setCustomId(`dock-configure-follower:${_id}`)
         .setLabel("Configure")
         .setStyle(ButtonStyle.Secondary);
     }
@@ -65,7 +65,7 @@ module.exports = function dockManagePage({ pages, pageIndex, mode, guildId, clie
     container.addSectionComponents(dockSection);
 
     container.addTextDisplayComponents((t) =>
-      t.setContent(`**${client.modules.escapeMarkdown(`**Publisher:** ${dockPublisher} | **Channel:** ${dockChannels}`)}**`),
+      t.setContent(`**Publisher:** ${client.modules.escapeMarkdown(dockPublisher)} | **Channel(s):** ${client.modules.escapeMarkdown(dockChannels)}`),
     );
 
     if (guildIconURL) {

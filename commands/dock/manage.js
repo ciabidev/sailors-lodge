@@ -92,7 +92,7 @@ module.exports = {
         .setStyle(state.mode === "published" ? ButtonStyle.Primary : ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("docks-manage-mode:following")
-        .setLabel("Manage Following")
+        .setLabel("Manage Followed")
         .setEmoji("🌐")
         .setStyle(state.mode === "following" ? ButtonStyle.Primary : ButtonStyle.Secondary),
     );
@@ -111,7 +111,7 @@ module.exports = {
 
     managePages.set(interaction.user.id, state);
 
-    await interaction.reply({
+    await interaction.reply({ // The actual management logic will be handled in interactionCreate
       components: [
         interaction.client.modules.dockManagePage({
           pages: pages[state.mode],

@@ -15,7 +15,6 @@ module.exports = function getDockDisplay(dock, button, client) {
     ? channelNames.join(", ")
     : (channelIds ?? []).map((id) => `#${id}`).join(", ");
   const dockPublisher = guildName ?? publisherGuildId ?? "Unknown publisher";
-  let button = null;
   const fromThisGuild = publisherGuildId === guildId;
 
 

@@ -9,7 +9,7 @@ const {
   ThumbnailBuilder,
 } = require("discord.js");
 
-module.exports = function renderDockBrowsePage({ pages, pageIndex, client }) {
+module.exports = function dockBrowsePage({ pages, pageIndex, client }) {
   const page = pages[pageIndex] ?? [];
   const container = new ContainerBuilder().addTextDisplayComponents((t) =>
     t.setContent(`## Browse Docks (Page ${pageIndex + 1}/${pages.length})`),
@@ -31,12 +31,12 @@ module.exports = function renderDockBrowsePage({ pages, pageIndex, client }) {
     const dockChannel = channelNames.length
       ? channelNames.join(", ")
       : channelIds.map((id) => `#${id}`).join(", ");
-    const dockServer = guildName ?? guildId ?? "Unknown server";
-    const dockLabel = `${dockServer} - ${dockChannel}`;
+    const dockPublisher = guildName ?? guildId ?? "Unknown publisher";
+    const dockLabel = `${dockPublisher} - ${dockChannel}`;
 
-    const connectButton = new ButtonBuilder()
-      .setCustomId(`dock-connect:${_id}`)
-      .setLabel(accessMode === "request" ? "Request To Join" : "Connect")
+    const followButton = new ButtonBuilder()
+      .setCustomId(`dock-follow:${_id}`)
+      .setLabel(accessMode === "request" ? "Request To Follow" : "Follow")
       .setStyle(ButtonStyle.Success);
 
     const truncatedDescription = description?.length > 100 ? description.slice(0, 100) + "..." : description;
@@ -48,10 +48,10 @@ module.exports = function renderDockBrowsePage({ pages, pageIndex, client }) {
 
     if (guildIconURL) {
       dockSection.setThumbnailAccessory(
-        new ThumbnailBuilder().setURL(guildIconURL).setDescription(dockServer),
+        new ThumbnailBuilder().setURL(guildIconURL).setDescription(dockPublisher),
       );
     } else {
-      dockSection.setButtonAccessory(connectButton);
+      dockSection.setButtonAccessory(followButton);
     }
 
     container.addSectionComponents(dockSection);
@@ -62,7 +62,7 @@ module.exports = function renderDockBrowsePage({ pages, pageIndex, client }) {
 
     if (guildIconURL) {
       container.addActionRowComponents(
-        new ActionRowBuilder().addComponents(connectButton),
+        new ActionRowBuilder().addComponents(followButton),
       );
     }
 

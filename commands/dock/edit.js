@@ -24,7 +24,7 @@ module.exports = {
   async execute(interaction) {
     if (!interaction.guildId) {
       return interaction.reply({
-        content: "Docks can only be edited from a server.",
+        content: "Docks can only be edited from a Discord server.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -39,7 +39,7 @@ module.exports = {
 
     if (!dock) {
       return interaction.reply({
-        content: "I couldn't find that Dock in this server.",
+        content: "I couldn't find that Dock in this Discord server.",
         flags: MessageFlags.Ephemeral,
       });
     }

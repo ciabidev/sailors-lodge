@@ -17,7 +17,7 @@ module.exports = {
     .setName("browse")
     .setDescription("Browse available Docks.")
     .addStringOption((option) =>
-      option.setName("search").setDescription("Search Docks by name, server, or channel."),
+      option.setName("search").setDescription("Search Docks by name, publisher, or channel."),
     ),
 
   async execute(interaction) {
@@ -40,7 +40,7 @@ module.exports = {
 
       return {
         ...dock,
-        guildName: guild?.name ?? dock.guildId ?? "Unknown server",
+        guildName: guild?.name ?? dock.guildId ?? "Unknown publisher",
         channelIds,
         channelNames,
         guildIconURL: guild?.iconURL({ extension: "png", size: 64 }),
@@ -63,7 +63,7 @@ module.exports = {
 
     if (!docks.length) {
       return interaction.reply({
-        content: search ? "No Docks matched that search." : "No Docks are published yet.",
+        content: search ? "No Docks matched that search." : "no Docks are published yet.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -85,7 +85,7 @@ module.exports = {
 
     await interaction.reply({
       components: [
-        interaction.client.modules.renderDockBrowsePage({ pages, pageIndex, client: interaction.client }),
+        interaction.client.modules.dockBrowsePage({ pages, pageIndex, client: interaction.client }),
         pageSelector,
       ],
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,

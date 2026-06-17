@@ -19,49 +19,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    // const db = interaction.client.modules.db;
-
-    // let parties = await db.getParties({ visibility: "public" });
-    // const search = interaction.options.getString("search");
-
-    // if (search) {
-    //   parties = parties.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
-    // }
-
-    // if (!parties.length) {
-    //   return interaction.reply({
-    //     content: "No parties found.",
-    //     flags: MessageFlags.Ephemeral,
-    //   });
-    // }
-
-    // const pages = interaction.client.modules.chunkArray(parties, 3);
-    // const pageIndex = 0;
-
-    // const pageSelector = new ActionRowBuilder().addComponents(
-    //   new ButtonBuilder()
-    //     .setCustomId("parties-prev")
-    //     .setLabel("Previous")
-    //     .setStyle(ButtonStyle.Secondary),
-    //   new ButtonBuilder()
-    //     .setCustomId("parties-next")
-    //     .setLabel("Next")
-    //     .setStyle(ButtonStyle.Secondary),
-    // );
-
-    // await interaction.reply({
-    //   components: [
-    //     interaction.client.modules.renderDockBrowsePage({ pages, pageIndex, client: interaction.client }),
-    //     pageSelector,
-    //   ],
-    //   flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-    // });
-
-    // browsePages.set(interaction.user.id, {
-    //   pages,
-    //   pageIndex,
-    // });
-
+   
     return interaction.reply({
       content: "`/party browse` was removed in favor of Docks. Use `/dock browse` instead",
       flags: MessageFlags.Ephemeral,

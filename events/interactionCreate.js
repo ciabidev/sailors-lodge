@@ -24,6 +24,39 @@ const { ObjectId } = require("mongodb");
 
 const issues = process.env.ISSUES_URL;
 const { browsePages: dockBrowsePages } = require("../commands/dock/browse");
+const { model } = require("mongoose");
+const { managePages: dockManagePages } = require("../commands/dock/manage");
+
+function showDockFollowerModal(interaction, dockId, customId) {
+  return interaction.showModal(
+    new ModalBuilder()
+      .setTitle("Dock Follow Settings")
+      .setCustomId(`${customId}:${dockId}`)
+      .addLabelComponents(
+        new LabelBuilder()
+          .setLabel("Set receiving channel")
+          .setDescription("Select the channel to receive messages from this Dock")
+          .setChannelSelectMenuComponent(
+            new ChannelSelectMenuBuilder()
+              .setCustomId("dock-follow-channel")
+              .setChannelTypes([ChannelType.GuildText, ChannelType.GuildAnnouncement])
+              .setMinValues(1)
+              .setMaxValues(1),
+          ),
+      )
+      .addLabelComponents(
+        new LabelBuilder()
+          .setLabel("Set ping roles")
+          .setDescription("These roles will be pinged whenever a party ping is recieved")
+          .setRoleSelectMenuComponent(
+            new RoleSelectMenuBuilder()
+              .setCustomId("dock-follow-ping-roles")
+              .setMaxValues(25)
+              .setRequired(false),
+          ),
+      ),
+  );
+}
 
 // modal submission and button clicks survive through restarts
 module.exports = {
@@ -52,13 +85,13 @@ module.exports = {
 
       [modalId, dockId] = interaction.customId.split(":");
       if (modalId === "dock-publish-modal") {
-        const [accessModeRaw, publishModeRaw] = interaction.fields.getStringSelectValues("dock-visibility")[0].split("-");
+        const [accessModeRaw, publishModeRaw] = interaction.fields
+          .getStringSelectValues("dock-visibility")[0]
+          .split("-");
         const publishMode = ["all", "keywords", "manual"].includes(publishModeRaw)
           ? publishModeRaw
           : "all";
-        const accessMode = ["open", "request"].includes(accessModeRaw)
-          ? accessModeRaw
-          : "open";
+        const accessMode = ["open", "request"].includes(accessModeRaw) ? accessModeRaw : "open";
         const name = interaction.fields.getTextInputValue("name");
         const description = interaction.fields.getTextInputValue("description") || "";
         const keywordsRaw = interaction.fields.getTextInputValue("keywords") || "";
@@ -81,15 +114,15 @@ module.exports = {
         const selectedChannels = Array.from(channels.values());
         const channelIds = selectedChannels.map((channel) => channel.id);
 
-        if (!(await interaction.client.modules.dockPermissions.check(interaction, selectedChannels))) {
+        if (
+          !(await interaction.client.modules.dockPermissions.check(interaction, selectedChannels))
+        ) {
           return;
         }
 
         for (const channelId of channelIds) {
           const docks = await interaction.client.modules.db.getDocksFromChannelId(channelId);
-          const conflictingDock = docks.find(
-            (dock) => !dockId || dock._id.toString() !== dockId,
-          );
+          const conflictingDock = docks.find((dock) => !dockId || dock._id.toString() !== dockId);
           if (conflictingDock) {
             return interaction.reply({
               content: `<#${channelId}> is already the source channel for another Dock.`,
@@ -97,14 +130,15 @@ module.exports = {
             });
           }
 
-          const dockServers = await interaction.client.modules.db.getDockServersByChannelId(channelId);
-          const existingReceiver = dockServers.find(
-            (dockServer) =>
+          const dockFollowers =
+            await interaction.client.modules.db.getDockFollowersByChannelId(channelId);
+          const existingFollower = dockFollowers.find(
+            (dockFollower) =>
               !dockId ||
-              dockServer.dockId.toString() !== dockId ||
-              dockServer.guildId !== interaction.guildId,
+              dockFollower.dockId.toString() !== dockId ||
+              dockFollower.guildId !== interaction.guildId,
           );
-          if (existingReceiver) {
+          if (existingFollower) {
             return interaction.reply({
               content: `<#${channelId}> is already following another Dock. Choose a channel that is not following any Docks yet.`,
               flags: MessageFlags.Ephemeral,
@@ -117,7 +151,7 @@ module.exports = {
 
           if (!dock || dock.guildId !== interaction.guildId) {
             return interaction.reply({
-              content: "I couldn't find that Dock in this server.",
+              content: "I couldn't find that Dock in this Discord server.",
               flags: MessageFlags.Ephemeral,
             });
           }
@@ -137,7 +171,7 @@ module.exports = {
               channelNames: "",
             },
           });
-          await interaction.client.modules.db.setDockServer(
+          await interaction.client.modules.db.setDockFollower(
             dockId,
             interaction.guildId,
             interaction.guild.name,
@@ -163,7 +197,7 @@ module.exports = {
           publishMode,
           accessMode,
         );
-        await interaction.client.modules.db.setDockServer(
+        await interaction.client.modules.db.setDockFollower(
           createdDock.insertedId,
           interaction.guildId,
           interaction.guild.name,
@@ -184,7 +218,9 @@ module.exports = {
         const name = interaction.fields.getTextInputValue("name");
         const description = interaction.fields.getTextInputValue("description") || "";
         const selectedStatus = interaction.fields.getStringSelectValues("status")[0];
-        const status = ["not-started", "starting", "active"].includes(selectedStatus) ? selectedStatus : "not-started";
+        const status = ["not-started", "starting", "active"].includes(selectedStatus)
+          ? selectedStatus
+          : "not-started";
         const memberLimit = parseInt(interaction.fields.getTextInputValue("limit")) || 10;
         const visibility = interaction.fields.getStringSelectValues("visibility")[0];
 
@@ -275,23 +311,35 @@ module.exports = {
       }
 
       [modalId, dockId] = interaction.customId.split(":");
-      if (modalId === "dock-connect-modal") {
-        const channels = interaction.fields.getSelectedChannels("dock-connect-channel", true, [
+      if (modalId === "dock-follow-modal" || modalId === "dock-configure-follower-modal") {
+        const isConfiguringFollower = modalId === "dock-configure-follower-modal";
+        const channels = interaction.fields.getSelectedChannels("dock-follow-channel", true, [
           ChannelType.GuildText,
           ChannelType.GuildAnnouncement,
         ]);
         const [channelId] = channels.keys();
         const [channel] = channels.values();
-        const roles = interaction.fields.getSelectedRoles("dock-connect-ping-roles", false);
+        const roles = interaction.fields.getSelectedRoles("dock-follow-ping-roles", false);
         const roleIds = roles ? Array.from(roles.keys()) : [];
 
         if (!(await interaction.client.modules.dockPermissions.check(interaction, channel))) {
           return;
         }
-        // check if this server is already connected to this Dock
-        if (await interaction.client.modules.db.getDockServer(dockId, interaction.guildId)) {
+        const existingFollower = await interaction.client.modules.db.getDockFollower(
+          dockId,
+          interaction.guildId,
+        );
+
+        if (!isConfiguringFollower && existingFollower) {
           return interaction.reply({
             content: "This server is already following this Dock.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        if (isConfiguringFollower && !existingFollower) {
+          return interaction.reply({
+            content: "This server is not following that Dock anymore.",
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -304,14 +352,20 @@ module.exports = {
           });
         }
 
-        if (await interaction.client.modules.db.getDockServerByChannelId(channelId)) {
+        const followerUsingChannel =
+          await interaction.client.modules.db.getDockFollowerByChannelId(channelId);
+        const channelBelongsToThisFollow =
+          followerUsingChannel?.dockId?.toString() === dockId &&
+          followerUsingChannel?.guildId === interaction.guildId;
+
+        if (followerUsingChannel && !channelBelongsToThisFollow) {
           return interaction.reply({
             content: `<#${channelId}> is already following docks. Choose a channel that is not following any docks yet`,
             flags: MessageFlags.Ephemeral,
           });
         }
 
-        await interaction.client.modules.db.addDockServer(
+        await interaction.client.modules.db.setDockFollower(
           dockId,
           interaction.guildId,
           interaction.guild.name,
@@ -319,17 +373,21 @@ module.exports = {
           roleIds,
         );
         const dock = await interaction.client.modules.db.getDock(dockId);
-        
+
         interaction.reply({
-          content: `Connected to Dock \`${dock.name}\` in <#${channelId}>.`,
+          content: isConfiguringFollower
+            ? `Updated Dock \`${dock.name}\` to post in <#${channelId}>.`
+            : `Followed Dock \`${dock.name}\` in <#${channelId}>.`,
           flags: MessageFlags.Ephemeral,
         });
 
-        interaction.client.modules.dockRelay({
-          client: interaction.client,
-          dockId,
-          content: `🎊 The server **${interaction.guild.name}** has connected to \`${interaction.client.modules.escapeMarkdown(dock.name)}\` in <#${channelId}>.`,
-        });
+        if (!isConfiguringFollower) {
+          interaction.client.modules.dockRelay({
+            client: interaction.client,
+            dockId,
+            content: `🎊 **${interaction.guild.name}** is now following \`${interaction.client.modules.escapeMarkdown(dock.name)}\` in <#${channelId}>.`,
+          });
+        }
 
         return;
       }
@@ -412,7 +470,50 @@ module.exports = {
         return;
       }
 
-      if (action === "dock-connect") {
+      if (buttonId === "docks-manage-prev" || buttonId === "docks-manage-next") {
+        let state = dockManagePages.get(interaction.user.id);
+        if (!state) return;
+
+        const pages = state.pages[state.mode] ?? [];
+        const pageCount = Math.max(pages.length, 1);
+
+        state.pageIndex =
+          buttonId === "docks-manage-prev"
+            ? (state.pageIndex - 1 + pageCount) % pageCount
+            : (state.pageIndex + 1) % pageCount;
+
+        const pageSelector = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("docks-manage-prev")
+            .setLabel("Previous")
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(pages.length <= 1),
+          new ButtonBuilder()
+            .setCustomId("docks-manage-next")
+            .setLabel("Next")
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(pages.length <= 1),
+        );
+
+        await interaction.update({
+          components: [
+            interaction.client.modules.dockManagePage({
+              pages,
+              pageIndex: state.pageIndex,
+              mode: state.mode,
+              guildId: state.guildId,
+              client: interaction.client,
+            }),
+            interaction.message.components[1],
+            pageSelector,
+          ],
+          flags: interaction.message.flags,
+        });
+
+        return;
+      }
+
+      if (buttonId.startsWith("dock-follow")) {
         let [, dockId] = buttonId.split(":");
         let dock = await interaction.client.modules.db.getDock(dockId);
         let accessMode = dock?.accessMode ?? "open";
@@ -421,49 +522,106 @@ module.exports = {
         //   content:
         //     accessMode === "request"
         //       ? "Dock request-to-join is coming soon."
-        //       : "Dock servers are coming soon.",
+        //       : "Dock followers are coming soon.",
         //   flags: MessageFlags.Ephemeral,
         // });
 
         if (interaction.inGuild()) {
-          interaction.showModal(
-            new ModalBuilder()
-              .setTitle("Modal")
-              .setCustomId(`dock-connect-modal:${dockId}`)
-              .addLabelComponents(
-                new LabelBuilder()
-                  .setLabel("Set receiving channel")
-                  .setDescription("Select the channel to receive messages from this Dock")
-                  .setChannelSelectMenuComponent(
-                    new ChannelSelectMenuBuilder()
-                      .setCustomId("dock-connect-channel")
-                      .setChannelTypes([ChannelType.GuildText, ChannelType.GuildAnnouncement])
-                      .setMinValues(1)
-                      .setMaxValues(1),
-                  ),
-              )
-              .addLabelComponents(
-                new LabelBuilder()
-                  .setLabel("Set ping roles")
-                  .setDescription(
-                    "These roles will be pinged whenever a party ping is recieved",
-                  )
-                  .setRoleSelectMenuComponent(
-                    new RoleSelectMenuBuilder()
-                      .setCustomId("dock-connect-ping-roles")
-                      .setMaxValues(25)
-                      .setRequired(false)
-                  ),
-              )
-              
-          );
+          await showDockFollowerModal(interaction, dockId, "dock-follow-modal");
+          return;
         }
       }
 
+      if (buttonId.startsWith("dock-edit-owner")) {
+        const [, dockId] = buttonId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+
+        if (!dock || dock.guildId !== interaction.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        return interaction.client.modules.dockPublishModal(
+          interaction,
+          dock,
+          `dock-publish-modal:${dock._id}`,
+        );
+      }
+
+      if (buttonId.startsWith("dock-edit-follower")) {
+        const [, dockId] = buttonId.split(":");
+        const follower = await interaction.client.modules.db.getDockFollower(
+          dockId,
+          interaction.guildId,
+        );
+
+        if (!follower) {
+          return interaction.reply({
+            content: "This server is not following that Dock anymore.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        return showDockFollowerModal(interaction, dockId, "dock-configure-follower-modal");
+      }
+
+      if (interaction.customId.startsWith("docks-manage-mode")) {
+        const [, mode] = interaction.customId.split(":");
+        const state = dockManagePages.get(interaction.user.id);
+        if (!state) return;
+
+        state.mode = mode;
+        state.pageIndex = 0;
+
+        const pages = state.pages[state.mode] ?? [];
+        const modeSelector = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("docks-manage-mode:published")
+            .setLabel("Manage Published")
+            .setEmoji("👑")
+            .setStyle(state.mode === "published" ? ButtonStyle.Primary : ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId("docks-manage-mode:following")
+            .setLabel("Manage Following")
+            .setEmoji("🌐")
+            .setStyle(state.mode === "following" ? ButtonStyle.Primary : ButtonStyle.Secondary),
+        );
+        const pageSelector = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("docks-manage-prev")
+            .setLabel("Previous")
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(pages.length <= 1),
+          new ButtonBuilder()
+            .setCustomId("docks-manage-next")
+            .setLabel("Next")
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(pages.length <= 1),
+        );
+
+        await interaction.update({
+          components: [
+            interaction.client.modules.dockManagePage({
+              pages,
+              pageIndex: state.pageIndex,
+              mode: state.mode,
+              guildId: state.guildId,
+              client: interaction.client,
+            }),
+            modeSelector,
+            pageSelector,
+          ],
+          flags: interaction.message.flags,
+        });
+
+        return;
+      }
       // Handle party buttons
       let [, partyId] = buttonId.split(":");
-      if (partyId) {
-        if (action === "party-leave" && !interaction.deferred && !interaction.replied) {
+      if (partyId && buttonId.startsWith("party")) {
+        if (buttonId.startsWith("party-leave") && !interaction.deferred && !interaction.replied) {
           await interaction.deferReply({
             flags: MessageFlags.Ephemeral,
           });
@@ -511,7 +669,6 @@ module.exports = {
           if (replyError.code !== 10062) {
             throw replyError;
           }
-
           console.error("Failed to send command error response: interaction expired.");
         }
       }

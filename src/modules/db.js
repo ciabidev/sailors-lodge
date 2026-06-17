@@ -336,26 +336,26 @@ async function removePartyCardMessage(messageId) {
 
 // ## How it works
 
-// ### Server side (dock)
-// - Server owner runs `/dock publish #channel-name`
+// ### Publisher side (dock)
+// - Dock owner runs `/dock publish #channel-name`
 // - A modal prompts them for a dock title, description, and configuration options
-// - Their server + channel is added to the Dock Directory with a unique dock ID
-// - Messages are forwarded to connected servers based on the server owner's configured publish mode
+// - Their publisher + channel is added to the Dock Directory with a unique dock ID
+// - Messages are forwarded to followers based on the dock owner's configured publish mode
 // - If a party is set to Private visibility, it is never forwarded regardless of publish mode
 
-// ### Connected server side (dock server)
+// ### Follower side (dock follower)
 // - Player runs `/dock browse` to open the dock directory
-// - They see a list of registered dock channels across all servers (e.g. "Party Central — #luck-parties", "Party Central — #omen-hunts")
-// - They connect their server to any dock they want
-// - If joining requires approval, the server owner is notified and must approve before the server is active
-// - When connecting from a server, the player is prompted to pick a channel to pipe the dock into and optionally configure a ping role
+// - They see a list of registered dock channels across all publishers (e.g. "Party Central — #luck-parties", "Party Central — #omen-hunts")
+// - They follow any dock they want
+// - If following requires approval, the dock owner is notified and must approve before the follower is active
+// - When following a Dock, the player is prompted to pick a channel to pipe the dock into and optionally configure a ping role
 // - If subscribing in DMs, they receive forwarded messages as DM notifications
 // - `/party create` cards are always forwarded as full interactive party cards with a join button
 
 // ---
 
 // ## Dock Configuration
-// Server owners can configure the following options per dock when running `/dock publish` or later via `/dock edit`:
+// Dock owners can configure the following options per dock when running `/dock publish` or later via `/dock edit`:
 
 // ### Dock Visibility
 // **Open**
@@ -363,22 +363,22 @@ async function removePartyCardMessage(messageId) {
 // Open — Keywords only — anyone can follow instantly, only keyword-matching messages are forwarded
 // Open — Manual only — anyone can follow instantly, only /party create cards are forwarded
 // **Request To Join**
-// Request — All messages — server owner must approve follow requests, every message is forwarded
-// Request — Keywords only — server owner must approve follow requests, only keyword-matching messages are forwarded
-// Request — Manual only — server owner must approve follow requests, only /party create cards are forwarded
+// Request — All messages — dock owner must approve follow requests, every message is forwarded
+// Request — Keywords only — dock owner must approve follow requests, only keyword-matching messages are forwarded
+// Request — Manual only — dock owner must approve follow requests, only /party create cards are forwarded
 
 // ---
 
 // ## Changes
-// - [x] Add `docks` collection (server id/name, channel ids, title, description, publish mode, keywords, directory visibility, access mode)
-// - [x] Add `dockServers` collection (dock id, connected server id/name, receiving channels, ping roles)
+// - [x] Add `docks` collection (publisher id/name, channel ids, title, description, publish mode, keywords, directory visibility, access mode)
+// - [x] Add `dockServers` collection (dock id, follower id/name, receiving channels, ping roles)
 // - [x] Add `/dock publish` command with modal
-// - [x] Add `/dock browse` command displaying the public dock directory with connect buttons
-// - [x] Add `/dock edit` command for server owners to view, edit, and remove their docks
-// - [ ] Forward messages to dock servers based on configured publish mode on every message sent in a registered dock channel
-// - [ ] Forward full interactive party card to dock servers when `/party create` is used in a registered dock channel
+// - [x] Add `/dock browse` command displaying the public dock directory with follow buttons
+// - [x] Add `/dock edit` command for dock owners to view, edit, and remove their docks
+// - [ ] Forward messages to dock followers based on configured publish mode on every message sent in a registered dock channel
+// - [ ] Forward full interactive party card to dock followers when `/party create` is used in a registered dock channel
 // - [ ] Skip forwarding for private parties
-// - [ ] Handle request-to-join flow — notify server owner, await approval before activating the server
+// - [ ] Handle request-to-join flow — notify dock owner, await approval before activating the follower
 // - [x] Remove `/party browse` command
 // - [ ] Add onboarding message when bot is added explaining how the bot works and encouraging hosts to register dock channels
 // - [ ] Add disclaimer footer to party cards clarifying it is a Discord coordination group, not an in-game party
@@ -411,24 +411,24 @@ const getDocksFromChannelId = async (channelId) => {
 
 
 
-async function getDockServers(dockId) {
-  const dockServers = getCollection("dockServers");
-  return dockServers.find({ dockId: new ObjectId(dockId) }).toArray();
+async function getDockFollowers(dockId) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.find({ dockId: new ObjectId(dockId) }).toArray();
 }
 
-async function getManyDockServers(dockIds) {
-  const dockServers = getCollection("dockServers");
-  return dockServers.find({ dockId: { $in: dockIds } }).toArray();
+async function getManyDockFollowers(dockIds) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.find({ dockId: { $in: dockIds } }).toArray();
 }
 
-async function getDockServerByChannelId(channelId) {
-  const dockServers = getCollection("dockServers");
-  return dockServers.findOne({ channelIds: channelId });
+async function getDockFollowerByChannelId(channelId) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.findOne({ channelIds: channelId });
 }
 
-async function getDockServersByChannelId(channelId) {
-  const dockServers = getCollection("dockServers");
-  return dockServers.find({ channelIds: channelId }).toArray();
+async function getDockFollowersByChannelId(channelId) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.find({ channelIds: channelId }).toArray();
 }
 
 async function createDock(
@@ -469,18 +469,18 @@ async function updateDock(dockId, update) {
 async function removeDock(dockId) {
   const docks = getCollection("docks");
   await docks.deleteOne({ _id: new ObjectId(dockId) });
-  const dockServers = getCollection("dockServers");
-  return dockServers.deleteMany({ dockId: new ObjectId(dockId) });
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.deleteMany({ dockId: new ObjectId(dockId) });
 }
 
-async function addDockServer(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
-  return setDockServer(dockId, guildId, guildName, channelIds, pingRoleIds);
+async function addDockFollower(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
+  return setDockFollower(dockId, guildId, guildName, channelIds, pingRoleIds);
 }
 
-async function setDockServer(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
-  const dockServers = getCollection("dockServers");
+async function setDockFollower(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
+  const dockFollowers = getCollection("dockServers");
   const dockObjectId = new ObjectId(dockId);
-  return dockServers.updateOne(
+  return dockFollowers.updateOne(
     { dockId: dockObjectId, guildId },
     {
       $set: {
@@ -498,22 +498,40 @@ async function setDockServer(dockId, guildId, guildName, channelIds = [], pingRo
   );
 }
 
-async function removeDockServer(dockId, guildId) {
-  const dockServers = getCollection("dockServers");
-  return dockServers.deleteOne({ dockId: new ObjectId(dockId), guildId });
+async function removeDockFollower(dockId, guildId) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.deleteOne({ dockId: new ObjectId(dockId), guildId });
 }
 
-async function getDockServer(dockId, guildId) {
-  const dockServers = getCollection("dockServers");
-  return dockServers.findOne({ dockId: new ObjectId(dockId), guildId });
+async function getDockFollower(dockId, guildId) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.findOne({ dockId: new ObjectId(dockId), guildId });
 }
 
+async function getFollowedDocksForGuild(guildId) {
+  const dockFollowers = getCollection("dockServers");
+  const dockFollowsForGuild = await dockFollowers.find({ guildId }).toArray();
+  if (!dockFollowsForGuild.length) return [];
+
+  const docks = getCollection("docks");
+  const dockIds = dockFollowsForGuild.map((dockFollow) => dockFollow.dockId);
+
+  return docks.find(
+    { _id: { $in: dockIds } },
+    { projection: { channelNames: 0 } },
+  ).toArray();
+}
+
+async function getPublishedDocksForGuild(guildId) {
+  const docks = getCollection("docks");
+  return docks.find({ guildId }).toArray();
+}
 async function getDockWebhook(guildId) {
   const dockWebhooks = getCollection("dockWebhooks");
   return dockWebhooks.findOne({ guildId });
 }
 
-async function setDockWebhook(guildId, guildName, webhookId, webhookToken) { // each server has a singular webhook to manage all dock messages
+async function setDockWebhook(guildId, guildName, webhookId, webhookToken) { // each follower has a singular webhook to manage all dock messages
   const dockWebhooks = getCollection("dockWebhooks");
   return dockWebhooks.updateOne(
     { guildId },
@@ -611,20 +629,22 @@ module.exports = {
   removePartyCardMessage,
   getDocks,
   getDock,
-  getDockServers,
+  getDockFollowers,
   createDock,
   updateDock,
   removeDock,
-  addDockServer,
-  setDockServer,
-  removeDockServer,
-  getDockServer,
+  addDockFollower,
+  setDockFollower,
+  removeDockFollower,
+  getDockFollower,
+  getFollowedDocksForGuild,
   getDockWebhook,
   setDockWebhook,
   getDocksFromChannelId,
-  getManyDockServers,
-  getDockServerByChannelId,
-  getDockServersByChannelId,
+  getManyDockFollowers,
+  getDockFollowerByChannelId,
+  getDockFollowersByChannelId,
+  getPublishedDocksForGuild,
   indexDockMessage,
   getDockMessageFromRoot,
   addDockMessageDeliveries,

@@ -59,7 +59,7 @@ module.exports = async function dockPublishModal(
         new LabelBuilder()
           .setLabel("Ping Keywords")
           .setDescription(
-            "Whenever one of these keywords is included in a message, connected servers will be pinged",
+            "Whenever one of these keywords is included in a message, Dock followers will be pinged",
           )
           .setTextInputComponent(
             new TextInputBuilder()
@@ -74,7 +74,7 @@ module.exports = async function dockPublishModal(
       .addLabelComponents(
         new LabelBuilder()
           .setLabel("Dock Visibility")
-          .setDescription("Who can connect to your Dock, and what messages get forwarded")
+          .setDescription("Who can follow your Dock, and what messages get forwarded")
           .setStringSelectMenuComponent(
             new StringSelectMenuBuilder().setCustomId("dock-visibility").addOptions(
               new StringSelectMenuOptionBuilder()

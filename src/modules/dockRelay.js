@@ -1,5 +1,5 @@
-async function getDockWebhook(client, channel, dockServer) {
-  const savedWebhook = await client.modules.db.getDockWebhook(dockServer.guildId);
+async function getDockWebhook(client, channel, dockFollower) {
+  const savedWebhook = await client.modules.db.getDockWebhook(dockFollower.guildId);
   if (savedWebhook?.webhookId) {
     const webhook = await client
       .fetchWebhook(savedWebhook.webhookId, savedWebhook.webhookToken)
@@ -13,8 +13,8 @@ async function getDockWebhook(client, channel, dockServer) {
   });
 
   await client.modules.db.setDockWebhook(
-    dockServer.guildId,
-    dockServer.guildName,
+    dockFollower.guildId,
+    dockFollower.guildName,
     webhook.id,
     webhook.token,
   );
@@ -23,22 +23,22 @@ async function getDockWebhook(client, channel, dockServer) {
 }
 
 async function relayMessage(message) {
-  const sendingServer = await message.client.modules.db.getDockServerByChannelId(
+  const sendingFollower = await message.client.modules.db.getDockFollowerByChannelId(
     message.channel.id,
   );
 
-  const dock = await message.client.modules.db.getDock(sendingServer?.dockId);
+  const dock = await message.client.modules.db.getDock(sendingFollower?.dockId);
   if (!dock) return;
 
-  const receivingServers = (await message.client.modules.db.getDockServers(dock._id))
-    .map((dockServer) => ({
-      ...dockServer,
-      channelIds: (dockServer.channelIds ?? [dockServer.channelId]).filter(
+  const receivingFollowers = (await message.client.modules.db.getDockFollowers(dock._id))
+    .map((dockFollower) => ({
+      ...dockFollower,
+      channelIds: (dockFollower.channelIds ?? [dockFollower.channelId]).filter(
         (channelId) => channelId && channelId !== message.channel.id,
       ),
     }))
-    .filter((dockServer) => dockServer.channelIds.length > 0);
-  if (receivingServers.length === 0) return;
+    .filter((dockFollower) => dockFollower.channelIds.length > 0);
+  if (receivingFollowers.length === 0) return;
 
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
@@ -56,13 +56,13 @@ async function relayMessage(message) {
     if (!keywords.some((keyword) => message.content?.includes(keyword)) || !message.content) return;
   }
   
-  for (const receivingServer of receivingServers) {
-    for (const channelId of receivingServer.channelIds) {
+  for (const receivingFollower of receivingFollowers) {
+    for (const channelId of receivingFollower.channelIds) {
       const channel = await message.client.channels.fetch(channelId).catch(() => null);
       if (!channel) continue;
 
-      const webhook = await getDockWebhook(message.client, channel, receivingServer);
-      const username = `${message.author.username} [${dock.name}] [${sendingServer.guildName}]`;
+      const webhook = await getDockWebhook(message.client, channel, receivingFollower);
+      const username = `${message.author.username} [${dock.name}] [${sendingFollower.guildName}]`;
       const formattedUsername =
         Array.from(username).length > 80
           ? Array.from(username).slice(0, 76).join("") + "..."
@@ -78,7 +78,7 @@ async function relayMessage(message) {
       };
       if (dock.publishMode === "keywords") {
         // get the ping role for this server if it exists
-        const pingRoles = receivingServer.pingRoleIds ?? [];
+        const pingRoles = receivingFollower.pingRoleIds ?? [];
         if (pingRoles.length > 0) {
           const pingRole = await channel.guild.roles.fetch(pingRoles[0]).catch(() => null);
           if (pingRole) {
@@ -91,8 +91,8 @@ async function relayMessage(message) {
 
       await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
         {
-          guildId: receivingServer.guildId,
-          guildName: receivingServer.guildName,
+          guildId: receivingFollower.guildId,
+          guildName: receivingFollower.guildName,
           channelId,
           messageId: relayedMessage.id,
         },
@@ -105,15 +105,15 @@ async function relayAlert({ client, dockId, ...payload }) {
   const dock = await client.modules.db.getDock(dockId);
   if (!dock) return;
 
-  const servers = await client.modules.db.getDockServers(dock._id);
-  if (servers.length === 0) return;
+  const followers = await client.modules.db.getDockFollowers(dock._id);
+  if (followers.length === 0) return;
 
-  for (const server of servers) {
-    for (const channelId of server.channelIds ?? []) {
+  for (const follower of followers) {
+    for (const channelId of follower.channelIds ?? []) {
       const channel = await client.channels.fetch(channelId).catch(() => null);
       if (!channel) continue;
 
-      const webhook = await getDockWebhook(client, channel, server);
+      const webhook = await getDockWebhook(client, channel, follower);
       await webhook.send({
         username: dock.name,
         avatarURL: client.user.displayAvatarURL(),

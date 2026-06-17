@@ -35,10 +35,7 @@ module.exports = {
           t.setContent(
             `### \`/party show [dm]\`\n- Show the party card for your current party.\n-# Set dm:true to send the card to your DMs.`,
           ),
-        (t) =>
-          t.setContent(
-            `### \`/party browse [search]\`\n- Browse public parties that are not full and not marked Active.\n-# Use search to filter by party name.`,
-          ),
+        
         (t) =>
           t.setContent(
             `### \`/party ping role:<group> [extra] [time]\`\n- Ping one configured ping group, optionally with extra text or a scheduled time.\n-# Ping groups and permissions are managed with /settings ping.`,
@@ -50,7 +47,7 @@ module.exports = {
         (t) => t.setContent(`# party owner commands`),
         (t) =>
           t.setContent(
-            `### \`/party edit\`\n- Edit your party name, description, status, member limit, and visibility.\n-# Parties marked Active are hidden from /party browse.`,
+            `### \`/party edit\`\n- Edit your party name, description, status, member limit, and visibility.`,
           ),
         (t) => t.setContent(`### \`/party delete\`\n- Delete your party`),
         (t) =>
@@ -69,11 +66,7 @@ module.exports = {
           t.setContent(
             `- Enable DMs for this bot.\n- Make sure you're currently in a party.\n- If you're using !a in a server, make sure the bot can access that channel.\n-# For example, if your server has a Verified-type role needed to access channels, give the bot that role.`,
           ),
-        (t) => t.setContent(`### I can't find my party in browse`),
-        (t) =>
-          t.setContent(
-            `- /party browse only shows public parties that are not full.\n- Parties marked Active are hidden from browse.\n- Private parties can still be joined with their join code.`,
-          ),
+        
       );
 
     const extraText = `

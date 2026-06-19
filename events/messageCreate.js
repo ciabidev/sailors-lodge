@@ -89,7 +89,19 @@ module.exports = {
           const label = labels.length ? labels.join(", ") : "";
           let pingMessage = null;
 
-          if (matchedGroups.length > 0) {
+          if (dockKeywordMatched) {
+            roleIds = dockFollower?.pingRoleIds ?? [];
+            pingMessage = await message
+              .reply({
+                content:
+                  `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${dock?.name} ping triggered by <@${message.author.id}>!`.trim(),
+                allowedMentions: { roles: roleIds, repliedUser: false },
+              })
+              .catch((error) => {
+                console.error("[keyword-ping] Failed to reply:", error);
+                return null;
+              });
+          } else if (matchedGroups.length > 0) {
             roleIds = matchedGroups.map((group) => group.roleId);
             pingMessage = await message
               .reply({
@@ -101,18 +113,8 @@ module.exports = {
                 console.error("[keyword-ping] Failed to reply:", error);
                 return null;
               });
-          } else {
-            roleIds = dockFollower?.pingRoleIds ?? [];
-            pingMessage = await message
-              .reply({
-                content: `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${dock?.name} ping triggered by <@${message.author.id}>!`.trim(),
-                allowedMentions: { roles: roleIds, repliedUser: false },
-              })
-              .catch((error) => {
-                console.error("[keyword-ping] Failed to reply:", error);
-                return null;
-              });
           }
+          
 
           if (dockKeywordMatched && pingMessage && messageToPublish) {
             if (!message.client.dockPingMessages) {

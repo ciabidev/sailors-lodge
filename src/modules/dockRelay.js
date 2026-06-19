@@ -237,6 +237,8 @@ async function relayMessage(message, options = {}) {
         allowedMentions: { users: [message.author.id] },
       };
       
+      const relayedMessage = await webhook.send(messagePayload);
+
       if (isDockPing) {
         const pingRoles = receivingFollower.pingRoleIds ?? [];
         
@@ -245,8 +247,9 @@ async function relayMessage(message, options = {}) {
           : dockPing.content;
 
         messagePayload.allowedMentions.roles = pingRoles;
+
+        await webhook.send(messagePayload);
       }
-      const relayedMessage = await webhook.send(messagePayload);
 
       await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
         {

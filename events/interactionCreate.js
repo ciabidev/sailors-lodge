@@ -6,6 +6,9 @@ const {
   MessageFlags,
   ChannelType,
   Events,
+  RoleSelectMenuBuilder,
+  ModalBuilder,
+  LabelBuilder,
 } = require("discord.js");
 const { ObjectId } = require("mongodb");
 
@@ -38,8 +41,6 @@ module.exports = {
       let dockId;
       let partyId;
       let dmFlag;
-
-    
 
       [modalId, partyId, dmFlag] = interaction.customId.split(":");
       if (modalId === "party-modal") {
@@ -138,115 +139,87 @@ module.exports = {
         }
       }
 
-        [modalId, dockId] = interaction.customId.split(":");
-        if (modalId === "dock-publish-modal") {
-          const [accessModeRaw, publishModeRaw] = interaction.fields
-            .getStringSelectValues("dock-visibility")[0]
-            .split("-");
-          const publishMode = ["all", "manual"].includes(publishModeRaw)
-            ? publishModeRaw
-            : "all";
-          const accessMode = ["open", "request"].includes(accessModeRaw) ? accessModeRaw : "open";
-          const name = interaction.fields.getTextInputValue("name");
-          const description = interaction.fields.getTextInputValue("description") || "";
-          const keywordsRaw = interaction.fields.getTextInputValue("keywords") || "";
-          const keywords = keywordsRaw
-            .split(/[\n,]/)
-            .map((keyword) => keyword.trim())
-            .filter((keyword) => keyword.length > 0);
-          const channels = interaction.fields.getSelectedChannels("channels", true, [
-            ChannelType.GuildText,
-            ChannelType.GuildAnnouncement,
-          ]);
+      [modalId, dockId] = interaction.customId.split(":");
+      if (modalId === "dock-publish-modal") {
+        const [accessModeRaw, publishModeRaw] = interaction.fields
+          .getStringSelectValues("dock-visibility")[0]
+          .split("-");
+        const publishMode = ["all", "manual"].includes(publishModeRaw) ? publishModeRaw : "all";
+        const accessMode = ["open", "request"].includes(accessModeRaw) ? accessModeRaw : "open";
+        const name = interaction.fields.getTextInputValue("name");
+        const description = interaction.fields.getTextInputValue("description") || "";
+        const keywordsRaw = interaction.fields.getTextInputValue("keywords") || "";
+        const keywords = keywordsRaw
+          .split(/[\n,]/)
+          .map((keyword) => keyword.trim())
+          .filter((keyword) => keyword.length > 0);
+        const channels = interaction.fields.getSelectedChannels("channels", true, [
+          ChannelType.GuildText,
+          ChannelType.GuildAnnouncement,
+        ]);
 
-          const selectedChannels = Array.from(channels.values());
-          const channelIds = selectedChannels.map((channel) => channel.id);
+        const selectedChannels = Array.from(channels.values());
+        const channelIds = selectedChannels.map((channel) => channel.id);
 
-          if (
-            !(await interaction.client.modules.dockPermissions.check(interaction, selectedChannels))
-          ) {
-            return;
-          }
+        if (
+          !(await interaction.client.modules.dockPermissions.check(interaction, selectedChannels))
+        ) {
+          return;
+        }
 
-          for (const channelId of channelIds) {
-            const docks = await interaction.client.modules.db.getDocksFromChannelId(channelId);
-            const conflictingDock = docks.find((dock) => !dockId || dock._id.toString() !== dockId);
-            if (conflictingDock) {
-              return interaction.reply({
-                content: `<#${channelId}> is already the source channel for another Dock.`,
-                flags: MessageFlags.Ephemeral,
-              });
-            }
-
-            const dockFollowers =
-              await interaction.client.modules.db.getDockFollowsForChannel(channelId);
-            const existingFollower = dockFollowers.find(
-              (dockFollower) =>
-                !dockId ||
-                dockFollower.dockId.toString() !== dockId ||
-                dockFollower.guildId !== interaction.guildId,
-            );
-            if (existingFollower) {
-              return interaction.reply({
-                content: `<#${channelId}> is already following another Dock. Choose a channel that is not following any Docks yet.`,
-                flags: MessageFlags.Ephemeral,
-              });
-            }
-          }
-
-          if (dockId) {
-            const dock = await interaction.client.modules.db.getDock(dockId);
-
-            if (!dock || dock.guildId !== interaction.guildId) {
-              return interaction.reply({
-                content: "I couldn't find that Dock in this Discord server.",
-                flags: MessageFlags.Ephemeral,
-              });
-            }
-
-            await interaction.client.modules.db.updateDock(dockId, {
-              $set: {
-                name,
-                guildId: interaction.guildId,
-                guildName: interaction.guild.name,
-                channelIds,
-                description,
-                keywords,
-                publishMode,
-                accessMode,
-              },
-              $unset: {
-                channelNames: "",
-              },
-            });
-            await interaction.client.modules.db.setDockFollower(
-              dockId,
-              interaction.guildId,
-              interaction.guild.name,
-              channelIds,
-              [],
-            );
-
+        for (const channelId of channelIds) {
+          const docks = await interaction.client.modules.db.getDocksFromChannelId(channelId);
+          const conflictingDock = docks.find((dock) => !dockId || dock._id.toString() !== dockId);
+          if (conflictingDock) {
             return interaction.reply({
-              content: `Updated ${dock.name} with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
-                .map((channel) => `<#${channel.id}>`)
-                .join(", ")}.`,
+              content: `<#${channelId}> is already the source channel for another Dock.`,
               flags: MessageFlags.Ephemeral,
             });
           }
 
-          const createdDock = await interaction.client.modules.db.createDock(
-            name,
-            interaction.guildId,
-            interaction.guild.name,
-            channelIds,
-            description,
-            keywords,
-            publishMode,
-            accessMode,
+          const dockFollowers =
+            await interaction.client.modules.db.getDockFollowsForChannel(channelId);
+          const existingFollower = dockFollowers.find(
+            (dockFollower) =>
+              !dockId ||
+              dockFollower.dockId.toString() !== dockId ||
+              dockFollower.guildId !== interaction.guildId,
           );
+          if (existingFollower) {
+            return interaction.reply({
+              content: `<#${channelId}> is already following another Dock. Choose a channel that is not following any Docks yet.`,
+              flags: MessageFlags.Ephemeral,
+            });
+          }
+        }
+
+        if (dockId) {
+          const dock = await interaction.client.modules.db.getDock(dockId);
+
+          if (!dock || dock.guildId !== interaction.guildId) {
+            return interaction.reply({
+              content: "I couldn't find that Dock in this Discord server.",
+              flags: MessageFlags.Ephemeral,
+            });
+          }
+
+          await interaction.client.modules.db.updateDock(dockId, {
+            $set: {
+              name,
+              guildId: interaction.guildId,
+              guildName: interaction.guild.name,
+              channelIds,
+              description,
+              keywords,
+              publishMode,
+              accessMode,
+            },
+            $unset: {
+              channelNames: "",
+            },
+          });
           await interaction.client.modules.db.setDockFollower(
-            createdDock.insertedId,
+            dockId,
             interaction.guildId,
             interaction.guild.name,
             channelIds,
@@ -254,13 +227,39 @@ module.exports = {
           );
 
           return interaction.reply({
-            content: `Published a Dock with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
+            content: `Updated ${dock.name} with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
               .map((channel) => `<#${channel.id}>`)
               .join(", ")}.`,
             flags: MessageFlags.Ephemeral,
           });
         }
-        
+
+        const createdDock = await interaction.client.modules.db.createDock(
+          name,
+          interaction.guildId,
+          interaction.guild.name,
+          channelIds,
+          description,
+          keywords,
+          publishMode,
+          accessMode,
+        );
+        await interaction.client.modules.db.setDockFollower(
+          createdDock.insertedId,
+          interaction.guildId,
+          interaction.guild.name,
+          channelIds,
+          [],
+        );
+
+        return interaction.reply({
+          content: `Published! ${selectedChannels.length} Channel(s): ${selectedChannels
+            .map((channel) => `<#${channel.id}>`)
+            .join(", ")}. \n Please use \`/dock manage\` to configure your Home Ping Roles and more `,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       [modalId, dockId] = interaction.customId.split(":");
       if (modalId === "dock-follow-modal" || modalId === "dock-configure-follower-modal") {
         const isConfiguringFollower = modalId === "dock-configure-follower-modal";
@@ -342,8 +341,36 @@ module.exports = {
 
         return;
       }
-    }
 
+      [modalId, dockId] = interaction.customId.split(":");
+      if (modalId === "dock-home-ping-roles") {
+        const [, dockId] = interaction.customId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+
+        if (!dock) return;
+
+        const selfFollow = await interaction.client.modules.db.getDockFollower(
+          dockId,
+          interaction.guildId,
+        );
+
+        const channelIds = selfFollow?.channelIds?.length ? selfFollow.channelIds : dock.channelIds;
+        const roles = interaction.fields.getSelectedRoles("dock-home-ping-roles", false);
+        const roleIds = roles ? Array.from(roles.keys()) : [];
+        await interaction.client.modules.db.setDockFollower(
+          dockId,
+          interaction.guildId,
+          interaction.guild.name,
+          channelIds,
+          roleIds,
+        );
+
+        await interaction.reply({
+          content: `Updated Home Ping Roles for Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\` to ${roleIds.map((roleId) => `<@&${roleId}>`).join(", ")}.`,
+          flags: MessageFlags.Ephemeral,
+        });
+      } 
+    }
     async function handlePartyButton(interaction) {
       const btn = interaction;
       let [action, partyId] = btn.customId.split(":");
@@ -514,12 +541,49 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-
+        
         return interaction.client.modules.dockFollowModal(
           interaction,
           dockId,
           "dock-configure-follower-modal",
           follower,
+        );
+      }
+
+      if (buttonId.startsWith("dock-home-ping-roles")) {
+        const [, dockId] = buttonId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+
+        if (!dock || dock.guildId !== interaction.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        const selfFollow = await interaction.client.modules.db.getDockFollower(
+          dockId,
+          interaction.guildId,
+        );
+
+        const roleSelect = new RoleSelectMenuBuilder()
+          .setCustomId("dock-home-ping-roles")
+          .setMaxValues(25)
+          .setRequired(false);
+
+        if (selfFollow?.pingRoleIds?.length) {
+          roleSelect.setDefaultRoles(selfFollow.pingRoleIds.slice(0, 25));
+        }
+
+        return interaction.showModal(
+          new ModalBuilder()
+            .setTitle("Home Ping Roles")
+            .setCustomId(`dock-home-ping-roles:${dockId}`)
+            .addLabelComponents(
+              new LabelBuilder()
+                .setLabel("Home Ping Roles")
+                .setDescription("These roles will be pinged whenever a dock ping is recieved")
+                .setRoleSelectMenuComponent(roleSelect),
+            ),
         );
       }
 

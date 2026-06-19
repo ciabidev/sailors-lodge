@@ -9,11 +9,11 @@ const {
 module.exports = {
   data: new SlashCommandSubcommandGroupBuilder()
     .setName("ping")
-    .setDescription("Manage Ping Groups with hosts, pings, and channels (e.g. Luck V).")
+    .setDescription("Manage this server's ping groups, roles, and keywords.")
     .addSubcommand((subcommand) =>
       subcommand
         .setName("add")
-        .setDescription("Add a Ping group.")
+        .setDescription("Add a ping group to this server.")
         .addStringOption((option) =>
           option.setName("name").setDescription("The name of the ping group.").setRequired(true),
         )
@@ -39,7 +39,7 @@ module.exports = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName("remove")
-        .setDescription("Remove a ping group.")
+        .setDescription("Remove a ping group from this server.")
         .addStringOption((option) =>
           option
             .setName("name")
@@ -51,7 +51,7 @@ module.exports = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName("edit")
-        .setDescription("Edit a ping group.")
+        .setDescription("Edit one of this server's ping groups.")
         .addStringOption((option) =>
           option
             .setName("name")
@@ -85,7 +85,7 @@ module.exports = {
         ),
     )
     .addSubcommand((subcommand) =>
-      subcommand.setName("list").setDescription("List all ping groups."),
+      subcommand.setName("list").setDescription("List this server's ping groups."),
     ),
 
   async autocomplete(interaction) {

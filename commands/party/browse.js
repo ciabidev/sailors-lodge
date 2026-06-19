@@ -13,15 +13,15 @@ const browsePages = new Collection();
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
     .setName("browse")
-    .setDescription("Browse active parties")
+    .setDescription("Learn how Docks replaced the old party browser")
     .addStringOption((option) =>
-      option.setName("search").setDescription("Search for a party by name"),
+      option.setName("search").setDescription("Legacy option; use /dock browse instead"),
     ),
 
   async execute(interaction) {
    
     return interaction.reply({
-      content: "`/party browse` was removed in favor of Docks. With the new Dock system, server owners and admins can add live party feeds to the server with `/dock browse` and `/dock publish`! ",
+      content: "`/party browse` was replaced by Docks, which bring live party feeds into your server. Ask a server manager to use `/dock browse` to follow a feed or `/dock publish` to share one. Run `/dock help` to learn more.",
       flags: MessageFlags.Ephemeral,
     });
   },

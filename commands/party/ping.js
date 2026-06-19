@@ -2,7 +2,7 @@ const { SlashCommandSubcommandBuilder, MessageFlags } = require("discord.js");
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
     .setName("ping")
-    .setDescription("Ping a Ping Group.")
+    .setDescription("Ping one of this server's configured ping groups.")
     .addStringOption((option) =>
       option
         .setName("role")

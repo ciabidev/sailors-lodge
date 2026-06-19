@@ -4,11 +4,11 @@ const REQUIRED_BOT_PERMISSIONS = [
   { flag: PermissionsBitField.Flags.ViewChannel, label: "View Channel" },
   { flag: PermissionsBitField.Flags.SendMessages, label: "Send Messages" },
   { flag: PermissionsBitField.Flags.ReadMessageHistory, label: "Read Message History" },
-  { flag: PermissionsBitField.Flags.ManageWebhooks, label: "Create and Manage Webhooks" },
-  { flag: PermissionsBitField.Flags.MentionEveryone, label: "Mention all roles" },
+  { flag: PermissionsBitField.Flags.ManageWebhooks, label: "Manage Webhooks - For dock networks to function" },
+  { flag: PermissionsBitField.Flags.MentionEveryone, label: "Mention all roles - Ping dock roles" },
   { flag: PermissionsBitField.Flags.SendMessagesInThreads, label: "Send Messages in Threads" },
   { flag: PermissionsBitField.Flags.ManageThreads, label: "Manage Threads" },
-  { flag: PermissionsBitField.Flags.CreatePublicThreads, label: "Create Threads" },
+  { flag: PermissionsBitField.Flags.CreatePublicThreads, label: "Create Threads - auto thread creation for pings in docks" },
 ];
 
 const REQUIRED_BOT_PERMISSION_FLAGS = REQUIRED_BOT_PERMISSIONS.map(({ flag }) => flag);

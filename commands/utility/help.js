@@ -1,101 +1,59 @@
-const { SlashCommandBuilder, MessageFlags } = require("discord.js");
-const {
-  TextDisplayBuilder,
-  SectionBuilder,
-  ContainerBuilder,
-  SeparatorSpacingSize,
-  SeparatorBuilder,
-} = require("discord.js");
-const devMode = process.env.DEV_MODE === "true";
-const devClientId = process.env.DEV_CLIENT_ID;
-const productClientId = process.env.PRODUCTION_CLIENT_ID;
-const clientId = devMode ? devClientId : productClientId;
+const { ContainerBuilder, MessageFlags, SlashCommandBuilder } = require("discord.js");
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("help")
-    .setDescription("How to use this bot")
+    .setDescription("Learn how to use Sailor's Lodge.")
     .addBooleanOption((option) =>
-      option.setName("ephemeral").setDescription("Show the message to you only").setRequired(false),
+      option.setName("ephemeral").setDescription("Show the message only to you.").setRequired(false),
     ),
+
   async execute(interaction) {
     const guide = new ContainerBuilder()
-      .addTextDisplayComponents((t) => t.setContent("# party commands"))
+      .addTextDisplayComponents((text) =>
+        text.setContent(
+          "# Sailor's Lodge help\nCreate parties, recruit players, and connect your server to live party feeds through Docks.",
+        ),
+      )
       .addTextDisplayComponents(
-        (t) =>
-          t.setContent(
-            `### \`!a <announcement>\`\n- Send an announcement to everyone in your current party. Text, embeds, and attached images work.\n-# Example: !a Hello everyone`,
+        (text) =>
+          text.setContent(
+            "## Party commands\n- `/party create [dm]` — Create and configure a party.\n- `/party join code:<code>` — Join a party with its code.\n- `/party show [dm]` — Show your current party card.\n- `/party leave` — Leave your current party.\n- `!a <announcement>` — Send an announcement to everyone in your party; text, embeds, and images are supported.",
           ),
-        (t) =>
-          t.setContent(
-            `### \`/party create [dm]\`\n- Create a party and configure its name, description, status, member limit, and visibility.\n-# Set dm:true to send the party card to your DMs instead of the channel.`,
+        (text) =>
+          text.setContent(
+            "### Recruiting players\n- `/party ping role:<group> [extra] [time]` — Use one of **this server's** configured ping groups now or at a scheduled time.\n- `/party lfg extra:<text> [time]` — Ping this server's Looking For Group role now or later.\n-# Server admins configure these with `/settings help`.",
           ),
-        (t) => t.setContent(`### \`/party join code:<code>\`\n- Join a party with its join code.`),
-        (t) => t.setContent(`### \`/party leave\`\n- Leave your party`),
-        (t) =>
-          t.setContent(
-            `### \`/party show [dm]\`\n- Show the party card for your current party.\n-# Set dm:true to send the card to your DMs.`,
+        (text) =>
+          text.setContent(
+            "### Party owner commands\n- `/party edit` — Edit the party name, description, status, member limit, or visibility.\n- `/party delete` — Delete your party.\n- `/party togglelock` — Lock or unlock joining.\n- `/party kick usernames:<names>` — Kick members by comma-separated Discord usernames.",
           ),
-        
-        (t) =>
-          t.setContent(
-            `### \`/party ping role:<group> [extra] [time]\`\n- Ping one configured ping group, optionally with extra text or a scheduled time.\n-# Ping groups and permissions are managed with /settings ping.`,
+        (text) =>
+          text.setContent(
+            "## Docks\nDocks replace the old party browser with live party feeds shared between Discord servers. Server managers can use `/dock browse`, `/dock publish`, and `/dock manage`.\n-# Run `/dock help` for the full Dock guide.",
           ),
-        (t) =>
-          t.setContent(
-            `### \`/party lfg extra:<text> [time]\`\n- Ping the Looking For Group role with your message, optionally scheduled for later.\n-# If you're in a party, the ping includes your party name and join code.`,
-          ),
-        (t) => t.setContent(`# party owner commands`),
-        (t) =>
-          t.setContent(
-            `### \`/party edit\`\n- Edit your party name, description, status, member limit, and visibility.`,
-          ),
-        (t) => t.setContent(`### \`/party delete\`\n- Delete your party`),
-        (t) =>
-          t.setContent(`### \`/party togglelock\`\n- Lock or unlock whether new people can join your party.`),
-        (t) =>
-          t.setContent(
-            `### \`/party kick usernames:<names>\`\n- Kick one or more members by comma-separated Discord username.`,
+        (text) =>
+          text.setContent(
+            "## Server settings\nAdmins can configure server-only ping groups, keyword pings, and the LFG role under `/settings`.\n-# Run `/settings help` for setup instructions.",
           ),
       );
 
     const troubleshooting = new ContainerBuilder()
-      .addTextDisplayComponents((t) => t.setContent("# troubleshooting"))
-      .addTextDisplayComponents(
-        (t) => t.setContent(`### Announcements aren't working`),
-        (t) =>
-          t.setContent(
-            `- Enable DMs for this bot.\n- Make sure you're currently in a party.\n- If you're using !a in a server, make sure the bot can access that channel.\n-# For example, if your server has a Verified-type role needed to access channels, give the bot that role.`,
-          ),
-        
+      .addTextDisplayComponents((text) => text.setContent("# Troubleshooting"))
+      .addTextDisplayComponents((text) =>
+        text.setContent(
+          "### Party announcements are not arriving\n- Enable DMs from server members so the bot can deliver party notifications and announcements.\n- Make sure you are currently in a party.\n- When using `!a` in a server, make sure the bot can view that channel. If a role is required to see it, give the bot that role.",
+        ),
       );
 
-    const extraText = `
-**IMPORTANT:** If you haven't already, enable dms so this bot can send you Party notifications and announcements
-It's also highly recommended you join the official Vetex server to see other people's tags: <https://discord.gg/vetex>
-    `;
+    const ephemeral = interaction.guildId && interaction.options.getBoolean("ephemeral") !== false;
+    const flags = MessageFlags.IsComponentsV2 | (ephemeral ? MessageFlags.Ephemeral : 0);
 
-    if (
-      (interaction.options.getBoolean("ephemeral") ||
-        interaction.options.getBoolean("ephemeral") === undefined) &&
-      interaction.guildId
-    ) {
-      await interaction.reply({
-        components: [guide, troubleshooting],
-        flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
-      });
-
-      await interaction.followUp({
-        content: extraText,
-        flags: [MessageFlags.Ephemeral],
-      });
-    } else {
-      await interaction.reply({
-        components: [guide, troubleshooting],
-        flags: [MessageFlags.IsComponentsV2],
-      });
-      await interaction.followUp({
-        content: extraText,
-      });
-    }
+    await interaction.reply({ components: [guide, troubleshooting], flags });
+    await interaction.followUp({
+      content:
+        "**Important:** Enable DMs so Sailor's Lodge can send party notifications and announcements.\nYou can also join the official Vetex server to see other players' tags: <https://discord.gg/vetex>",
+      flags: ephemeral ? MessageFlags.Ephemeral : undefined,
+    });
   },
 };

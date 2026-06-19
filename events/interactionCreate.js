@@ -186,7 +186,7 @@ module.exports = {
             }
 
             const dockFollowers =
-              await interaction.client.modules.db.getDockFollowersByChannelId(channelId);
+              await interaction.client.modules.db.getDockFollowsForChannel(channelId);
             const existingFollower = dockFollowers.find(
               (dockFollower) =>
                 !dockId ||
@@ -311,7 +311,7 @@ module.exports = {
         }
 
         const followerUsingChannel =
-          await interaction.client.modules.db.getDockFollowerByChannelId(channelId);
+          await interaction.client.modules.db.getDockFollowForChannel(channelId);
         const channelBelongsToThisFollow =
           followerUsingChannel?.dockId?.toString() === dockId &&
           followerUsingChannel?.guildId === interaction.guildId;
@@ -340,7 +340,7 @@ module.exports = {
         });
 
         if (!isConfiguringFollower) {
-          interaction.client.modules.dockRelay({
+          interaction.client.modules.dockRelay.relayAlert({
             client: interaction.client,
             dockId,
             content: `🎊 **${interaction.guild.name}** is now following \`${interaction.client.modules.escapeMarkdown(dock.name)}\` in <#${channelId}>.`,

@@ -11,11 +11,11 @@ module.exports = {
       .addTextDisplayComponents(
         (t) =>
           t.setContent(
-            `### tiny glossary \n- **Ping role**: The role that gets @mentioned when someone uses \`/party ping\` for a group (like Luck Party Ping, Epicenter Party Ping, etc.).\n- **Allowed roles**: Roles that are permitted to use \`/party ping\` for that group. Leave empty to allow everyone.\n- **Keyword channel**: A channel where this bot watches messages from anyone for keyword matches.\n- **Keywords**: Words or phrases (comma-separated) that trigger a ping. There are none by default, you have to add keywords yourself`,
+            `### tiny glossary \n- **Ping role**: The role that gets @mentioned when someone uses \`/party ping\` for a group (like Luck Party Ping, Epicenter Party Ping, etc.).\n- **Allowed roles**: Roles that are permitted to use \`/party ping\` for that group. Leave empty to allow everyone.\n- **Keywords**: Words or phrases (comma-separated) that trigger a ping in any channel. There are none by default, you have to add keywords yourself`,
           ),
         (t) =>
           t.setContent(
-            `### \`/settings ping add\`\n- Create a new ping group. You pick its name, the ping role to mention, who can use it (allowed roles), and optional keyword channel/keywords.`,
+            `### \`/settings ping add\`\n- Create a new ping group. You pick its name, the ping role to mention, who can use it (allowed roles), and optional keywords.`,
           ),
         (t) =>
           t.setContent(
@@ -23,7 +23,7 @@ module.exports = {
           ),
         (t) =>
           t.setContent(
-            `### \`/settings ping edit\`\n- Update an existing group. You can change the ping role, allowed roles, keyword channel, or keywords.`,
+            `### \`/settings ping edit\`\n- Update an existing group. You can change the ping role, allowed roles, or keywords.`,
           ),
         (t) =>
           t.setContent(

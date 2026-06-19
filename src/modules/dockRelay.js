@@ -22,8 +22,147 @@ async function getDockWebhook(client, channel, dockFollower) {
   return webhook;
 }
 
+const RELAYED_THREAD_MARKER = "[Relayed]"; // This marks relayed threads. Threads with this marker dont get recreated, preventing infinite thread creation loops.
+
+async function relayThread(thread) {
+  if (thread.name?.startsWith(RELAYED_THREAD_MARKER)) return;
+
+  const existingDockThread = await thread.client.modules.db.getDockThread(thread.id);
+  if (existingDockThread) return;
+
+  const sendingFollower = await thread.client.modules.db.getDockFollowForChannel(
+    thread.parentId,
+  );
+
+  const dock = await thread.client.modules.db.getDock(sendingFollower?.dockId);
+  if (!dock) return;
+
+  const receivingFollowers = (await thread.client.modules.db.getDockFollowers(dock._id))
+    .map((dockFollower) => ({
+      ...dockFollower,
+      channelIds: (dockFollower.channelIds ?? [dockFollower.channelId]).filter(
+        (channelId) => channelId && channelId !== thread.parentId,
+      ),
+    }))
+    .filter((dockFollower) => dockFollower.channelIds.length > 0);
+  if (receivingFollowers.length === 0) return;
+
+  await thread.client.modules.db.indexDockThread({
+    dockId: dock._id,
+    rootGuildId: thread.guildId,
+    rootChannelId: thread.parentId,
+    rootThreadId: thread.id,
+    name: thread.name,
+    deliveries: [],
+  });
+
+  const dockMessage = await thread.client.modules.db.getDockMessageFromRoot(
+    thread.parentId,
+    thread.id,
+  );
+
+  for (const receivingFollower of receivingFollowers) {
+    for (const channelId of receivingFollower.channelIds) {
+      const channel = await thread.client.channels.fetch(channelId).catch(() => null);
+      if (!channel?.threads) continue;
+      const name = Array.from(`${RELAYED_THREAD_MARKER} ${thread.name}`).slice(0, 100).join("");
+
+      const messageDelivery = dockMessage?.deliveries?.find(
+        (delivery) => delivery.channelId === channelId,
+      );
+
+      let relayedThread;
+
+      try {
+        if (messageDelivery?.messageId) {
+          const relayedMessage = await channel.messages
+            .fetch(messageDelivery.messageId)
+            .catch(() => null);
+          if (relayedMessage?.startThread && !relayedMessage.hasThread) {
+            relayedThread = await relayedMessage.startThread({
+              name,
+              autoArchiveDuration: thread.autoArchiveDuration ?? 1440,
+              reason: "Dock thread relay",
+            });
+          }
+        }
+
+        if (!relayedThread && channel.threads) {
+          relayedThread = await channel.threads.create({
+            name: Array.from(`${RELAYED_THREAD_MARKER} ${thread.name}`).slice(0, 100).join(""),
+            autoArchiveDuration: thread.autoArchiveDuration ?? 1440,
+            reason: "Dock thread relay",
+          });
+        }
+
+        await thread.client.modules.db.addDockThreadDeliveries(thread.id, [
+          {
+            guildId: receivingFollower.guildId,
+            guildName: receivingFollower.guildName,
+            channelId,
+            threadId: relayedThread.id,
+          },
+        ]);
+      } catch (error) {
+        console.error("[dock-thread] Failed to create linked Dock thread:", error);
+        continue;
+      }
+    }
+  }
+}
+
+async function relayThreadMessage(message) {
+  const dockThread = await message.client.modules.db.getDockThread(message.channel.id);
+  if (!dockThread) return;
+
+  const dock = await message.client.modules.db.getDock(dockThread.dockId);
+  if (!dock) return;
+
+  const threads = [
+    {
+      guildId: dockThread.rootGuildId,
+      guildName: dock.guildName,
+      channelId: dockThread.rootChannelId,
+      threadId: dockThread.rootThreadId,
+    },
+    ...(dockThread.deliveries ?? []),
+  ].filter((delivery) => delivery.threadId);
+  const sendingThread = threads.find((delivery) => delivery.threadId === message.channel.id);
+  if (!sendingThread) return;
+  // build the message payload
+  const username = `${message.author.username} [${dock.name}] [${sendingThread.guildName}]`;
+  const formattedUsername =
+    Array.from(username).length > 80
+      ? Array.from(username).slice(0, 76).join("") + "..."
+      : username;
+
+  const messagePayload = {
+    username: formattedUsername,
+    avatarURL: message.author.displayAvatarURL(),
+    content: message.content || null,
+    embeds: message.embeds || [],
+    files: message.attachments.map((attachment) => attachment.url) || [],
+    allowedMentions: { users: [message.author.id] },
+  };
+
+  // loop through each thread and forward messages
+
+  for (const thread of threads) {
+    if (thread.threadId === message.channel.id) continue;
+
+    const channel = await message.client.channels.fetch(thread.channelId).catch(() => null);
+    if (!channel) continue;
+
+    const webhook = await getDockWebhook(message.client, channel, thread);
+    await webhook.send({
+      ...messagePayload,
+      threadId: thread.threadId,
+    });
+  }
+}
+
 async function relayMessage(message) {
-  const sendingFollower = await message.client.modules.db.getDockFollowerByChannelId(
+  const sendingFollower = await message.client.modules.db.getDockFollowForChannel(
     message.channel.id,
   );
 
@@ -39,6 +178,8 @@ async function relayMessage(message) {
     }))
     .filter((dockFollower) => dockFollower.channelIds.length > 0);
   if (receivingFollowers.length === 0) return;
+  const isDockPing = message.client.dockPingMessages?.has(message.id);
+  const dockPing = message.client.dockPingMessages?.get(message.id);
 
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
@@ -48,14 +189,6 @@ async function relayMessage(message) {
     deliveries: [],
   });
 
-  if (dock.publishMode === "keywords") {
-    // get the keywords of the dock
-    // get dockKeywords is not a function.
-    const keywords = dock.keywords;
-    // check if the message contains any of the keywords
-    if (!keywords.some((keyword) => message.content?.includes(keyword)) || !message.content) return;
-  }
-  
   for (const receivingFollower of receivingFollowers) {
     for (const channelId of receivingFollower.channelIds) {
       const channel = await message.client.channels.fetch(channelId).catch(() => null);
@@ -67,7 +200,7 @@ async function relayMessage(message) {
         Array.from(username).length > 80
           ? Array.from(username).slice(0, 76).join("") + "..."
           : username;
-      
+
       const messagePayload = {
         username: formattedUsername,
         avatarURL: message.author.displayAvatarURL(),
@@ -76,16 +209,15 @@ async function relayMessage(message) {
         files: message.attachments.map((attachment) => attachment.url) || [],
         allowedMentions: { users: [message.author.id] },
       };
-      if (dock.publishMode === "keywords") {
-        // get the ping role for this server if it exists
+      
+      if (isDockPing) {
         const pingRoles = receivingFollower.pingRoleIds ?? [];
-        if (pingRoles.length > 0) {
-          const pingRole = await channel.guild.roles.fetch(pingRoles[0]).catch(() => null);
-          if (pingRole) {
-            messagePayload.allowedMentions.roles = [pingRole.id];
-          }
-          messagePayload.content = `${pingRoles.map((roleId) => `<@&${roleId}>`).join(" ")} ${message.content}`;
-        }
+        
+        messagePayload.content = pingRoles.length
+          ? `${pingRoles.map((roleId) => `<@&${roleId}>`).join(" ")}\n${dockPing.content}`
+          : dockPing.content;
+
+        messagePayload.allowedMentions.roles = pingRoles;
       }
       const relayedMessage = await webhook.send(messagePayload);
 
@@ -95,6 +227,7 @@ async function relayMessage(message) {
           guildName: receivingFollower.guildName,
           channelId,
           messageId: relayedMessage.id,
+          pingRoleIds: isDockPing ? (receivingFollower.pingRoleIds ?? []) : [], 
         },
       ]);
     }
@@ -123,10 +256,25 @@ async function relayAlert({ client, dockId, ...payload }) {
   }
 }
 
-module.exports = async function dockRelay(input) {
+async function dockRelay(input) {
+  if (input.isThread?.()) {
+    return relayThread(input);
+  }
+
   if (input.channel && input.author) {
+    if (input.channel.isThread?.()) {
+      return relayThreadMessage(input);
+    }
+
     return relayMessage(input);
   }
 
   return relayAlert(input);
-};
+}
+
+module.exports = {
+  relayAlert,
+  relayMessage,
+  relayThread,
+  relayThreadMessage,
+}

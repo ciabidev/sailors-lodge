@@ -1,4 +1,4 @@
-const { Events } = require("discord.js");
+const { Events, MessageType } = require("discord.js");
 
 module.exports = {
   name: Events.MessageCreate,
@@ -33,61 +33,83 @@ module.exports = {
 
     if (!message.guildId || !message.channel?.id) return;
     if (message.webhookId) return;
-    const settings = await message.client.modules.db.getSettings(message.guildId);
-    const keywordPingsEnabled =
-      typeof settings.keywordPingsEnabled === "boolean"
-        ? settings.keywordPingsEnabled
-        : (process.env.KEYWORD_PINGS_ENABLED ?? process.env.FOLLOWED_PINGS_ENABLED) === "true";
+    if (
+      message.author.id === message.client.user.id &&
+      ![MessageType.Default, MessageType.Reply].includes(message.type)
+    )
+      return;
 
-    if (keywordPingsEnabled) {
-      (async () => {
-        const pingGroups = settings.pingGroups ?? [];
-        const keywordGroups = pingGroups.filter(
-          (group) => group.keywordChannelId === message.channel.id && group.roleId,
+    try {
+      await message.client.modules.dockRelay.relayMessage(message);
+
+      if (!message.author.bot && message.content) {
+        const dockFollower = await message.client.modules.db.getDockFollowForChannel(
+          message.channel.id,
         );
-        if (keywordGroups.length === 0) return;
-        if (!message.client.keywordPingMessages) {
-          message.client.keywordPingMessages = new Map();
-        }
-        const keywordPingMessages = message.client.keywordPingMessages;
-        let messageText;
-        if (message.content) messageText = message.content;
+        const dock = dockFollower
+          ? await message.client.modules.db.getDock(dockFollower.dockId)
+          : null;
+        const settings = await message.client.modules.db.getSettings(message.guildId);
+        const includesKeyword = (keywords = []) =>
+          keywords.some((keyword) =>
+            message.content.toLowerCase().includes(keyword.toLowerCase().trim()),
+          );
 
-        if (!messageText) return;
-        for (const group of keywordGroups) {
-          const rawKeywords =
-            Array.isArray(group.keywords) && group.keywords.length ? group.keywords : [group.name];
-          const keywords = rawKeywords
-            .map((value) => value.toLowerCase().replace(/\s+/g, " ").trim())
-            .filter((value) => value.length > 0);
+        const dockKeywordMatched = includesKeyword(dock?.keywords ?? []);
+        const matchedGroups = settings.pingGroups?.filter(
+          (group) => group.roleId && includesKeyword(group.keywords ?? []),
+        );
+        if (dockKeywordMatched || matchedGroups.length > 0) {
+          let roleIds = null
+          const labels = matchedGroups.map((group) => group.name).filter(Boolean);
+          const label = labels.length ? labels.join(", ") : ""; // "Luck, Epicenter, Dragon.."
 
-          const matches = keywords.some((keyword) => {
-            const compactKeyword = keyword.replace(/\s+/g, "");
-            return (
-              messageText.includes(keyword) ||
-              (compactKeyword && messageText.includes(compactKeyword))
-            );
+          let pingMessage = null;
+          if (matchedGroups.length > 0) {
+            roleIds = matchedGroups.map((group) => group.roleId);
+            pingMessage = await message
+              .reply({
+                content:
+                  `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${label} ping triggered by <@${message.author.id}>!`.trim(),
+                allowedMentions: { roles: roleIds, repliedUser: false },
+              })
+              .catch((error) => {
+                console.error("[keyword-ping] Failed to reply:", error);
+                return null;
+              });
+          } else {
+            roleIds = dockFollower.pingRoleIds ?? [];
+            pingMessage = await message
+              .reply({
+                content: `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${dock?.name} ping triggered by <@${message.author.id}>!`.trim(),
+                allowedMentions: { roles: roleIds, repliedUser: false },
+              })
+              .catch((error) => {
+                console.error("[keyword-ping] Failed to reply:", error);
+                return null;
+              });
+          }
+
+          if (dockKeywordMatched) {
+          if (!pingMessage) return;
+
+          if (!message.client.dockPingMessages) {
+            message.client.dockPingMessages = new Map();
+          }
+
+          message.client.dockPingMessages.set(pingMessage.id, {
+            content: `${dock?.name} ping triggered by <@${message.author.id}>!`,
           });
-
-          if (!matches) continue;
-
-          const raw = (message.content || "").trim();
-          const keywordFormatted = raw;
-          const label = group.name || "Keyword";
-          const content = `${label} party ping triggered by <@${message.author.id}>! <@&${group.roleId}>`;
-
-          const sentMessage = await message.reply({
-            content,
-            allowedMentions: { roles: [group.roleId], repliedUser: false },
-          });
-
-          // const existing = keywordPingMessages.get(message.id) || [];
-          // existing.push({ groupName: group.name, roleId: group.roleId, botMessageId: sentMessage.id });
-          // keywordPingMessages.set(message.id, existing);
-        }
-      })();
+          setTimeout(
+            () => {
+              message.client.dockPingMessages.delete(pingMessage.id);
+            },
+            60 * 60 * 1000,
+          );
+        }}
+      }
+    } catch (error) {
+      console.error("[message-create] Failed to relay Dock message:", error);
     }
-
-    await message.client.modules.dockRelay(message);
   },
 };

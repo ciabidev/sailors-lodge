@@ -1,12 +1,7 @@
 const {
-  ActionRowBuilder,
   ContainerBuilder,
-  SeparatorSpacingSize,
   ButtonBuilder,
   ButtonStyle,
-  SectionBuilder,
-  TextDisplayBuilder,
-  ThumbnailBuilder,
 } = require("discord.js");
 
 module.exports = function dockManagePage({ pages, pageIndex, mode, guildId, client }) {
@@ -17,66 +12,14 @@ module.exports = function dockManagePage({ pages, pageIndex, mode, guildId, clie
   );
 
   for (const dock of page) {
-    const {
-      name,
-      description,
-      channelNames,
-      guildName,
-      channelIds,
-      guildId: publisherGuildId,
-      guildIconURL,
-      _id,
-    } = dock;
-    const dockName = name ?? "Untitled Dock";
-    const dockChannels = channelNames?.length
-      ? channelNames.join(", ")
-      : (channelIds ?? []).map((id) => `#${id}`).join(", ");
-    const dockPublisher = guildName ?? publisherGuildId ?? "Unknown publisher";
-    let button = null;
-    const fromThisGuild = publisherGuildId === guildId;
+    const fromThisGuild = dock.guildId === guildId;
 
-    if (fromThisGuild) {
-      button = new ButtonBuilder()
-        .setCustomId(`dock-configure-owner:${_id}`)
-        .setLabel("Configure")
-        .setStyle(ButtonStyle.Secondary);
-    } else {
-      button = new ButtonBuilder()
-        .setCustomId(`dock-configure-follower:${_id}`)
-        .setLabel("Configure")
-        .setStyle(ButtonStyle.Secondary);
-    }
-
-    const truncatedDescription = description?.length > 100 ? description.slice(0, 100) + "..." : description;
-    const dockSection = new SectionBuilder().addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        `### ${client.modules.escapeMarkdown(dockName)}${truncatedDescription ? `\n${truncatedDescription}` : ""}`,
-      ),
-    );
-
-    if (guildIconURL) {
-      dockSection.setThumbnailAccessory(
-        new ThumbnailBuilder().setURL(guildIconURL).setDescription(dockPublisher),
-      );
-    } else {
-      dockSection.setButtonAccessory(button);
-    }
-
-    container.addSectionComponents(dockSection);
-
-    container.addTextDisplayComponents((t) =>
-      t.setContent(`**Publisher:** ${client.modules.escapeMarkdown(dockPublisher)} | **Channel(s):** ${client.modules.escapeMarkdown(dockChannels)}`),
-    );
-
-    if (guildIconURL) {
-      container.addActionRowComponents(
-        new ActionRowBuilder().addComponents(button),
-      );
-    }
-
-    container.addSeparatorComponents((s) =>
-      s.setDivider(true).setSpacing(SeparatorSpacingSize.Large),
-    );
+    const button1 = new ButtonBuilder()
+      .setCustomId(`dock-configure-${fromThisGuild ? "owner" : "follower"}:${dock._id}`)
+      .setLabel("Configure")
+      .setStyle(ButtonStyle.Secondary);
+    
+    client.modules.getDockDisplay(container, dock, [button1], client); // container gets mutated directly in the function thats how its possible for this to work lol
   }
 
   return container;

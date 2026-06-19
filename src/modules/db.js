@@ -77,8 +77,6 @@ async function getSettings(guildId) {
 //     const update = { $set: {}, $unset: {} };
 //     const existingPingGroups = Array.isArray(server.pingGroups) ? server.pingGroups : [];
 //     const hasKeywordConfig = existingPingGroups.some((group) =>
-//       group.keywordChannelId ||
-//       group.followedChannelId ||
 //       (Array.isArray(group.keywords) && group.keywords.length > 0) ||
 //       (Array.isArray(group.followedKeywords) && group.followedKeywords.length > 0)
 //     );
@@ -102,15 +100,10 @@ async function getSettings(guildId) {
 //       const pingGroups = server.pingGroups.map((group) => {
 //         const next = { ...group };
 
-//         if (!("keywordChannelId" in next) && "followedChannelId" in next) {
-//           next.keywordChannelId = next.followedChannelId;
-//         }
-
 //         if (!("keywords" in next) && "followedKeywords" in next) {
 //           next.keywords = next.followedKeywords;
 //         }
 
-//         delete next.followedChannelId;
 //         delete next.followedKeywords;
 
 //         if (!Array.isArray(next.keywords)) {
@@ -162,7 +155,6 @@ async function setSettings(guildId, settings) {
   //                 name:           { bsonType: "string" },
   //                 pingRoleId:     { bsonType: "string" },
   //                 allowedRoleIds: { bsonType: "array", items: { bsonType: "string" } },
-  //                 keywordChannelId: { bsonType: "string" },
   //                 keywords: { bsonType: "array", items: { bsonType: "string" } },
   //               }
   //             }
@@ -421,12 +413,12 @@ async function getManyDockFollowers(dockIds) {
   return dockFollowers.find({ dockId: { $in: dockIds } }).toArray();
 }
 
-async function getDockFollowerByChannelId(channelId) {
+async function getDockFollowForChannel(channelId) {
   const dockFollowers = getCollection("dockServers");
   return dockFollowers.findOne({ channelIds: channelId });
 }
 
-async function getDockFollowersByChannelId(channelId) {
+async function getDockFollowsForChannel(channelId) { // returns all the dock connections for that channel
   const dockFollowers = getCollection("dockServers");
   return dockFollowers.find({ channelIds: channelId }).toArray();
 }
@@ -611,6 +603,54 @@ async function removeDockMessageFromRoot(rootChannelId, rootMessageId) {
   return dockMessages.deleteOne({rootChannelId, rootMessageId});
 }
 
+async function indexDockThread({
+  dockId,
+  rootGuildId,
+  rootChannelId,
+  rootThreadId,
+  name,
+  deliveries = [],
+}) {
+  const dockThreads = getCollection("dockThreads");
+  return dockThreads.updateOne(
+    { rootThreadId },
+    {
+      $setOnInsert: {
+        dockId: new ObjectId(dockId),
+        rootGuildId,
+        rootChannelId,
+        rootThreadId,
+        name,
+        deliveries,
+        createdAt: new Date(),
+      },
+      $set: { updatedAt: new Date() },
+    },
+    { upsert: true },
+  );
+}
+
+async function getDockThread(threadId) {
+  const dockThreads = getCollection("dockThreads");
+  return dockThreads.findOne({
+    $or: [
+      { rootThreadId: threadId },
+      { "deliveries.threadId": threadId },
+    ],
+  });
+}
+
+async function addDockThreadDeliveries(rootThreadId, deliveries) {
+  const dockThreads = getCollection("dockThreads");
+  return dockThreads.updateOne(
+    { rootThreadId },
+    {
+      $push: { deliveries: { $each: deliveries } },
+      $set: { updatedAt: new Date() },
+    },
+  );
+}
+
 module.exports = {
   getSettings,
   setSettings,
@@ -642,12 +682,15 @@ module.exports = {
   setDockWebhook,
   getDocksFromChannelId,
   getManyDockFollowers,
-  getDockFollowerByChannelId,
-  getDockFollowersByChannelId,
+  getDockFollowForChannel,
+  getDockFollowsForChannel,
   getPublishedDocksForGuild,
   indexDockMessage,
   getDockMessageFromRoot,
   addDockMessageDeliveries,
   setDockMessageDeliveries,
   removeDockMessageFromRoot,
+  indexDockThread,
+  getDockThread,
+  addDockThreadDeliveries,
 };

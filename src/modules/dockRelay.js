@@ -17,6 +17,22 @@ function isPartyCard(message) {
   return Boolean(getPartyIdFromComponents(message));
 }
 
+async function getWritableConnections(client, channelId, guildId) {
+  // one channel can follow multiple docks, so return the docks as dock and its follower settings together
+  // each follower can have different contributor access, ping roles, and a guild name used in the relay label
+  const followers = await client.modules.db.getDockFollowsForChannel(channelId);
+  const connections = await Promise.all(
+    followers.map(async (follower) => ({
+      follower,
+      dock: await client.modules.db.getDock(follower.dockId),
+    })),
+  );
+
+  return connections.filter(
+    ({ dock, follower }) => dock && (dock.guildId === guildId || follower.contributor === true), // only writable connections are returned here or normal followers could publish back into a dock
+  );
+}
+
 async function getDockWebhook(client, channel, dockFollower) {
   const savedWebhook = await client.modules.db.getDockWebhook(dockFollower.guildId);
   if (savedWebhook?.webhookId) {
@@ -75,15 +91,21 @@ function getRelayFiles(message) {
   return attachments?.map((attachment) => attachment.url) ?? [];
 }
 
-async function relayThread(thread) {
+async function relayThread(thread, sendingFollower = null) {
   if (thread.name?.startsWith(RELAYED_THREAD_MARKER)) return;
 
   const existingDockThread = await thread.client.modules.db.getDockThread(thread.id);
   if (existingDockThread) return;
 
-  const sendingFollower = await thread.client.modules.db.getDockFollowForChannel(
-    thread.parentId,
-  );
+  if (!sendingFollower) {
+    // threads are indexed under one dock, so dont merge multiple dock thread networks together
+    const [connection] = await getWritableConnections(
+      thread.client,
+      thread.parentId,
+      thread.guildId,
+    );
+    sendingFollower = connection?.follower;
+  }
 
   const dock = await thread.client.modules.db.getDock(sendingFollower?.dockId);
   if (!dock) return;
@@ -219,12 +241,18 @@ async function relayThreadMessage(message) {
   }
 }
 
-async function relayMessage(message, options = {}) {
+async function relayMessage(message, options = {}, sendingFollower = null) {
   if (isPartyCard(message)) return;
 
-  const sendingFollower = await message.client.modules.db.getDockFollowForChannel(
-    message.channel.id,
-  );
+  if (!sendingFollower) {
+    // to get which docks we can write to, which docks we are contributors in
+    const [connection] = await getWritableConnections(
+      message.client,
+      message.channel.id,
+      message.guildId,
+    );
+    sendingFollower = connection?.follower;
+  }
 
   const dock = await message.client.modules.db.getDock(sendingFollower?.dockId);
   if (!dock) return;
@@ -374,6 +402,7 @@ async function dockRelay(input) {
 
 module.exports = {
   getPartyIdFromComponents,
+  getWritableConnections,
   relayAlert,
   relayMessage,
   relayThread,

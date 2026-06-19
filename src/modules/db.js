@@ -411,12 +411,7 @@ async function getManyDockFollowers(dockIds) {
   return dockFollowers.find({ dockId: { $in: dockIds } }).toArray();
 }
 
-async function getDockFollowForChannel(channelId) {
-  const dockFollowers = getCollection("dockServers");
-  return dockFollowers.findOne({ channelIds: channelId });
-}
-
-async function getDockFollowsForChannel(channelId) { // returns all the dock connections for that channel
+async function getDockFollowsForChannel(channelId) { // channels can follow multiple docks so this needs to return all matches
   const dockFollowers = getCollection("dockServers");
   return dockFollowers.find({ channelIds: channelId }).toArray();
 }
@@ -690,7 +685,6 @@ module.exports = {
   setDockWebhook,
   getDocksFromChannelId,
   getManyDockFollowers,
-  getDockFollowForChannel,
   getDockFollowsForChannel,
   getPublishedDocksForGuild,
   indexDockMessage,

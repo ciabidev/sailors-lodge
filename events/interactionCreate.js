@@ -296,23 +296,11 @@ module.exports = {
           });
         }
 
+        // receiving channels can share docks, but source channels stay separate to avoid cross-publishing
         const docks = await interaction.client.modules.db.getDocksFromChannelId(channelId);
         if (docks.length > 0) {
           return interaction.reply({
             content: `<#${channelId}> is already the source channel for docks: ${docks.map((dock) => interaction.client.modules.escapeMarkdown(dock.name)).join(", ")}. Choose a channel that is not used by Docks yet.`,
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-
-        const followerUsingChannel =
-          await interaction.client.modules.db.getDockFollowForChannel(channelId);
-        const channelBelongsToThisFollow =
-          followerUsingChannel?.dockId?.toString() === dockId &&
-          followerUsingChannel?.guildId === interaction.guildId;
-
-        if (followerUsingChannel && !channelBelongsToThisFollow) {
-          return interaction.reply({
-            content: `<#${channelId}> is already following docks. Choose a channel that is not following any docks yet`,
             flags: MessageFlags.Ephemeral,
           });
         }

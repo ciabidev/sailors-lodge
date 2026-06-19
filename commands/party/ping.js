@@ -147,11 +147,6 @@ module.exports = {
 
     const message = await interaction.fetchReply();
 
-    const dockFollower = await interaction.client.modules.db.getDockFollowForChannel(interaction.channelId);
-    const dock = dockFollower
-      ? await interaction.client.modules.db.getDock(dockFollower.dockId)
-      : null;
-
       if (!interaction.client.dockPingMessages) {
         interaction.client.dockPingMessages = new Map();
       }

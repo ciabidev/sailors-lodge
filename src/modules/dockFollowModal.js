@@ -38,7 +38,7 @@ module.exports = async function dockFollowModal(
       .addLabelComponents(
         new LabelBuilder()
           .setLabel("Set receiving channel")
-          .setDescription("Select the channel to receive messages from this Dock")
+          .setDescription("A channel can receive messages from multiple Docks")
           .setChannelSelectMenuComponent(channelSelect),
       )
       .addLabelComponents(

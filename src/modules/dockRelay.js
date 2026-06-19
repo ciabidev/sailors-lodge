@@ -24,6 +24,34 @@ async function getDockWebhook(client, channel, dockFollower) {
 
 const RELAYED_THREAD_MARKER = "[Relayed]"; // This marks relayed threads. Threads with this marker dont get recreated, preventing infinite thread creation loops.
 
+// we need these functions getForwardedSnapshot, getRelayContent, getRelayEmbeds, getRelayFiles because the discord Forwarded Messages are structured differently than normal ones
+function getForwardedSnapshot(message) {
+  return message.messageSnapshots?.first?.() ?? null;
+}
+
+function getRelayContent(message, options = {}) {
+  const snapshot = getForwardedSnapshot(message);
+  const content = options.content || message.content || snapshot?.content || null;
+
+  if (!snapshot) return content;
+  // append a > to the beginning of the content. the quote should encapsulate the entire message
+
+  // join the content with the newlines and append a single > to the beginning of the content
+  return `> -# ***➡️ Forwarded***\n> ${content.split("\n").join("\n> ")}`;
+
+}
+
+function getRelayEmbeds(message) {
+  const snapshot = getForwardedSnapshot(message);
+  return message.embeds?.length ? message.embeds : (snapshot?.embeds ?? []);
+}
+
+function getRelayFiles(message) {
+  const snapshot = getForwardedSnapshot(message);
+  const attachments = message.attachments?.size ? message.attachments : snapshot?.attachments;
+  return attachments?.map((attachment) => attachment.url) ?? [];
+}
+
 async function relayThread(thread) {
   if (thread.name?.startsWith(RELAYED_THREAD_MARKER)) return;
 
@@ -136,15 +164,14 @@ async function relayThreadMessage(message) {
       ? Array.from(username).slice(0, 76).join("") + "..."
       : username;
 
-  const messagePayload = {
+  let messagePayload = {
     username: formattedUsername,
     avatarURL: message.author.displayAvatarURL(),
-    content: message.content || null,
-    embeds: message.embeds || [],
-    files: message.attachments.map((attachment) => attachment.url) || [],
+    content: getRelayContent(message),
+    embeds: getRelayEmbeds(message),
+    files: getRelayFiles(message),
     allowedMentions: { users: [message.author.id] },
   };
-
   // loop through each thread and forward messages
 
   for (const thread of threads) {
@@ -161,7 +188,7 @@ async function relayThreadMessage(message) {
   }
 }
 
-async function relayMessage(message) {
+async function relayMessage(message, options = {}) {
   const sendingFollower = await message.client.modules.db.getDockFollowForChannel(
     message.channel.id,
   );
@@ -204,9 +231,9 @@ async function relayMessage(message) {
       const messagePayload = {
         username: formattedUsername,
         avatarURL: message.author.displayAvatarURL(),
-        content: message.content || null,
-        embeds: message.embeds || [],
-        files: message.attachments.map((attachment) => attachment.url) || [],
+        content: getRelayContent(message, options),
+        embeds: getRelayEmbeds(message),
+        files: getRelayFiles(message),
         allowedMentions: { users: [message.author.id] },
       };
       

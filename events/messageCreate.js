@@ -1,5 +1,10 @@
 const { Events, MessageType } = require("discord.js");
 
+function getMessageText(message) {
+  const snapshot = message?.messageSnapshots?.first?.();
+  return message?.content || snapshot?.content || "";
+}
+
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
@@ -40,31 +45,50 @@ module.exports = {
       return;
 
     try {
-      await message.client.modules.dockRelay.relayMessage(message);
+      const dockFollower = await message.client.modules.db.getDockFollowForChannel(
+        message.channel.id,
+      );
+      const dock = dockFollower
+        ? await message.client.modules.db.getDock(dockFollower.dockId)
+        : null;
+      const settings = await message.client.modules.db.getSettings(message.guildId);
+      const publishPrefix = "!p";
+      const publishMode = dock?.publishMode;
+      let messageToPublish = message;
+      let publishOptions = {};
+      let publishThis = Boolean(dock) && publishMode !== "manual";
 
-      if (!message.author.bot && message.content) {
-        const dockFollower = await message.client.modules.db.getDockFollowForChannel(
-          message.channel.id,
-        );
-        const dock = dockFollower
-          ? await message.client.modules.db.getDock(dockFollower.dockId)
-          : null;
-        const settings = await message.client.modules.db.getSettings(message.guildId);
+      if (dock && publishMode === "manual" && /^!p(?:\s|$)/i.test((message.content ?? "").trim())) {
+        const publishContent = (message.content ?? "").trim().slice(publishPrefix.length).trim();
+        if (publishContent) { // The user typed text after !p
+          publishOptions = { content: publishContent };
+          publishThis = true;
+        } else if (message.reference?.messageId) { // !p is replying to a message
+          messageToPublish = await message.channel.messages
+            .fetch(message.reference.messageId)
+            .catch(() => null);
+          publishThis = Boolean(messageToPublish);
+        }
+      }
+
+      if (!message.author.bot) {
+        const keywordSource = getMessageText(messageToPublish) || getMessageText(message);
         const includesKeyword = (keywords = []) =>
           keywords.some((keyword) =>
-            message.content.toLowerCase().includes(keyword.toLowerCase().trim()),
+            keywordSource.toLowerCase().includes(keyword.toLowerCase().trim()),
           );
 
         const dockKeywordMatched = includesKeyword(dock?.keywords ?? []);
-        const matchedGroups = settings.pingGroups?.filter(
+        const matchedGroups = (settings.pingGroups ?? []).filter(
           (group) => group.roleId && includesKeyword(group.keywords ?? []),
         );
-        if (dockKeywordMatched || matchedGroups.length > 0) {
-          let roleIds = null
-          const labels = matchedGroups.map((group) => group.name).filter(Boolean);
-          const label = labels.length ? labels.join(", ") : ""; // "Luck, Epicenter, Dragon.."
 
+        if (dockKeywordMatched || matchedGroups.length > 0) {
+          let roleIds = [];
+          const labels = matchedGroups.map((group) => group.name).filter(Boolean);
+          const label = labels.length ? labels.join(", ") : "";
           let pingMessage = null;
+
           if (matchedGroups.length > 0) {
             roleIds = matchedGroups.map((group) => group.roleId);
             pingMessage = await message
@@ -78,7 +102,7 @@ module.exports = {
                 return null;
               });
           } else {
-            roleIds = dockFollower.pingRoleIds ?? [];
+            roleIds = dockFollower?.pingRoleIds ?? [];
             pingMessage = await message
               .reply({
                 content: `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${dock?.name} ping triggered by <@${message.author.id}>!`.trim(),
@@ -90,24 +114,28 @@ module.exports = {
               });
           }
 
-          if (dockKeywordMatched) {
-          if (!pingMessage) return;
+          if (dockKeywordMatched && pingMessage && messageToPublish) {
+            if (!message.client.dockPingMessages) {
+              message.client.dockPingMessages = new Map();
+            }
 
-          if (!message.client.dockPingMessages) {
-            message.client.dockPingMessages = new Map();
+            message.client.dockPingMessages.set(messageToPublish.id, {
+              content: `${dock?.name} ping triggered by <@${message.author.id}>!`,
+            });
+            setTimeout(
+              () => {
+                message.client.dockPingMessages.delete(messageToPublish.id);
+              },
+              60 * 60 * 1000,
+            );
           }
-
-          message.client.dockPingMessages.set(pingMessage.id, {
-            content: `${dock?.name} ping triggered by <@${message.author.id}>!`,
-          });
-          setTimeout(
-            () => {
-              message.client.dockPingMessages.delete(pingMessage.id);
-            },
-            60 * 60 * 1000,
-          );
-        }}
+        }
       }
+
+      if (publishThis && messageToPublish) {
+        await message.client.modules.dockRelay.relayMessage(messageToPublish, publishOptions);
+      }
+
     } catch (error) {
       console.error("[message-create] Failed to relay Dock message:", error);
     }

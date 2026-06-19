@@ -82,21 +82,19 @@ module.exports = async function dockPublishModal(
                 .setValue("open-all")
                 .setDefault(`${defaults.accessMode}-${defaults.publishMode}` === "open-all"),
               new StringSelectMenuOptionBuilder()
-                .setLabel("Open - Keywords only")
-                .setValue("open-keywords")
-                .setDefault(
-                  `${defaults.accessMode}-${defaults.publishMode}` === "open-keywords",
-                ),
+                .setLabel("Open - Manual with !p")
+                .setValue("open-manual")
+                .setDefault(`${defaults.accessMode}-${defaults.publishMode}` === "open-manual"),
 
               new StringSelectMenuOptionBuilder()
                 .setLabel("Request To Join - All messages")
                 .setValue("request-all")
                 .setDefault(`${defaults.accessMode}-${defaults.publishMode}` === "request-all"),
               new StringSelectMenuOptionBuilder()
-                .setLabel("Request To Join - Keywords only")
-                .setValue("request-keywords")
+                .setLabel("Request To Join - Manual with !p")
+                .setValue("request-manual")
                 .setDefault(
-                  `${defaults.accessMode}-${defaults.publishMode}` === "request-keywords",
+                  `${defaults.accessMode}-${defaults.publishMode}` === "request-manual",
                 ),
             ),
           ),

@@ -143,7 +143,7 @@ module.exports = {
           const [accessModeRaw, publishModeRaw] = interaction.fields
             .getStringSelectValues("dock-visibility")[0]
             .split("-");
-          const publishMode = ["all", "keywords", "manual"].includes(publishModeRaw)
+          const publishMode = ["all", "manual"].includes(publishModeRaw)
             ? publishModeRaw
             : "all";
           const accessMode = ["open", "request"].includes(accessModeRaw) ? accessModeRaw : "open";
@@ -154,13 +154,6 @@ module.exports = {
             .split(/[\n,]/)
             .map((keyword) => keyword.trim())
             .filter((keyword) => keyword.length > 0);
-          if (publishMode === "keywords" && keywords.length === 0) {
-            return interaction.reply({
-              content: "Keywords-only Docks need at least one ping keyword.",
-              flags: MessageFlags.Ephemeral,
-            });
-          }
-
           const channels = interaction.fields.getSelectedChannels("channels", true, [
             ChannelType.GuildText,
             ChannelType.GuildAnnouncement,

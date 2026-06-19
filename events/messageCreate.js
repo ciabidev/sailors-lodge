@@ -1,4 +1,10 @@
-const { Events } = require("discord.js");
+const { Events, MessageType } = require("discord.js");
+const { ObjectId } = require("mongodb");
+
+function getMessageText(message) {
+  const snapshot = message?.messageSnapshots?.first?.();
+  return message?.content || snapshot?.content || "";
+}
 
 module.exports = {
   name: Events.MessageCreate,
@@ -15,11 +21,10 @@ module.exports = {
           .catch(() => {});
         return;
       }
- 
+
       const announcementContent = message.content.slice(announcePrefix.length).trim();
       if (!announcementContent && message.attachments.size === 0 && message.embeds.length === 0)
         return;
-      
 
       const payload = {
         content: `📢 **${message.author.username}:**\n${announcementContent}`,
@@ -33,69 +38,132 @@ module.exports = {
     }
 
     if (!message.guildId || !message.channel?.id) return;
-    if (message.author.id === message.client.user.id) return;
+    if (message.webhookId) return;
+    if (message.client.dockRelayedPartyCardMessages?.has(message.id)) return;
+    if (
+      message.author.id === message.client.user.id &&
+      ![MessageType.Default, MessageType.Reply].includes(message.type)
+    )
+      return;
 
-    const settings = await message.client.modules.db.getSettings(message.guildId);
-    const keywordPingsEnabled =
-      typeof settings.keywordPingsEnabled === "boolean"
-        ? settings.keywordPingsEnabled
-        : (process.env.KEYWORD_PINGS_ENABLED ?? process.env.FOLLOWED_PINGS_ENABLED) === "true";
-    if (!keywordPingsEnabled) return;
+    try {
+      const dockFollower = await message.client.modules.db.getDockFollowForChannel(
+        message.channel.id,
+      );
+      const dock = dockFollower
+        ? await message.client.modules.db.getDock(dockFollower.dockId)
+        : null;
+      const settings = await message.client.modules.db.getSettings(message.guildId);
+      const publishPrefix = "!p";
+      const publishMode = dock?.publishMode;
+      const canPublishToDock = dock?.guildId === message.guildId || dockFollower?.contributor === true;
+      let messageToPublish = message;
+      let publishOptions = {};
+      let publishThis = Boolean(dock) && canPublishToDock && publishMode !== "manual";
 
-    const pingGroups = settings.pingGroups ?? [];
-    const keywordGroups = pingGroups.filter(
-      (group) => group.keywordChannelId === message.channel.id && group.roleId,
-    );
-    if (keywordGroups.length === 0) return;
-
-    if (!message.client.keywordPingMessages) {
-      message.client.keywordPingMessages = new Map();
-    }
-    const keywordPingMessages = message.client.keywordPingMessages;
-
-    const textParts = [];
-    if (message.content) textParts.push(message.content);
-    if (message.embeds?.length) {
-      for (const embed of message.embeds) {
-        if (embed?.title) textParts.push(embed.title);
-        if (embed?.description) textParts.push(embed.description);
+      if (dock && canPublishToDock && publishMode === "manual" && /^!p(?:\s|$)/i.test((message.content ?? "").trim())) {
+        const publishContent = (message.content ?? "").trim().slice(publishPrefix.length).trim();
+        if (publishContent) { // The user typed text after !p
+          publishOptions = { content: publishContent };
+          publishThis = true;
+        } else if (message.reference?.messageId) { // !p is replying to a message
+          messageToPublish = await message.channel.messages
+            .fetch(message.reference.messageId)
+            .catch(() => null);
+          publishThis = Boolean(messageToPublish);
+        }
       }
-    }
-    const messageText = textParts.join("\n").toLowerCase();
-    if (!messageText) return;
 
-    for (const group of keywordGroups) {
-      const rawKeywords =
-        Array.isArray(group.keywords) && group.keywords.length
-          ? group.keywords
-          : [group.name];
-      const keywords = rawKeywords
-        .map((value) => value.toLowerCase().replace(/\s+/g, " ").trim())
-        .filter((value) => value.length > 0);
+      if (!(message.author.bot && message.author.id === message.client.user.id)) {
+        const keywordSource = getMessageText(messageToPublish) || getMessageText(message);
+        const includesKeyword = (keywords = []) =>
+          keywords.some((keyword) =>
+            keywordSource.toLowerCase().includes(keyword.toLowerCase().trim()),
+          );
 
-      const matches = keywords.some((keyword) => {
-        const compactKeyword = keyword.replace(/\s+/g, "");
-        return (
-          messageText.includes(keyword) ||
-          (compactKeyword && messageText.includes(compactKeyword))
+        const dockKeywordMatched = includesKeyword(dock?.keywords ?? []);
+        const matchedGroups = (settings.pingGroups ?? []).filter(
+          (group) => group.roleId && includesKeyword(group.keywords ?? []),
         );
-      });
 
-      if (!matches) continue;
+        if (dockKeywordMatched || matchedGroups.length > 0) {
+          let roleIds = [];
+          const labels = matchedGroups.map((group) => group.name).filter(Boolean);
+          const label = labels.length ? labels.join(", ") : "";
+          let pingMessage = null;
 
-      const raw = (message.content || "").trim();
-      const keywordFormatted = raw
-      const label = group.name || "Keyword";
-      const content = `${label} party ping triggered by <@${message.author.id}>! <@&${group.roleId}>\n\n${keywordFormatted}`;
+          if (dockKeywordMatched) {
+            roleIds = dockFollower?.pingRoleIds ?? [];
+            pingMessage = await message
+              .reply({
+                content:
+                  `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${dock?.name} ping triggered by <@${message.author.id}>!`.trim(),
+                allowedMentions: { roles: roleIds, repliedUser: false },
+              })
+              .catch((error) => {
+                console.error("[keyword-ping] Failed to reply:", error);
+                return null;
+              });
+          } else if (matchedGroups.length > 0) {
+            roleIds = matchedGroups.map((group) => group.roleId);
+            pingMessage = await message
+              .reply({
+                content:
+                  `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${label} ping triggered by <@${message.author.id}>!`.trim(),
+                allowedMentions: { roles: roleIds, repliedUser: false },
+              })
+              .catch((error) => {
+                console.error("[keyword-ping] Failed to reply:", error);
+                return null;
+              });
+          }
+          
 
-      const sentMessage = await message.channel.send({
-        content,
-        allowedMentions: { roles: [group.roleId] },
-      });
+          if (dockKeywordMatched && pingMessage && messageToPublish) {
+            if (!message.client.dockPingMessages) {
+              message.client.dockPingMessages = new Map();
+            }
 
-      const existing = keywordPingMessages.get(message.id) || [];
-      existing.push({ groupName: group.name, roleId: group.roleId, botMessageId: sentMessage.id });
-      keywordPingMessages.set(message.id, existing);
+            message.client.dockPingMessages.set(messageToPublish.id, {
+              content: `${dock?.name} ping triggered by <@${message.author.id}>!`,
+            });
+            setTimeout(
+              () => {
+                message.client.dockPingMessages.delete(messageToPublish.id);
+              },
+              60 * 60 * 1000,
+            );
+          }
+        }
+      }
+
+      if (publishThis && messageToPublish) {
+        const partyId = message.client.modules.dockRelay.getPartyIdFromComponents(messageToPublish);
+
+        if (partyId) {
+          const party = await message.client.modules.db.getParty(new ObjectId(partyId));
+          if (party?.visibility === "private") {
+            if (!(/^!p(?:\s|$)/i.test((message.content ?? "").trim()))) {
+              return;
+            }
+          }
+          if (party) {
+            await message.client.modules.dockRelay.relayAlert({ // relay all party cards as alerts
+              client: message.client,
+              dockId: dock._id,
+              party,
+              source: message,
+              sourceChannelId: messageToPublish.channel.id,
+              userId: party.host.id,
+            });
+          }
+        } else {
+          await message.client.modules.dockRelay.relayMessage(messageToPublish, publishOptions);
+        }
+      }
+
+    } catch (error) {
+      console.error("[message-create] Failed to relay Dock message:", error);
     }
   },
 };

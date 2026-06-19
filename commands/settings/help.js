@@ -1,47 +1,55 @@
-const { SlashCommandSubcommandBuilder, MessageFlags, ContainerBuilder } = require("discord.js");
+const { ContainerBuilder, MessageFlags, SlashCommandSubcommandBuilder } = require("discord.js");
 
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
     .setName("help")
-    .setDescription("Show settings commands."),
+    .setDescription("Learn how to configure this server."),
 
   async execute(interaction) {
     const container = new ContainerBuilder()
-      .addTextDisplayComponents((t) => t.setContent("# admin / settings help"))
+      .addTextDisplayComponents((text) =>
+        text.setContent(
+          "# Server settings help\nThese settings apply **only to this Discord server**. Ping groups, allowed roles, keywords, and the LFG role are not shared with other servers or Docks.",
+        ),
+      )
       .addTextDisplayComponents(
-        (t) =>
-          t.setContent(
-            `### tiny glossary \n- **Ping role**: The role that gets @mentioned when someone uses \`/party ping\` for a group (like Luck Party Ping, Epicenter Party Ping, etc.).\n- **Allowed roles**: Roles that are permitted to use \`/party ping\` for that group. Leave empty to allow everyone.\n- **Keyword channel**: A channel where this bot watches messages from anyone for keyword matches.\n- **Keywords**: Words or phrases (comma-separated) that trigger a ping. There are none by default, you have to add keywords yourself`,
+        (text) =>
+          text.setContent(
+            "## Ping-group glossary\n- **Ping group:** A server-specific group that can be pigned by `/party ping` or keywords.\n- **Ping role:** The role mentioned when the group is used.\n- **Allowed roles:** Roles allowed to ping that group; leave this empty to allow everyone.\n- **Keywords:** Comma-separated words or phrases that can trigger the group's ping from messages in this server. No keywords are added automatically.",
           ),
-        (t) =>
-          t.setContent(
-            `### \`/settings ping add\`\n- Create a new ping group. You pick its name, the ping role to mention, who can use it (allowed roles), and optional keyword channel/keywords.`,
+        (text) =>
+          text.setContent(
+            "### `/settings ping add`\nCreate a ping group for this server and choose its name, ping role, optional allowed role, and optional keywords.",
           ),
-        (t) =>
-          t.setContent(
-            `### \`/settings ping remove\`\n- Delete a ping group by name. This stops its pings and removes it from the list.`,
+        (text) =>
+          text.setContent(
+            "### `/settings ping edit`\nUpdate a group from this server. You can rename it, change its ping role, add an allowed role, or replace its keywords.",
           ),
-        (t) =>
-          t.setContent(
-            `### \`/settings ping edit\`\n- Update an existing group. You can change the ping role, allowed roles, keyword channel, or keywords.`,
+        (text) =>
+          text.setContent(
+            "### `/settings ping remove`\nDelete one of this server's ping groups. It will no longer be available to `/party ping` or keyword matching here.",
           ),
-        (t) =>
-          t.setContent(
-            `### \`/settings ping list\`\n- Show all ping groups with their roles, allowed roles, and keyword settings.`,
+        (text) =>
+          text.setContent(
+            "### `/settings ping list`\nShow this server's ping groups, ping roles, allowed roles, and keywords.",
           ),
-        (t) =>
-          t.setContent(
-            `### \`/settings keywordpings\`\n- Turn keyword pings on or off for this server.`,
+        (text) =>
+          text.setContent(
+            "### `/settings keywordpings enabled:<true|false>`\nEnable or disable keyword matching for all ping groups in this server. This does not remove their saved keywords.",
           ),
-        (t) =>
-          t.setContent(
-            `### \`/settings lfgrole\`\n- Set the role that gets pinged when someone uses \`/party lfg\`.`,
+        (text) =>
+          text.setContent(
+            "### `/settings lfgrole role:<role>`\nChoose the server role mentioned by `/party lfg`.",
+          ),
+        (text) =>
+          text.setContent(
+            "-# Managing ping groups and keyword pings requires **Manage Server**. Dock ping roles are configured separately with `/dock manage`.",
           ),
       );
 
     return interaction.reply({
       components: [container],
-      flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
+      flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
     });
   },
 };

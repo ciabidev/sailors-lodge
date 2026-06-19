@@ -9,11 +9,11 @@ const {
 module.exports = {
   data: new SlashCommandSubcommandGroupBuilder()
     .setName("ping")
-    .setDescription("Manage Ping Groups with hosts, pings, and channels (e.g. Luck V).")
+    .setDescription("Manage this server's ping groups, roles, and keywords.")
     .addSubcommand((subcommand) =>
       subcommand
         .setName("add")
-        .setDescription("Add a Ping group.")
+        .setDescription("Add a ping group to this server.")
         .addStringOption((option) =>
           option.setName("name").setDescription("The name of the ping group.").setRequired(true),
         )
@@ -29,14 +29,6 @@ module.exports = {
             .setDescription("The roles allowed to ping this group.")
             .setRequired(false),
         )
-        .addChannelOption((option) =>
-          option
-            .setName("keywordchannel")
-            .setDescription(
-              "The channel to watch for keyword matches.",
-            )
-            .setRequired(false),
-        )
         .addStringOption((option) =>
           option
             .setName("keywords")
@@ -47,7 +39,7 @@ module.exports = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName("remove")
-        .setDescription("Remove a ping group.")
+        .setDescription("Remove a ping group from this server.")
         .addStringOption((option) =>
           option
             .setName("name")
@@ -59,7 +51,7 @@ module.exports = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName("edit")
-        .setDescription("Edit a ping group.")
+        .setDescription("Edit one of this server's ping groups.")
         .addStringOption((option) =>
           option
             .setName("name")
@@ -85,14 +77,6 @@ module.exports = {
             .setDescription("The role allowed to ping this group.")
             .setRequired(false),
         )
-        .addChannelOption((option) =>
-          option
-            .setName("keywordchannel")
-            .setDescription(
-              "The channel to watch for keyword matches.",
-            )
-            .setRequired(false),
-        )
         .addStringOption((option) =>
           option
             .setName("keywords")
@@ -101,7 +85,7 @@ module.exports = {
         ),
     )
     .addSubcommand((subcommand) =>
-      subcommand.setName("list").setDescription("List all ping groups."),
+      subcommand.setName("list").setDescription("List this server's ping groups."),
     ),
 
   async autocomplete(interaction) {
@@ -136,7 +120,6 @@ module.exports = {
       const name = interaction.options.getString("name");
       const role = interaction.options.getRole("pingrole");
       const allowedRole = interaction.options.getRole("allowedroles");
-      const keywordChannel = interaction.options.getChannel("keywordchannel");
       const keywordsRaw = interaction.options.getString("keywords");
 
       if (!name || !role) {
@@ -157,7 +140,6 @@ module.exports = {
         name,
         roleId: role.id,
         allowedRoles: allowedRole ? [allowedRole.id] : [],
-        keywordChannelId: keywordChannel?.id ?? null,
         keywords: keywordsRaw
           ? keywordsRaw
               .split(",")
@@ -169,7 +151,7 @@ module.exports = {
       pingGroups.push(pingGroup);
       await interaction.client.modules.db.setSettings(guildId, {
         pingGroups,
-        ...(keywordChannel || keywordsRaw ? { keywordPingsEnabled: true } : {}),
+        ...(keywordsRaw ? { keywordPingsEnabled: true } : {}),
       });
       return interaction.reply({
         content: `Ping group ${name} added.`,
@@ -209,7 +191,6 @@ module.exports = {
       const newname = interaction.options.getString("newname");
       const role = interaction.options.getRole("pingrole");
       const allowedRole = interaction.options.getRole("allowedroles");
-      const keywordChannel = interaction.options.getChannel("keywordchannel");
       const keywordsRaw = interaction.options.getString("keywords");
 
       const index = pingGroups.findIndex((group) => group.name === name);
@@ -220,7 +201,7 @@ module.exports = {
         });
       }
 
-      if (!role && !allowedRole && !keywordChannel && !keywordsRaw && !newname) {
+      if (!role && !allowedRole && !keywordsRaw && !newname) {
         return interaction.reply({
           content: "Provide at least one field to update.",
           flags: MessageFlags.Ephemeral,
@@ -233,7 +214,6 @@ module.exports = {
         ...(allowedRole && {
           allowedRoles: [...(pingGroups[index].allowedRoles ?? []), allowedRole.id],
         }),
-        ...(keywordChannel && { keywordChannelId: keywordChannel.id }),
         ...(typeof keywordsRaw === "string" && {
           keywords: keywordsRaw
             .split(",")
@@ -248,7 +228,6 @@ module.exports = {
         );
         const none = (value) => value || "None";
         const role = (id) => (id ? `<@&${id}>` : "None");
-        const channel = (id) => (id ? `<#${id}>` : "None");
         const roles = (ids = []) => (ids.length ? ids.map(role).join(", ") : "None");
         const list = (items = []) => (items.length ? items.join(", ") : "None");
 
@@ -256,7 +235,6 @@ module.exports = {
           ["Name", oldGroup.name, updatedGroup.name, none],
           ["Ping role", oldGroup.roleId, updatedGroup.roleId, role],
           ["Allowed roles", oldGroup.allowedRoles ?? [], updatedGroup.allowedRoles ?? [], roles],
-          ["Keyword channel", oldGroup.keywordChannelId, updatedGroup.keywordChannelId, channel],
           ["Keywords", oldGroup.keywords ?? [], updatedGroup.keywords ?? [], list],
         ]
           .filter(([, oldValue, newValue]) => JSON.stringify(oldValue) !== JSON.stringify(newValue))
@@ -273,7 +251,7 @@ module.exports = {
       pingGroups[index] = updatedGroup;
       await interaction.client.modules.db.setSettings(guildId, {
         pingGroups,
-        ...(keywordChannel || keywordsRaw ? { keywordPingsEnabled: true } : {}),
+        ...(keywordsRaw ? { keywordPingsEnabled: true } : {}),
       });
       return interaction.reply({
         components: [diff],
@@ -300,7 +278,6 @@ module.exports = {
             ? group.allowedRoles.map((roleId) => `<@&${roleId}>`).join(", ")
             : "None";
 
-        const keywordChannel = group.keywordChannelId ? `<#${group.keywordChannelId}>` : "None";
         const keywords =
           Array.isArray(group.keywords) && group.keywords.length
             ? group.keywords.join(", ")
@@ -308,7 +285,7 @@ module.exports = {
 
         container.addTextDisplayComponents((t) =>
           t.setContent(
-            `## ${group.name}\nPing role: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nKeyword Channel: ${keywordChannel}\nKeywords: ${keywords}`,
+            `## ${group.name}\nPing role: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nKeywords: ${keywords}`,
           ),
         );
       }
@@ -317,6 +294,8 @@ module.exports = {
         components: [container],
         flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
       });
+
+      
     }
   },
 };

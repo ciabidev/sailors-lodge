@@ -11,25 +11,42 @@ const mongoClient = new MongoClient(mongoUri, {
 });
 
 let db;
-const PARTY_TTL_DAYS = 3;
+let initPromise;
+let cleanupSchedulerStarted = false;
+const PARTY_TTL_DAYS = 7;
 const PARTY_TTL_MS = PARTY_TTL_DAYS * 24 * 60 * 60 * 1000;
 const PARTY_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // hourly
 
 // init db 
 async function initDb() {
-  await mongoClient.connect();
-  const mongoDbName = devMode ? "development" : "production";
-  db = mongoClient.db(mongoDbName);
-  // await migrateServerSettings();
-  await deleteExpiredParties();
-  startPartyCleanupScheduler();
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    await mongoClient.connect();
+    const mongoDbName = devMode ? "development" : "production";
+    db = mongoClient.db(mongoDbName);
+    // await migrateServerSettings();
+    await deleteExpiredParties();
+    if (!cleanupSchedulerStarted) {
+      startPartyCleanupScheduler();
+      cleanupSchedulerStarted = true;
+    }
+    return db;
+  })();
+
+  return initPromise;
 }
 
-initDb();
+
 // ---------- COLLECTION HELPER ----------
 function getCollection(collectionName) {
+  if (!db) {
+    throw new Error(`Database has not finished initializing before accessing ${collectionName}`);
+  }
   return db.collection(collectionName);
 }
+
+const ready = initDb();
 
 // get settings
 async function getSettings(guildId) {
@@ -60,8 +77,6 @@ async function getSettings(guildId) {
 //     const update = { $set: {}, $unset: {} };
 //     const existingPingGroups = Array.isArray(server.pingGroups) ? server.pingGroups : [];
 //     const hasKeywordConfig = existingPingGroups.some((group) =>
-//       group.keywordChannelId ||
-//       group.followedChannelId ||
 //       (Array.isArray(group.keywords) && group.keywords.length > 0) ||
 //       (Array.isArray(group.followedKeywords) && group.followedKeywords.length > 0)
 //     );
@@ -85,15 +100,10 @@ async function getSettings(guildId) {
 //       const pingGroups = server.pingGroups.map((group) => {
 //         const next = { ...group };
 
-//         if (!("keywordChannelId" in next) && "followedChannelId" in next) {
-//           next.keywordChannelId = next.followedChannelId;
-//         }
-
 //         if (!("keywords" in next) && "followedKeywords" in next) {
 //           next.keywords = next.followedKeywords;
 //         }
 
-//         delete next.followedChannelId;
 //         delete next.followedKeywords;
 
 //         if (!Array.isArray(next.keywords)) {
@@ -145,7 +155,6 @@ async function setSettings(guildId, settings) {
   //                 name:           { bsonType: "string" },
   //                 pingRoleId:     { bsonType: "string" },
   //                 allowedRoleIds: { bsonType: "array", items: { bsonType: "string" } },
-  //                 keywordChannelId: { bsonType: "string" },
   //                 keywords: { bsonType: "array", items: { bsonType: "string" } },
   //               }
   //             }
@@ -226,7 +235,7 @@ async function updateParty(partyId, update, interaction) { // Also updates all p
 
 async function addPartyCardMessage(partyId, card) {
   const parties = getCollection("parties");
-  return parties.updateOne({ _id: partyId }, { $push: { cards: card } });
+  return parties.updateOne({ _id: new ObjectId(partyId) }, { $push: { cards: card } });
 }
 
 async function deleteParty(partyId, interaction) {
@@ -308,100 +317,348 @@ async function removePartyCardMessage(messageId) {
 }
 
 
-// feed system
-
-// Replace the passive \`/party browse\` system with an active Party Feed — a cross-server Discovery system
+// **Replace `/party browse` with Party Docks**
 
 // ## Background
-// /party browse shows a list of parties that havent started yet, which would theoretically be useful
-// But the core problem with \`/party browse\` is that it requires hosts to use \`/party create\` and players to repeatedly check for parties. AO party culture is built around passive pinging-and-waiting behavior, not a lobby browse, so browse stays empty and nobody has a reason to use it.
+// `/party browse` shows a list of parties that haven't started yet, which would theoretically be useful. But the core problem is that it requires players to repeatedly check for parties. AO party culture is built around passive pinging-and-waiting behavior, not a lobby browser, so browse stays empty and nobody has a reason to use it.
 
-// The feed system flips this: parties come to the player instead.
+// Docks flip this: parties come to the player instead.
 
-// ## How it works**
+// ---
 
-// ### Server side (ping source)
-// - Server owner runs \`/feed publish #channel-name\`
-// - A modal prompts them for a feed title and description (e.g. "Party Central — Omen Hunts")
-// - Their server + channel is added to the Feed Directory
-// - When a host uses \`/party create\` in that channel, the party card is automatically forwarded to all subscribers in other servers 
-//   - If the party is set to Private visibility, it won't be forwarded  
+// ## How it works
 
-// ### Player side (subscriber)
-// - Player runs \`/feed browse\` to open the feed directory
-// - They see a list of feed channels and all Registered servers (e.g. "Party Central — #luck-parties", "Party Central — #omen-hunts")
-// - They hit Subscribe on any feeds they want
-// - If used in a server channel, they're prompted to pick a channel to pipe the feed into + add a ping
-// - If used in DMs, they simply receive party cards via DM notification
+// ### Publisher side (dock)
+// - Dock owner runs `/dock publish #channel-name`
+// - A modal prompts them for a dock title, description, and configuration options
+// - Their publisher + channel is added to the Dock Directory with a unique dock ID
+// - Messages are forwarded to followers based on the dock owner's configured publish mode
+// - If a party is set to Private visibility, it is never forwarded regardless of publish mode
 
-// ## Why \`/party create\` will still be required (no keywords)
+// ### Follower side (dock follower)
+// - Player runs `/dock browse` to open the dock directory
+// - They see a list of registered dock channels across all publishers (e.g. "Party Central — #luck-parties", "Party Central — #omen-hunts")
+// - They follow any dock they want
+// - If following requires approval, the dock owner is notified and must approve before the follower is active
+// - When following a Dock, the player is prompted to pick a channel to pipe the dock into and optionally configure a ping role
+// - If subscribing in DMs, they receive forwarded messages as DM notifications
+// - `/party create` cards are always forwarded as full interactive party cards with a join button
 
-// Keyword detection, configured by the Ping Source was considered as a fallback for hosts who don't use \`/party create\`, but dropped for two reasons:
-// - It undermines the incentive for hosts to use \`/party create\`, which is what gives feed subscribers a structured, actionable party card with a join button instead of a raw text ping
+// ---
 
-// Hosts who use \`/party create\` give subscribers a better experience.
-// /party ping and /party lfg will still be available
+// ## Dock Configuration
+// Dock owners can configure the following options per dock when running `/dock publish` or later via `/dock edit`:
+
+// ### Dock Visibility
+// **Open**
+// Open — All messages — anyone can follow instantly, every message is forwarded
+// Open — Keywords only — anyone can follow instantly, only keyword-matching messages are forwarded
+// Open — Manual only — anyone can follow instantly, only /party create cards are forwarded
+// **Request To Join**
+// Request — All messages — dock owner must approve follow requests, every message is forwarded
+// Request — Keywords only — dock owner must approve follow requests, only keyword-matching messages are forwarded
+// Request — Manual only — dock owner must approve follow requests, only /party create cards are forwarded
+
+// ---
+
 // ## Changes
+// - [x] Add `docks` collection (publisher id/name, channel ids, title, description, publish mode, keywords, directory visibility, access mode)
+// - [x] Add `dockServers` collection (dock id, follower id/name, receiving channels, ping roles)
+// - [x] Add `/dock publish` command with modal
+// - [x] Add `/dock browse` command displaying the public dock directory with follow buttons
+// - [x] Add `/dock edit` command for dock owners to view, edit, and remove their docks
+// - [ ] Forward messages to dock followers based on configured publish mode on every message sent in a registered dock channel
+// - [ ] Forward full interactive party card to dock followers when `/party create` is used in a registered dock channel
+// - [ ] Skip forwarding for private parties
+// - [ ] Handle request-to-join flow — notify dock owner, await approval before activating the follower
+// - [x] Remove `/party browse` command
+// - [ ] Add onboarding message when bot is added explaining how the bot works and encouraging hosts to register dock channels
+// - [ ] Add disclaimer footer to party cards clarifying it is a Discord coordination group, not an in-game party
+// - [ ] Update `/party create` to include optional `ping` parameter that triggers a configured ping group on creation
 
-// - Add \`/feed publish\` command for server owners
-// - Add \`/feeds\` command for players to browse and subscribe to feeds
-// - Add feed directory database table
-// - Add subscriber database table
-// - Relay party cards to feed subscribers on \`/party create\`
-// - Remove \`/party browse\` command
-// - Add onboarding message when bot is added to a new server explaining how the bot works
+// ## Breaking Changes
+// - `/party browse` is removed. All references in help text, onboarding messages, and documentation must be updated.
 
-// ### Breaking changes
-
-// - \`/party browse\` is removed. Existing references to it (help text, onboarding, documentation) need to be updated.
-async function getFeedSources() {
-  const feedSources = getCollection("feedSources");
-  return feedSources.find().toArray();
+async function getDocks() {
+  const docks = getCollection("docks");
+  return docks.find({}, { projection: { channelNames: 0 } }).toArray();
 }
 
-async function getFeedSource(_id) {
-  const feedSources = getCollection("feedSources");
-  return feedSources.findOne({ _id: new ObjectId(_id) });
+async function getDock(dockId) {
+  const docks = getCollection("docks");
+  return docks.findOne(
+    { _id: new ObjectId(dockId) },
+    { projection: { channelNames: 0 } },
+  );
 }
 
-async function getFeedSubscribers(sourceId) {
-  const feedSubscribers = getCollection("feedSubscribers");
-  return feedSubscribers.find({ sourceId: new ObjectId(sourceId) }).toArray();
+const getDocksFromChannelId = async (channelId) => {
+  // channelIds is an array of channel ids
+  const docks = getCollection("docks");
+  return docks.find(
+    { channelIds: channelId },
+    { projection: { channelNames: 0 } },
+  ).toArray();
 }
 
-async function publishFeedSource(name, guildId, channelId, description, options = {}) {
-  const feedSources = getCollection("feedSources");
-  return feedSources.insertOne({
+
+
+async function getDockFollowers(dockId) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.find({ dockId: new ObjectId(dockId) }).toArray();
+}
+
+async function getManyDockFollowers(dockIds) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.find({ dockId: { $in: dockIds } }).toArray();
+}
+
+async function getDockFollowForChannel(channelId) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.findOne({ channelIds: channelId });
+}
+
+async function getDockFollowsForChannel(channelId) { // returns all the dock connections for that channel
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.find({ channelIds: channelId }).toArray();
+}
+
+async function createDock(
+  name,
+  guildId,
+  guildName,
+  channelIds,
+  description = "",
+  keywords = [],
+  publishMode = "manual",
+  accessMode = "open",
+) {
+  const docks = getCollection("docks");
+  return docks.insertOne({
     name,
     guildId,
-    channelId,
+    guildName,
+    channelIds,
     description,
-    keywords: options.keywords ?? [],
-    guildName: options.guildName,
-    channelName: options.channelName,
+    keywords,
+    publishMode,
+    accessMode,
     createdAt: new Date(),
   });
 }
 
-async function removeFeedSource(_id) {
-  const feedSources = getCollection("feedSources");
-  await feedSources.deleteOne({ _id: new ObjectId(_id) });
-  // clean up subscribers too
-  const feedSubscribers = getCollection("feedSubscribers");
-  return feedSubscribers.deleteMany({ sourceId: new ObjectId(_id) });
+async function updateDock(dockId, update) {
+  const docks = getCollection("docks");
+
+  if (!Object.keys(update).some((key) => key.startsWith("$"))) {
+    throw new Error("updateDock requires MongoDB operators ($set, $push, etc)");
+  }
+
+  await docks.updateOne({ _id: new ObjectId(dockId) }, update);
+  return getDock(dockId);
 }
 
-async function addSubscriber(sourceId, subscriber) {
-  const feedSubscribers = getCollection("feedSubscribers");
-  return feedSubscribers.insertOne({ sourceId: new ObjectId(sourceId), ...subscriber });
+async function removeDock(dockId) {
+  const docks = getCollection("docks");
+  await docks.deleteOne({ _id: new ObjectId(dockId) });
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.deleteMany({ dockId: new ObjectId(dockId) });
 }
 
-async function removeSubscriber(sourceId, subscriberId) {
-  const feedSubscribers = getCollection("feedSubscribers");
-  return feedSubscribers.deleteOne({ sourceId: new ObjectId(sourceId), subscriberId });
+async function addDockFollower(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
+  return setDockFollower(dockId, guildId, guildName, channelIds, pingRoleIds);
+}
+
+async function setDockFollower(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
+  const dockFollowers = getCollection("dockServers");
+  const dockObjectId = new ObjectId(dockId);
+  return dockFollowers.updateOne(
+    { dockId: dockObjectId, guildId },
+    {
+      $set: {
+        guildName,
+        channelIds,
+        pingRoleIds,
+      },
+      $setOnInsert: {
+        dockId: dockObjectId,
+        guildId,
+        contributor: false,
+        createdAt: new Date(),
+      },
+    },
+    { upsert: true },
+  );
+}
+
+async function setDockFollowerContributor(dockId, guildId, contributor) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.updateOne(
+    { dockId: new ObjectId(dockId), guildId },
+    { $set: { contributor } },
+  );
+}
+
+async function removeDockFollower(dockId, guildId) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.deleteOne({ dockId: new ObjectId(dockId), guildId });
+}
+
+async function getDockFollower(dockId, guildId) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.findOne({ dockId: new ObjectId(dockId), guildId });
+}
+
+async function getFollowedDocksForGuild(guildId) {
+  const dockFollowers = getCollection("dockServers");
+  const dockFollowsForGuild = await dockFollowers.find({ guildId }).toArray();
+  if (!dockFollowsForGuild.length) return [];
+
+  const docks = getCollection("docks");
+  const dockIds = dockFollowsForGuild.map((dockFollow) => dockFollow.dockId);
+
+  return docks.find(
+    { _id: { $in: dockIds } },
+    { projection: { channelNames: 0 } },
+  ).toArray();
+}
+
+async function getPublishedDocksForGuild(guildId) {
+  const docks = getCollection("docks");
+  return docks.find({ guildId }).toArray();
+}
+async function getDockWebhook(guildId) {
+  const dockWebhooks = getCollection("dockWebhooks");
+  return dockWebhooks.findOne({ guildId });
+}
+
+async function setDockWebhook(guildId, guildName, webhookId, webhookToken) { // each follower has a singular webhook to manage all dock messages
+  const dockWebhooks = getCollection("dockWebhooks");
+  return dockWebhooks.updateOne(
+    { guildId },
+    {
+      $set: {
+        guildName,
+        webhookId,
+        webhookToken,
+        updatedAt: new Date(),
+      },
+      $setOnInsert: {
+        guildId,
+        createdAt: new Date(),
+      },
+    },
+    { upsert: true },
+  );
 }
 
 
+async function indexDockMessage({
+  dockId,
+  rootGuildId,
+  rootChannelId,
+  rootMessageId,
+  deliveries = [],
+}) {
+  const dockMessages = getCollection("dockMessages");
+  return dockMessages.updateOne(
+    {rootChannelId, rootMessageId},
+    {
+      $setOnInsert: {
+        dockId: new ObjectId(dockId),
+        rootGuildId,
+        rootChannelId,
+        rootMessageId,
+        deliveries,
+        createdAt: new Date(),
+      },
+      $set: { updatedAt: new Date() },
+    },
+    { upsert: true },
+  );
+}
+
+async function getDockMessageFromRoot(rootChannelId, rootMessageId) {
+  const dockMessages = getCollection("dockMessages");
+  return dockMessages.findOne({rootChannelId, rootMessageId});
+}
+
+async function addDockMessageDeliveries(rootChannelId, rootMessageId, deliveries) {
+  const dockMessages = getCollection("dockMessages");
+  return dockMessages.updateOne(
+    {rootChannelId, rootMessageId},
+    {
+      $push: { deliveries: { $each: deliveries } },
+      $set: { updatedAt: new Date() },
+    },
+  );
+}
+
+async function setDockMessageDeliveries(rootChannelId, rootMessageId, deliveries) {
+  const dockMessages = getCollection("dockMessages");
+  return dockMessages.updateOne(
+    {rootChannelId, rootMessageId},
+    {
+      $set: {
+        deliveries,
+        updatedAt: new Date(),
+      },
+    },
+  );
+}
+
+async function removeDockMessageFromRoot(rootChannelId, rootMessageId) {
+  const dockMessages = getCollection("dockMessages");
+  return dockMessages.deleteOne({rootChannelId, rootMessageId});
+}
+
+async function indexDockThread({
+  dockId,
+  rootGuildId,
+  rootChannelId,
+  rootThreadId,
+  name,
+  deliveries = [],
+}) {
+  const dockThreads = getCollection("dockThreads");
+  return dockThreads.updateOne(
+    { rootThreadId },
+    {
+      $setOnInsert: {
+        dockId: new ObjectId(dockId),
+        rootGuildId,
+        rootChannelId,
+        rootThreadId,
+        name,
+        deliveries,
+        createdAt: new Date(),
+      },
+      $set: { updatedAt: new Date() },
+    },
+    { upsert: true },
+  );
+}
+
+async function getDockThread(threadId) {
+  const dockThreads = getCollection("dockThreads");
+  return dockThreads.findOne({
+    $or: [
+      { rootThreadId: threadId },
+      { "deliveries.threadId": threadId },
+    ],
+  });
+}
+
+async function addDockThreadDeliveries(rootThreadId, deliveries) {
+  const dockThreads = getCollection("dockThreads");
+  return dockThreads.updateOne(
+    { rootThreadId },
+    {
+      $push: { deliveries: { $each: deliveries } },
+      $set: { updatedAt: new Date() },
+    },
+  );
+}
 
 module.exports = {
   getSettings,
@@ -419,11 +676,31 @@ module.exports = {
   deleteParty,
   deleteExpiredParties,
   removePartyCardMessage,
-  getFeedSources,
-  getFeedSource,
-  getFeedSubscribers,
-  publishFeedSource,
-  removeFeedSource,
-  addSubscriber,
-  removeSubscriber,
+  getDocks,
+  getDock,
+  getDockFollowers,
+  createDock,
+  updateDock,
+  removeDock,
+  addDockFollower,
+  setDockFollower,
+  setDockFollowerContributor,
+  removeDockFollower,
+  getDockFollower,
+  getFollowedDocksForGuild,
+  getDockWebhook,
+  setDockWebhook,
+  getDocksFromChannelId,
+  getManyDockFollowers,
+  getDockFollowForChannel,
+  getDockFollowsForChannel,
+  getPublishedDocksForGuild,
+  indexDockMessage,
+  getDockMessageFromRoot,
+  addDockMessageDeliveries,
+  setDockMessageDeliveries,
+  removeDockMessageFromRoot,
+  indexDockThread,
+  getDockThread,
+  addDockThreadDeliveries,
 };

@@ -1,6 +1,4 @@
 const { MessageFlags } = require("discord.js");
-
-
 function getPartyIdFromComponents(message) {
   for (const row of message.components ?? []) {
     for (const component of row.components ?? []) {
@@ -267,8 +265,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     }))
     .filter((dockFollower) => dockFollower.channelIds.length > 0);
   if (receivingFollowers.length === 0) return;
-  const isDockPing = message.client.dockPingMessages?.has(message.id);
-  const dockPing = message.client.dockPingMessages?.get(message.id);
+  const isDockPing = message.client.dockPingMetadata?.has(message.id);
+  const dockPing = message.client.dockPingMetadata?.get(message.id);
 
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
@@ -303,17 +301,25 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
       };
       
       const relayedMessage = await webhook.send(messagePayload);
+      let pingRoles = [];
 
       if (isDockPing) {
-        const pingRoles = receivingFollower.pingRoleIds ?? [];
-        
+        pingRoles = [...new Set(
+          (dockPing.keywords ?? []).flatMap((keyword) =>
+            receivingFollower.keywordPings?.[keyword] ?? [],
+          ),
+        )];
+        const pingContent = `${dock.name} ping triggered by ${dockPing.username}>!`;
         messagePayload.content = pingRoles.length
-          ? `${pingRoles.map((roleId) => `<@&${roleId}>`).join(" ")}\n${dockPing.content}`
-          : dockPing.content;
+          ? `${pingRoles.map((roleId) => `<@&${roleId}>`).join(" ")} ${pingContent}`
+          : pingContent;
 
         messagePayload.allowedMentions.roles = pingRoles;
-
-        await webhook.send(messagePayload);
+        delete messagePayload.username;
+        delete messagePayload.avatarURL;
+        
+        const dockMessages = await 
+        await channel.send(messagePayload);
       }
 
       await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
@@ -322,7 +328,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           guildName: receivingFollower.guildName,
           channelId,
           messageId: relayedMessage.id,
-          pingRoleIds: isDockPing ? (receivingFollower.pingRoleIds ?? []) : [], 
+          keywordPings: pingRoles,
         },
       ]);
 
@@ -374,12 +380,7 @@ async function relayAlert({ client, dockId, ...payload }) {
         continue;
       }
 
-      const webhook = await getDockWebhook(client, channel, follower);
-      await webhook.send({
-        username: dock.name,
-        avatarURL: client.user.displayAvatarURL(),
-        ...payload,
-      });
+      await channel.send(payload);
     }
   }
 }

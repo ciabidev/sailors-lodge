@@ -147,15 +147,15 @@ module.exports = {
 
     const message = await interaction.fetchReply();
 
-      if (!interaction.client.dockPingMessages) {
-        interaction.client.dockPingMessages = new Map();
+      if (!interaction.client.dockPingMetadata) {
+        interaction.client.dockPingMetadata = new Map();
       }
 
-      interaction.client.dockPingMessages.set(message.id, {
+      interaction.client.dockPingMetadata.set(message.id, {
         content: `${content}`,
       })
       setTimeout(() => {
-        interaction.client.dockPingMessages.delete(message.id);
+        interaction.client.dockPingMetadata.delete(message.id);
       }, 60 * 60 * 1000);
     
   },

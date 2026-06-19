@@ -59,14 +59,14 @@ module.exports = async function dockPublishModal(
         new LabelBuilder()
           .setLabel("Ping Keywords")
           .setDescription(
-            "Whenever one of these keywords is included in a message, Dock followers will be pinged",
+            "Up to 25 keywords. Whenever a keyword is included in a message, Dock followers will be pinged",
           )
           .setTextInputComponent(
             new TextInputBuilder()
               .setCustomId("keywords")
               .setStyle(TextInputStyle.Paragraph)
               .setValue((defaults.keywords ?? []).join("\n"))
-              .setPlaceholder("Keyword 1\nKeyword 2\nKeyword 3")
+              .setPlaceholder("*Max 25 keywords.*\nKeyword 1\nKeyword 2\nKeyword 3")
               .setRequired(false)
               .setMaxLength(500),
           ),

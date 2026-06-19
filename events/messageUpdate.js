@@ -23,16 +23,16 @@ module.exports = {
         .catch(() => null);
       if (!webhook || webhook.channelId !== delivery.channelId) continue;
 
-      const pingRoleIds = delivery.pingRoleIds ?? [];
-      const content = pingRoleIds.length
-        ? `${pingRoleIds.map((roleId) => `<@&${roleId}>`).join(" ")}\n${message.content || ""}`
+      const keywordPings = delivery.keywordPings ?? [];
+      const content = keywordPings.length
+        ? `${keywordPings.map((roleId) => `<@&${roleId}>`).join(" ")}\n${message.content || ""}`
         : message.content || null;
 
       await webhook.editMessage(delivery.messageId, {
         content,
         embeds: message.embeds || [],
         attachments: message.attachments.map((attachment) => attachment.url) || [],
-        allowedMentions: { users: [message.author.id], roles: pingRoleIds },
+        allowedMentions: { users: [message.author.id], roles: keywordPings },
       });
     }
   },

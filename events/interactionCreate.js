@@ -6,9 +6,6 @@ const {
   MessageFlags,
   ChannelType,
   Events,
-  RoleSelectMenuBuilder,
-  ModalBuilder,
-  LabelBuilder,
 } = require("discord.js");
 const { ObjectId } = require("mongodb");
 
@@ -37,6 +34,7 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit()) {
+      console.log(`[modal-submit] ${interaction.customId}`);
       let modalId;
       let dockId;
       let partyId;
@@ -160,6 +158,13 @@ module.exports = {
           ChannelType.GuildAnnouncement,
         ]);
 
+        if (keywords.length > 25) {
+          return interaction.reply({
+            content: "You can only have up to 25 keywords.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
         const selectedChannels = Array.from(channels.values());
         const channelIds = selectedChannels.map((channel) => channel.id);
 
@@ -263,15 +268,21 @@ module.exports = {
       }
 
       [modalId, dockId] = interaction.customId.split(":");
-      if (modalId === "dock-follow-modal" || modalId === "dock-configure-follower-modal") {
-        const isConfiguringFollower = modalId === "dock-configure-follower-modal";
+      if (modalId === "dock-follow-modal" || modalId === "dock-configure-follower") {
+        const isConfiguringFollower = modalId === "dock-configure-follower";
         const channels = interaction.fields.getSelectedChannels("dock-follow-channel", true, [
           ChannelType.GuildText,
           ChannelType.GuildAnnouncement,
         ]);
         const [channelId] = channels.keys();
         const [channel] = channels.values();
-        const roles = interaction.fields.getSelectedRoles("dock-follow-ping-roles", false);
+        const hasKeywordField = interaction.fields.fields.has("keyword");
+        const keyword = hasKeywordField
+          ? interaction.fields.getStringSelectValues("keyword")[0]
+          : null;
+        const roles = hasKeywordField
+          ? interaction.fields.getSelectedRoles("roles", false)
+          : null;
         const roleIds = roles ? Array.from(roles.keys()) : [];
 
         if (!(await interaction.client.modules.dockBotPerms.check(interaction, channel))) {
@@ -281,6 +292,11 @@ module.exports = {
           dockId,
           interaction.guildId,
         );
+
+        const currentKeywordPings = Array.isArray(existingFollower?.keywordPings)
+          ? {}
+          : { ...(existingFollower?.keywordPings ?? {}) };
+        if (keyword) currentKeywordPings[keyword] = roleIds;
 
         if (!isConfiguringFollower && existingFollower) {
           return interaction.reply({
@@ -310,14 +326,15 @@ module.exports = {
           interaction.guildId,
           interaction.guild.name,
           [channelId],
-          roleIds,
+          currentKeywordPings,
         );
         const dock = await interaction.client.modules.db.getDock(dockId);
 
         interaction.reply({
-          content: isConfiguringFollower
-            ? `Updated Dock \`${dock.name}\` to post in <#${channelId}>.`
-            : `Followed Dock \`${dock.name}\` in <#${channelId}>.`,
+          content:
+            isConfiguringFollower
+              ? `Updated Dock \`${dock.name}\` to post in <#${channelId}>.`
+              : `Followed Dock \`${dock.name}\` in <#${channelId}>.`,
           flags: MessageFlags.Ephemeral,
         });
 
@@ -334,29 +351,40 @@ module.exports = {
 
       [modalId, dockId] = interaction.customId.split(":");
       if (modalId === "dock-home-ping-roles") {
-        const [, dockId] = interaction.customId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
 
-        if (!dock) return;
+        if (!dock || dock.guildId !== interaction.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
 
         const selfFollow = await interaction.client.modules.db.getDockFollower(
           dockId,
           interaction.guildId,
         );
+        if (!selfFollow) return;
 
         const channelIds = selfFollow?.channelIds?.length ? selfFollow.channelIds : dock.channelIds;
-        const roles = interaction.fields.getSelectedRoles("dock-home-ping-roles", false);
+        const keyword = interaction.fields.getStringSelectValues("keyword")[0];
+        const roles = interaction.fields.getSelectedRoles("roles", false);
         const roleIds = roles ? Array.from(roles.keys()) : [];
+        const keywordPings = Array.isArray(selfFollow.keywordPings)
+          ? {}
+          : { ...(selfFollow.keywordPings ?? {}) };
+        keywordPings[keyword] = roleIds;
+
         await interaction.client.modules.db.setDockFollower(
           dockId,
           interaction.guildId,
           interaction.guild.name,
           channelIds,
-          roleIds,
+          keywordPings,
         );
 
         await interaction.reply({
-          content: `Updated Home Ping Roles for Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\` to ${roleIds.map((roleId) => `<@&${roleId}>`).join(", ")}.`,
+          content: `Updated \`${interaction.client.modules.escapeMarkdown(keyword)}\` Home Ping Roles for Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\` to ${roleIds.map((roleId) => `<@&${roleId}>`).join(", ") || "none"}.`,
           flags: MessageFlags.Ephemeral,
         });
       } 
@@ -608,7 +636,7 @@ module.exports = {
         return interaction.client.modules.dockFollowModal(
           interaction,
           dockId,
-          "dock-configure-follower-modal",
+          "dock-configure-follower",
           follower,
         );
       }
@@ -627,26 +655,18 @@ module.exports = {
           dockId,
           interaction.guildId,
         );
-
-        const roleSelect = new RoleSelectMenuBuilder()
-          .setCustomId("dock-home-ping-roles")
-          .setMaxValues(25)
-          .setRequired(false);
-
-        if (selfFollow?.pingRoleIds?.length) {
-          roleSelect.setDefaultRoles(selfFollow.pingRoleIds.slice(0, 25));
+        if (!dock.keywords?.some(Boolean)) {
+          return interaction.reply({
+            content: "Add ping keywords to this Dock before assigning Home Ping Roles.",
+            flags: MessageFlags.Ephemeral,
+          });
         }
 
-        return interaction.showModal(
-          new ModalBuilder()
-            .setTitle("Home Ping Roles")
-            .setCustomId(`dock-home-ping-roles:${dockId}`)
-            .addLabelComponents(
-              new LabelBuilder()
-                .setLabel("Home Ping Roles")
-                .setDescription("These roles will be pinged whenever a dock ping is recieved")
-                .setRoleSelectMenuComponent(roleSelect),
-            ),
+        return interaction.client.modules.dockFollowModal(
+          interaction,
+          dockId,
+          "dock-home-ping-roles",
+          selfFollow,
         );
       }
 

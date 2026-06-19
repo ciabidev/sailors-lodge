@@ -458,11 +458,11 @@ async function removeDock(dockId) {
   return dockFollowers.deleteMany({ dockId: new ObjectId(dockId) });
 }
 
-async function addDockFollower(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
-  return setDockFollower(dockId, guildId, guildName, channelIds, pingRoleIds);
+async function addDockFollower(dockId, guildId, guildName, channelIds = [], keywordPings = {}) {
+  return setDockFollower(dockId, guildId, guildName, channelIds, keywordPings);
 }
 
-async function setDockFollower(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
+async function setDockFollower(dockId, guildId, guildName, channelIds = [], keywordPings = {}) {
   const dockFollowers = getCollection("dockServers");
   const dockObjectId = new ObjectId(dockId);
   return dockFollowers.updateOne(
@@ -471,7 +471,7 @@ async function setDockFollower(dockId, guildId, guildName, channelIds = [], ping
       $set: {
         guildName,
         channelIds,
-        pingRoleIds,
+        keywordPings,
       },
       $setOnInsert: {
         dockId: dockObjectId,

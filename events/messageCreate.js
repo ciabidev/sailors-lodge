@@ -40,10 +40,12 @@ module.exports = {
     if (!message.guildId || !message.channel?.id) return;
     if (message.webhookId) return;
     if (message.client.dockRelayedPartyCardMessages?.has(message.id)) return;
+    const partyCardId = message.client.modules.dockRelay.getPartyIdFromComponents(message);
     if (
       message.author.id === message.client.user.id &&
-      ![MessageType.Default, MessageType.Reply].includes(message.type)
-    )
+      ![MessageType.Default, MessageType.Reply].includes(message.type) &&
+      !partyCardId
+    ) // ordinary bot interaction responses are ignored, but party cards are allowed
       return;
 
     try {
@@ -60,7 +62,6 @@ module.exports = {
       let messageToPublish = message;
       let publishOptions = {};
       let publishThis = Boolean(dock) && canPublishToDock && publishMode !== "manual";
-
       if (dock && canPublishToDock && publishMode === "manual" && /^!p(?:\s|$)/i.test((message.content ?? "").trim())) {
         const publishContent = (message.content ?? "").trim().slice(publishPrefix.length).trim();
         if (publishContent) { // The user typed text after !p
@@ -138,15 +139,12 @@ module.exports = {
       }
 
       if (publishThis && messageToPublish) {
-        const partyId = message.client.modules.dockRelay.getPartyIdFromComponents(messageToPublish);
-
+        const partyId = messageToPublish === message
+          ? partyCardId
+          : message.client.modules.dockRelay.getPartyIdFromComponents(messageToPublish);
         if (partyId) {
           const party = await message.client.modules.db.getParty(new ObjectId(partyId));
-          if (party?.visibility === "private") {
-            if (!(/^!p(?:\s|$)/i.test((message.content ?? "").trim()))) {
-              return;
-            }
-          }
+          if (party?.visibility === "private") return;
           if (party) {
             await message.client.modules.dockRelay.relayAlert({ // relay all party cards as alerts
               client: message.client,

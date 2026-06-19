@@ -32,7 +32,6 @@ module.exports = async function deleteParty(interaction, party) {
       });
     }
 
-    console.log(party);
 
     const deleteBtn = new ButtonBuilder()
       .setCustomId(`party-delete-confirm:${party._id}`)

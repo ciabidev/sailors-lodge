@@ -279,8 +279,6 @@ async function removeMembersFromParty(partyId, memberIds, interaction) {
   // Remove the member(s) by matching their id
 party.members = party.members.filter((m) => !memberIds.includes(m.id));
 
-  console.log(party.members); // should no longer include the removed member
-
   return await updateParty(party._id, { $set: { members: party.members } }, interaction);
 
 }

@@ -141,7 +141,11 @@ module.exports = {
 
         if (partyId) {
           const party = await message.client.modules.db.getParty(new ObjectId(partyId));
-
+          if (party.visibility === "private") {
+            if (!(/^!p(?:\s|$)/i.test((message.content ?? "").trim()))) {
+              return;
+            }
+          }
           if (party) {
             await message.client.modules.dockRelay.relayAlert({ // relay all party cards as alerts
               client: message.client,

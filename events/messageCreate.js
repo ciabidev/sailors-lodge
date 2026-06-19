@@ -56,11 +56,12 @@ module.exports = {
       const settings = await message.client.modules.db.getSettings(message.guildId);
       const publishPrefix = "!p";
       const publishMode = dock?.publishMode;
+      const canPublishToDock = dock?.guildId === message.guildId || dockFollower?.contributor === true;
       let messageToPublish = message;
       let publishOptions = {};
-      let publishThis = Boolean(dock) && publishMode !== "manual";
+      let publishThis = Boolean(dock) && canPublishToDock && publishMode !== "manual";
 
-      if (dock && publishMode === "manual" && /^!p(?:\s|$)/i.test((message.content ?? "").trim())) {
+      if (dock && canPublishToDock && publishMode === "manual" && /^!p(?:\s|$)/i.test((message.content ?? "").trim())) {
         const publishContent = (message.content ?? "").trim().slice(publishPrefix.length).trim();
         if (publishContent) { // The user typed text after !p
           publishOptions = { content: publishContent };
@@ -141,7 +142,7 @@ module.exports = {
 
         if (partyId) {
           const party = await message.client.modules.db.getParty(new ObjectId(partyId));
-          if (party.visibility === "private") {
+          if (party?.visibility === "private") {
             if (!(/^!p(?:\s|$)/i.test((message.content ?? "").trim()))) {
               return;
             }

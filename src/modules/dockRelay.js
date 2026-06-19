@@ -180,6 +180,13 @@ async function relayThreadMessage(message) {
   ].filter((delivery) => delivery.threadId);
   const sendingThread = threads.find((delivery) => delivery.threadId === message.channel.id);
   if (!sendingThread) return;
+  if (dock.guildId !== sendingThread.guildId) {
+    const sendingFollower = await message.client.modules.db.getDockFollower(
+      dock._id,
+      sendingThread.guildId,
+    );
+    if (sendingFollower?.contributor !== true) return;
+  }
   // build the message payload
   const username = `${message.author.username} [${dock.name}] [${sendingThread.guildName}]`;
   const formattedUsername =
@@ -221,6 +228,7 @@ async function relayMessage(message, options = {}) {
 
   const dock = await message.client.modules.db.getDock(sendingFollower?.dockId);
   if (!dock) return;
+  if (dock.guildId !== sendingFollower.guildId && sendingFollower.contributor !== true) return;
 
   const receivingFollowers = (await message.client.modules.db.getDockFollowers(dock._id))
     .map((dockFollower) => ({

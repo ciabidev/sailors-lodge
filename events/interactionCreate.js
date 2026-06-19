@@ -493,7 +493,80 @@ module.exports = {
         return;
       }
 
-      if (buttonId.startsWith("dock-follow")) {
+      if (buttonId === "dock-followers-prev" || buttonId === "dock-followers-next") {
+        let state = dockManagePages.get(interaction.user.id);
+        if (!state?.followerManager) return;
+
+        const pageCount = Math.max(state.followerManager.pages.length, 1);
+        state.followerManager.pageIndex =
+          buttonId === "dock-followers-prev"
+            ? (state.followerManager.pageIndex - 1 + pageCount) % pageCount
+            : (state.followerManager.pageIndex + 1) % pageCount;
+
+        await interaction.update({
+          components: interaction.client.modules.dockFollowerManagePage({
+            dock: state.followerManager.dock,
+            pages: state.followerManager.pages,
+            pageIndex: state.followerManager.pageIndex,
+            client: interaction.client,
+          }),
+          flags: interaction.message.flags,
+        });
+
+        return;
+      }
+
+      if (buttonId === "dock-followers-back") {
+        let state = dockManagePages.get(interaction.user.id);
+        if (!state) return;
+
+        const pages = state.pages[state.mode] ?? [];
+        const modeSelector = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("docks-manage-mode:published")
+            .setLabel("Manage Published")
+            .setEmoji("👑")
+            .setStyle(state.mode === "published" ? ButtonStyle.Primary : ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId("docks-manage-mode:following")
+            .setLabel("Manage Followed")
+            .setEmoji("🌐")
+            .setStyle(state.mode === "following" ? ButtonStyle.Primary : ButtonStyle.Secondary),
+        );
+        const pageSelector = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("docks-manage-prev")
+            .setLabel("Previous")
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(pages.length <= 1),
+          new ButtonBuilder()
+            .setCustomId("docks-manage-next")
+            .setLabel("Next")
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(pages.length <= 1),
+        );
+
+        delete state.followerManager;
+
+        await interaction.update({
+          components: [
+            interaction.client.modules.dockManagePage({
+              pages,
+              pageIndex: state.pageIndex,
+              mode: state.mode,
+              guildId: state.guildId,
+              client: interaction.client,
+            }),
+            modeSelector,
+            pageSelector,
+          ],
+          flags: interaction.message.flags,
+        });
+
+        return;
+      }
+
+      if (buttonId.startsWith("dock-follow:")) {
         let [, dockId] = buttonId.split(":");
         let dock = await interaction.client.modules.db.getDock(dockId);
         let accessMode = dock?.accessMode ?? "open";
@@ -587,6 +660,102 @@ module.exports = {
                 .setRoleSelectMenuComponent(roleSelect),
             ),
         );
+      }
+
+      if (buttonId.startsWith("dock-manage-followers")) {
+        const [, dockId] = buttonId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+
+        if (!dock || dock.guildId !== interaction.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        const followers = (await interaction.client.modules.db.getDockFollowers(dockId))
+          .filter((follower) => follower.guildId !== dock.guildId)
+          .sort((a, b) => (a.guildName ?? "").localeCompare(b.guildName ?? ""));
+        let state = dockManagePages.get(interaction.user.id);
+        if (!state) {
+          state = {
+            pages: { published: [], following: [] },
+            pageIndex: 0,
+            mode: "published",
+            guildId: interaction.guildId,
+          };
+          dockManagePages.set(interaction.user.id, state);
+        }
+        state.followerManager = {
+          dock,
+          pages: interaction.client.modules.chunkArray(followers, 3),
+          pageIndex: 0,
+        };
+
+        await interaction.update({
+          components: interaction.client.modules.dockFollowerManagePage({
+            dock,
+            pages: state.followerManager.pages,
+            pageIndex: state.followerManager.pageIndex,
+            client: interaction.client,
+          }),
+          flags: interaction.message.flags,
+        });
+
+        return;
+      }
+
+      if (buttonId.startsWith("dock-follower-contributor")) {
+        const [, dockId, guildId] = buttonId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+
+        if (!dock || dock.guildId !== interaction.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        const follower = await interaction.client.modules.db.getDockFollower(dockId, guildId);
+        if (!follower || follower.guildId === dock.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that follower anymore.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        await interaction.client.modules.db.setDockFollowerContributor(
+          dockId,
+          guildId,
+          follower.contributor !== true,
+        );
+
+        const followers = (await interaction.client.modules.db.getDockFollowers(dockId))
+          .filter((follower) => follower.guildId !== dock.guildId)
+          .sort((a, b) => (a.guildName ?? "").localeCompare(b.guildName ?? ""));
+        const pages = interaction.client.modules.chunkArray(followers, 3);
+        let state = dockManagePages.get(interaction.user.id);
+        if (!state) return;
+        state.followerManager = {
+          dock,
+          pages,
+          pageIndex: Math.min(
+            state.followerManager?.pageIndex ?? 0,
+            Math.max(pages.length - 1, 0),
+          ),
+        };
+
+        await interaction.update({
+          components: interaction.client.modules.dockFollowerManagePage({
+            dock,
+            pages: state.followerManager.pages,
+            pageIndex: state.followerManager.pageIndex,
+            client: interaction.client,
+          }),
+          flags: interaction.message.flags,
+        });
+
+        return;
       }
 
       if (interaction.customId.startsWith("docks-manage-mode")) {

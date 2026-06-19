@@ -483,10 +483,19 @@ async function setDockFollower(dockId, guildId, guildName, channelIds = [], ping
       $setOnInsert: {
         dockId: dockObjectId,
         guildId,
+        contributor: false,
         createdAt: new Date(),
       },
     },
     { upsert: true },
+  );
+}
+
+async function setDockFollowerContributor(dockId, guildId, contributor) {
+  const dockFollowers = getCollection("dockServers");
+  return dockFollowers.updateOne(
+    { dockId: new ObjectId(dockId), guildId },
+    { $set: { contributor } },
   );
 }
 
@@ -675,6 +684,7 @@ module.exports = {
   removeDock,
   addDockFollower,
   setDockFollower,
+  setDockFollowerContributor,
   removeDockFollower,
   getDockFollower,
   getFollowedDocksForGuild,

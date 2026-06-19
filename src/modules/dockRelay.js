@@ -1,3 +1,22 @@
+const { MessageFlags } = require("discord.js");
+
+
+function getPartyIdFromComponents(message) {
+  for (const row of message.components ?? []) {
+    for (const component of row.components ?? []) {
+      const customId = component.customId;
+      const match = customId?.match(/^party-(?:join|leave|card-refresh):(.+)$/);
+      if (match) return match[1];
+    }
+  }
+
+  return null;
+}
+
+function isPartyCard(message) {
+  return Boolean(getPartyIdFromComponents(message));
+}
+
 async function getDockWebhook(client, channel, dockFollower) {
   const savedWebhook = await client.modules.db.getDockWebhook(dockFollower.guildId);
   if (savedWebhook?.webhookId) {
@@ -46,6 +65,10 @@ function getRelayEmbeds(message) {
   return message.embeds?.length ? message.embeds : (snapshot?.embeds ?? []);
 }
 
+function getRelayComponents(message) {
+  const snapshot = getForwardedSnapshot(message);
+  return message.components?.length ? message.components : (snapshot?.components ?? []);
+}
 function getRelayFiles(message) {
   const snapshot = getForwardedSnapshot(message);
   const attachments = message.attachments?.size ? message.attachments : snapshot?.attachments;
@@ -170,6 +193,7 @@ async function relayThreadMessage(message) {
     content: getRelayContent(message),
     embeds: getRelayEmbeds(message),
     files: getRelayFiles(message),
+    components: getRelayComponents(message),
     allowedMentions: { users: [message.author.id] },
   };
   // loop through each thread and forward messages
@@ -189,6 +213,8 @@ async function relayThreadMessage(message) {
 }
 
 async function relayMessage(message, options = {}) {
+  if (isPartyCard(message)) return;
+
   const sendingFollower = await message.client.modules.db.getDockFollowForChannel(
     message.channel.id,
   );
@@ -227,14 +253,17 @@ async function relayMessage(message, options = {}) {
         Array.from(username).length > 80
           ? Array.from(username).slice(0, 76).join("") + "..."
           : username;
+      const components = getRelayComponents(message);
 
       const messagePayload = {
         username: formattedUsername,
         avatarURL: message.author.displayAvatarURL(),
-        content: getRelayContent(message, options),
+        content: components.length ? "" : getRelayContent(message, options),
         embeds: getRelayEmbeds(message),
         files: getRelayFiles(message),
+        components,
         allowedMentions: { users: [message.author.id] },
+        flags: components.length ? [MessageFlags.IsComponentsV2] : undefined,
       };
       
       const relayedMessage = await webhook.send(messagePayload);
@@ -260,11 +289,12 @@ async function relayMessage(message, options = {}) {
           pingRoleIds: isDockPing ? (receivingFollower.pingRoleIds ?? []) : [], 
         },
       ]);
+
     }
   }
 }
 
-async function relayAlert({ client, dockId, ...payload }) {
+async function relayAlert({ client, dockId, ...payload }) { 
   const dock = await client.modules.db.getDock(dockId);
   if (!dock) return;
 
@@ -275,6 +305,38 @@ async function relayAlert({ client, dockId, ...payload }) {
     for (const channelId of follower.channelIds ?? []) {
       const channel = await client.channels.fetch(channelId).catch(() => null);
       if (!channel) continue;
+
+      if (payload.party) { // all party cards in docks get relayed as alerts so we need to detect party cards and rebuild them here
+        // we cant rebuild them in messageCreate cause thats not where the party card gets relayed obv
+        if (channelId === payload.sourceChannelId) continue;
+
+        const components = await client.modules.renderPartyCard(
+          payload.party,
+          payload.source ?? { client },
+          payload.userId,
+        );
+        const message = await channel.send({
+          components,
+          flags: [MessageFlags.IsComponentsV2],
+        });
+
+        if (!client.dockRelayedPartyCardMessages) {
+          client.dockRelayedPartyCardMessages = new Set();
+        }
+        client.dockRelayedPartyCardMessages.add(message.id);
+        setTimeout(
+          () => client.dockRelayedPartyCardMessages.delete(message.id),
+          60 * 60 * 1000,
+        );
+
+        await client.modules.db.addPartyCardMessage(payload.party._id, {
+          channelId,
+          messageId: message.id,
+          userId: payload.userId,
+          guildId: follower.guildId,
+        });
+        continue;
+      }
 
       const webhook = await getDockWebhook(client, channel, follower);
       await webhook.send({
@@ -303,6 +365,7 @@ async function dockRelay(input) {
 }
 
 module.exports = {
+  getPartyIdFromComponents,
   relayAlert,
   relayMessage,
   relayThread,

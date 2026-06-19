@@ -235,7 +235,7 @@ async function updateParty(partyId, update, interaction) { // Also updates all p
 
 async function addPartyCardMessage(partyId, card) {
   const parties = getCollection("parties");
-  return parties.updateOne({ _id: partyId }, { $push: { cards: card } });
+  return parties.updateOne({ _id: new ObjectId(partyId) }, { $push: { cards: card } });
 }
 
 async function deleteParty(partyId, interaction) {

@@ -66,6 +66,10 @@ module.exports = async function updatePartyCards(interaction, party) {
 
           // Edit the message with the latest card
         } catch (err) {
+          if (err.message?.includes("Cannot edit a message authored by another user")) {
+            await interaction.client.modules.db.removePartyCardMessage(card.messageId);
+          }
+
           console.error(
             `${card.userId} Failed to update party card ${card.messageId}: ${err.message}`,
           );

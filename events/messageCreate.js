@@ -1,4 +1,5 @@
 const { Events, MessageType } = require("discord.js");
+const { ObjectId } = require("mongodb");
 
 function getMessageText(message) {
   const snapshot = message?.messageSnapshots?.first?.();
@@ -38,6 +39,7 @@ module.exports = {
 
     if (!message.guildId || !message.channel?.id) return;
     if (message.webhookId) return;
+    if (message.client.dockRelayedPartyCardMessages?.has(message.id)) return;
     if (
       message.author.id === message.client.user.id &&
       ![MessageType.Default, MessageType.Reply].includes(message.type)
@@ -71,7 +73,7 @@ module.exports = {
         }
       }
 
-      if (!message.author.bot) {
+      if (!(message.author.bot && message.author.id === message.client.user.id)) {
         const keywordSource = getMessageText(messageToPublish) || getMessageText(message);
         const includesKeyword = (keywords = []) =>
           keywords.some((keyword) =>
@@ -135,7 +137,24 @@ module.exports = {
       }
 
       if (publishThis && messageToPublish) {
-        await message.client.modules.dockRelay.relayMessage(messageToPublish, publishOptions);
+        const partyId = message.client.modules.dockRelay.getPartyIdFromComponents(messageToPublish);
+
+        if (partyId) {
+          const party = await message.client.modules.db.getParty(new ObjectId(partyId));
+
+          if (party) {
+            await message.client.modules.dockRelay.relayAlert({ // relay all party cards as alerts
+              client: message.client,
+              dockId: dock._id,
+              party,
+              source: message,
+              sourceChannelId: messageToPublish.channel.id,
+              userId: party.host.id,
+            });
+          }
+        } else {
+          await message.client.modules.dockRelay.relayMessage(messageToPublish, publishOptions);
+        }
       }
 
     } catch (error) {

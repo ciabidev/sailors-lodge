@@ -95,6 +95,8 @@ module.exports = {
             guildId: interaction.guildId,
           });
           await interaction.client.modules.sendPartyTip(interaction.user);
+         
+          
         } else {
           // EDIT branch
           const party = await interaction.client.modules.db.getParty(new ObjectId(partyId));

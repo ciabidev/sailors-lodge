@@ -21,7 +21,7 @@ module.exports = {
   async execute(interaction) {
    
     return interaction.reply({
-      content: "`/party browse` was removed in favor of Docks. Use `/dock browse` instead",
+      content: "`/party browse` was removed in favor of Docks. With the new Dock system, server owners and admins can add live party feeds to the server with `/dock browse` and `/dock publish`! ",
       flags: MessageFlags.Ephemeral,
     });
   },

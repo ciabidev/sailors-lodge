@@ -5,6 +5,7 @@ const {
   Collection,
   MessageFlags,
   SlashCommandSubcommandBuilder,
+  PermissionFlagsBits,
 } = require("discord.js");
 
 const browsePages = new Collection();
@@ -21,7 +22,12 @@ module.exports = {
     ),
 
   async execute(interaction) {
-
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      return interaction.reply({
+        content: "You don't have permission to follow this server to docks (`Manage Channels`)",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
     async function getDockLabels(dock) {
       const guild = dock.guildId
         ? await interaction.client.guilds.fetch(dock.guildId).catch(() => null)

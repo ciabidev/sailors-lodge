@@ -318,7 +318,6 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         delete messagePayload.username;
         delete messagePayload.avatarURL;
         
-        const dockMessages = await 
         await channel.send(messagePayload);
       }
 

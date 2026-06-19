@@ -1,6 +1,6 @@
 const { MessageFlags, PermissionsBitField } = require("discord.js");
 
-const REQUIRED_DOCK_PERMISSIONS = [
+const REQUIRED_BOT_PERMISSIONS = [
   { flag: PermissionsBitField.Flags.ViewChannel, label: "View Channel" },
   { flag: PermissionsBitField.Flags.SendMessages, label: "Send Messages" },
   { flag: PermissionsBitField.Flags.ReadMessageHistory, label: "Read Message History" },
@@ -11,12 +11,12 @@ const REQUIRED_DOCK_PERMISSIONS = [
   { flag: PermissionsBitField.Flags.CreatePublicThreads, label: "Create Threads" },
 ];
 
-const REQUIRED_DOCK_PERMISSION_FLAGS = REQUIRED_DOCK_PERMISSIONS.map(({ flag }) => flag);
+const REQUIRED_BOT_PERMISSION_FLAGS = REQUIRED_BOT_PERMISSIONS.map(({ flag }) => flag);
 async function check(interaction, channels) {
   const selectedChannels = Array.isArray(channels) ? channels : [channels];
   const botMember = interaction.guild?.members.me ?? (await interaction.guild?.members.fetchMe());
 
-  const missingPermissions = REQUIRED_DOCK_PERMISSIONS.filter(
+  const missingPermissions = REQUIRED_BOT_PERMISSIONS.filter(
     ({ flag }) => selectedChannels.every((channel) => !channel?.permissionsFor(botMember)?.has(flag)),
   );
  
@@ -40,7 +40,7 @@ async function check(interaction, channels) {
 }
 
 module.exports = {
-  REQUIRED_DOCK_PERMISSIONS,
-  REQUIRED_DOCK_PERMISSION_FLAGS,
+  REQUIRED_BOT_PERMISSIONS,
+  REQUIRED_BOT_PERMISSION_FLAGS,
   check,
 };

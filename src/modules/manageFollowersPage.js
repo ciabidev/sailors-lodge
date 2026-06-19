@@ -8,7 +8,7 @@ const {
   TextDisplayBuilder,
 } = require("discord.js");
 
-module.exports = function dockFollowerManagePage({ dock, pages, pageIndex, client }) {
+module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }) {
   const page = pages[pageIndex] ?? [];
   const container = new ContainerBuilder().addTextDisplayComponents((t) =>
     t.setContent(
@@ -23,20 +23,17 @@ module.exports = function dockFollowerManagePage({ dock, pages, pageIndex, clien
   }
 
   for (const follower of page) {
-    const channelNames = follower.channelNames?.length
-      ? follower.channelNames
-      : (follower.channelIds ?? []).map((channelId) => channelId);
 
     container.addSectionComponents(
       new SectionBuilder()
         .addTextDisplayComponents(
           new TextDisplayBuilder().setContent(
-            `### ${client.modules.escapeMarkdown(follower.guildName ?? follower.guildId)}\n**Status:** ${follower.contributor ? "Contributor" : "Read-only"} | **Channel(s):** ${client.modules.escapeMarkdown(channelNames.join(", ") || "None")}`,
+            `### ${client.modules.escapeMarkdown(follower.guildName ?? follower.guildId)}\n**Status:** ${follower.contributor ? "Contributor" : "Read-only"}`,
           ),
         )
         .setButtonAccessory(
           new ButtonBuilder()
-            .setCustomId(`dock-follower-contributor:${dock._id}:${follower.guildId}`)
+            .setCustomId(`dock-alter-follower:${dock._id}:${follower.guildId}`)
             .setLabel(follower.contributor ? "Demote" : "Promote")
             .setStyle(follower.contributor ? ButtonStyle.Danger : ButtonStyle.Success),
         ),
@@ -48,17 +45,17 @@ module.exports = function dockFollowerManagePage({ dock, pages, pageIndex, clien
 
   const pageSelector = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId("dock-followers-prev")
+      .setCustomId("dock-manage-followers-prev")
       .setLabel("Previous")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(pages.length <= 1),
     new ButtonBuilder()
-      .setCustomId("dock-followers-next")
+      .setCustomId("dock-manage-followers-next")
       .setLabel("Next")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(pages.length <= 1),
     new ButtonBuilder()
-      .setCustomId("dock-followers-back")
+      .setCustomId("dock-manage-followers-back")
       .setLabel("Back")
       .setStyle(ButtonStyle.Secondary),
   );

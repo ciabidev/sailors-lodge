@@ -164,7 +164,7 @@ module.exports = {
         const channelIds = selectedChannels.map((channel) => channel.id);
 
         if (
-          !(await interaction.client.modules.dockPermissions.check(interaction, selectedChannels))
+          !(await interaction.client.modules.dockBotPerms.check(interaction, selectedChannels))
         ) {
           return;
         }
@@ -274,7 +274,7 @@ module.exports = {
         const roles = interaction.fields.getSelectedRoles("dock-follow-ping-roles", false);
         const roleIds = roles ? Array.from(roles.keys()) : [];
 
-        if (!(await interaction.client.modules.dockPermissions.check(interaction, channel))) {
+        if (!(await interaction.client.modules.dockBotPerms.check(interaction, channel))) {
           return;
         }
         const existingFollower = await interaction.client.modules.db.getDockFollower(
@@ -493,18 +493,18 @@ module.exports = {
         return;
       }
 
-      if (buttonId === "dock-followers-prev" || buttonId === "dock-followers-next") {
+      if (buttonId === "dock-manage-followers-prev" || buttonId === "dock-manage-followers-next") {
         let state = dockManagePages.get(interaction.user.id);
         if (!state?.followerManager) return;
 
         const pageCount = Math.max(state.followerManager.pages.length, 1);
         state.followerManager.pageIndex =
-          buttonId === "dock-followers-prev"
+          buttonId === "dock-manage-followers-prev"
             ? (state.followerManager.pageIndex - 1 + pageCount) % pageCount
             : (state.followerManager.pageIndex + 1) % pageCount;
 
         await interaction.update({
-          components: interaction.client.modules.dockFollowerManagePage({
+          components: interaction.client.modules.manageFollowersPage({
             dock: state.followerManager.dock,
             pages: state.followerManager.pages,
             pageIndex: state.followerManager.pageIndex,
@@ -516,7 +516,7 @@ module.exports = {
         return;
       }
 
-      if (buttonId === "dock-followers-back") {
+      if (buttonId === "dock-manage-followers-back") {
         let state = dockManagePages.get(interaction.user.id);
         if (!state) return;
 
@@ -693,7 +693,7 @@ module.exports = {
         };
 
         await interaction.update({
-          components: interaction.client.modules.dockFollowerManagePage({
+          components: interaction.client.modules.manageFollowersPage({
             dock,
             pages: state.followerManager.pages,
             pageIndex: state.followerManager.pageIndex,
@@ -705,7 +705,7 @@ module.exports = {
         return;
       }
 
-      if (buttonId.startsWith("dock-follower-contributor")) {
+      if (buttonId.startsWith("dock-alter-follower")) {
         const [, dockId, guildId] = buttonId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
 
@@ -746,7 +746,7 @@ module.exports = {
         };
 
         await interaction.update({
-          components: interaction.client.modules.dockFollowerManagePage({
+          components: interaction.client.modules.manageFollowersPage({
             dock,
             pages: state.followerManager.pages,
             pageIndex: state.followerManager.pageIndex,

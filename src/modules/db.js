@@ -33,7 +33,7 @@ async function initDb() {
     } 
     await migrateDockFollowsCollection();
     await migrateDockFollowers();
-
+    await migrateDockDefaultLevels();
     return db;
   })();
 
@@ -50,6 +50,7 @@ function getCollection(collectionName) {
 }
 
 const ready = initDb();
+
 
 // get settings
 async function getSettings(guildId) {
@@ -139,7 +140,53 @@ async function getSettings(guildId) {
 //     { upsert: true },
 //   );
 // }
+async function migrateDockFollowsCollection() {
+  const migrationClient = new MongoClient(mongoUri);
 
+  try {
+    await migrationClient.connect();
+
+    const database = migrationClient.db(devMode ? "development" : "production");
+
+    const oldExists = await database
+      .listCollections({ name: "dockServers" }, { nameOnly: true })
+      .hasNext();
+
+    const newExists = await database
+      .listCollections({ name: "dockFollows" }, { nameOnly: true })
+      .hasNext();
+
+    if (oldExists && !newExists) {
+      await database.collection("dockServers").rename("dockFollows");
+    }
+  } finally {
+    await migrationClient.close();
+  }
+}
+async function migrateDockFollowers() {
+  const followers = getCollection("dockFollows");
+
+  await followers.updateMany({ level: { $exists: false } }, [
+    {
+      $set: {
+        level: {
+          $cond: ["$contributor", "contributor", "passive"],
+        },
+      },
+    },
+  ]);
+
+  await followers.updateMany({ contributor: { $exists: true } }, { $unset: { contributor: "" } });
+}
+
+async function migrateDockDefaultLevels() {
+  const docks = getCollection("docks");
+
+  await docks.updateMany(
+    { defaultLevel: { $nin: ["passive", "contributor"] } },
+    { $set: { defaultLevel: "passive" } },
+  );
+}
 // set settings
 async function setSettings(guildId, settings) {
   // {
@@ -268,47 +315,6 @@ async function deleteExpiredParties() {
   return expiredParties.length;
 }
 
-async function migrateDockFollowsCollection() {
-  const migrationClient = new MongoClient(mongoUri);
-
-  try {
-    await migrationClient.connect();
-
-    const database = migrationClient.db(devMode ? "development" : "production");
-
-    const oldExists = await database
-      .listCollections({ name: "dockServers" }, { nameOnly: true })
-      .hasNext();
-
-    const newExists = await database
-      .listCollections({ name: "dockFollows" }, { nameOnly: true })
-      .hasNext();
-
-    if (oldExists && !newExists) {
-      await database.collection("dockServers").rename("dockFollows");
-    }
-  } finally {
-    await migrationClient.close();
-  }
-}
-async function migrateDockFollowers() {
-  const followers = getCollection("dockFollows");
-
-  await followers.updateMany({ level: { $exists: false } }, [
-    {
-      $set: {
-        level: {
-          $cond: ["$contributor", "contributor", "passive"],
-        },
-      },
-    },
-  ]);
-
-  await followers.updateMany(
-    { contributor: { $exists: true } },
-    { $unset: { contributor: "" } },
-  );
-}
 
 function startPartyCleanupScheduler() {
   setInterval(() => {

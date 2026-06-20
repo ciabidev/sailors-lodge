@@ -4,7 +4,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
-module.exports = function dockBrowsePage({ pages, pageIndex, client }) {
+module.exports = async function dockBrowsePage({ pages, pageIndex, client }) {
   const page = pages[pageIndex] ?? [];
   const container = new ContainerBuilder().addTextDisplayComponents((t) =>
     t.setContent(`## Browse Docks (Page ${pageIndex + 1}/${pages.length})`),
@@ -16,7 +16,7 @@ module.exports = function dockBrowsePage({ pages, pageIndex, client }) {
       .setLabel(dock.accessMode === "request" ? "Request To Follow" : "Follow")
       .setStyle(ButtonStyle.Success);
 
-    client.modules.getDockDisplay(container, dock, [followButton], client);
+    await client.modules.getDockDisplay(container, dock, [followButton], client);
   }
 
   return container;

@@ -1,14 +1,7 @@
-const {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ContainerBuilder,
-} = require("discord.js");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder } = require("discord.js");
 
 async function addDisplayData(client, dock) {
-  const guild = dock.guildId
-    ? await client.guilds.fetch(dock.guildId).catch(() => null)
-    : null;
+  const guild = dock.guildId ? await client.guilds.fetch(dock.guildId).catch(() => null) : null;
 
   return {
     ...dock,
@@ -21,9 +14,7 @@ async function matchesSearch(client, search, dock) {
   if (!search) return true;
 
   const channels = await Promise.all(
-    (dock.channelIds ?? []).map((channelId) =>
-      client.channels.fetch(channelId).catch(() => null),
-    ),
+    (dock.channelIds ?? []).map((channelId) => client.channels.fetch(channelId).catch(() => null)),
   );
   return [dock.name, dock.description, dock.guildName, ...channels.map((channel) => channel?.name)]
     .filter(Boolean)
@@ -31,17 +22,12 @@ async function matchesSearch(client, search, dock) {
 }
 
 module.exports = async function dockManagePage({ client, state }) {
-
   let followedDocks = await client.modules.db.getFollowedDocksForGuild(state.guildId);
   let publishedDocks = await client.modules.db.getPublishedDocksForGuild(state.guildId);
 
   followedDocks = followedDocks.filter((dock) => dock.guildId !== state.guildId); // every publisher auto follows their own docks so we have to filter the self-follows out
-  followedDocks = await Promise.all(
-    followedDocks.map((dock) => addDisplayData(client, dock)),
-  );
-  publishedDocks = await Promise.all(
-    publishedDocks.map((dock) => addDisplayData(client, dock)),
-  );
+  followedDocks = await Promise.all(followedDocks.map((dock) => addDisplayData(client, dock)));
+  publishedDocks = await Promise.all(publishedDocks.map((dock) => addDisplayData(client, dock)));
 
   const followedMatches = await Promise.all(
     followedDocks.map((dock) => matchesSearch(client, state.search, dock)),
@@ -75,6 +61,11 @@ module.exports = async function dockManagePage({ client, state }) {
 
   for (const dock of currentPages[state.pageIndex] ?? []) {
     const fromThisGuild = dock.guildId === state.guildId;
+    const follower = fromThisGuild
+      ? null
+      : await client.modules.db.getDockFollower(dock._id, state.guildId);
+    const canManageFollowers =
+      fromThisGuild || client.modules.dockLevels.canManage(follower?.level);
     const buttons = [
       new ButtonBuilder()
         .setCustomId(`dock-configure-${fromThisGuild ? "owner" : "follower"}:${dock._id}`)
@@ -88,6 +79,9 @@ module.exports = async function dockManagePage({ client, state }) {
           .setCustomId(`dock-home-ping-roles:${dock._id}`)
           .setLabel("Home Ping Roles")
           .setStyle(ButtonStyle.Secondary),
+      );
+      
+      buttons.push(
         new ButtonBuilder()
           .setCustomId(`dock-manage-followers:${dock._id}`)
           .setLabel("Manage Followers")
@@ -98,6 +92,14 @@ module.exports = async function dockManagePage({ client, state }) {
           .setStyle(ButtonStyle.Danger),
       );
     } else {
+      if (canManageFollowers) {
+        buttons.push(
+          new ButtonBuilder()
+            .setCustomId(`dock-manage-followers:${dock._id}`)
+            .setLabel("Manage Followers")
+            .setStyle(ButtonStyle.Secondary),
+        );
+      }
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`dock-unfollow:${dock._id}`)

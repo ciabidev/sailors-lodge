@@ -1,4 +1,5 @@
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const dockLevels = require("./dockLevels");
 const mongoUri = process.env.MONGO_URI;
 const devMode = process.env.DEV_MODE === 'true';
 
@@ -33,7 +34,8 @@ async function initDb() {
     } 
     await migrateDockFollowsCollection();
     await migrateDockFollowers();
-    await migrateDockDefaultLevels();
+    await migrateDockDefaultLevels()
+    console.log("MongoDB connected")
     return db;
   })();
 
@@ -177,14 +179,18 @@ async function migrateDockFollowers() {
   ]);
 
   await followers.updateMany({ contributor: { $exists: true } }, { $unset: { contributor: "" } });
+  await followers.updateMany(
+    { level: { $nin: dockLevels.order } },
+    { $set: { level: dockLevels.DEFAULT_LEVEL } },
+  );
 }
 
 async function migrateDockDefaultLevels() {
   const docks = getCollection("docks");
 
   await docks.updateMany(
-    { defaultLevel: { $nin: ["passive", "contributor"] } },
-    { $set: { defaultLevel: "passive" } },
+    { defaultLevel: { $nin: dockLevels.order } },
+    { $set: { defaultLevel: dockLevels.DEFAULT_LEVEL } },
   );
 }
 // set settings
@@ -476,7 +482,7 @@ async function createDock(
   keywords = [],
   publishMode = "manual",
   accessMode = "open",
-  defaultLevel = "passive",
+  defaultLevel = dockLevels.DEFAULT_LEVEL,
 ) {
   const docks = getCollection("docks");
   return docks.insertOne({
@@ -524,16 +530,16 @@ async function setDockFollower(dockId, guildId, changes = {}) {
   delete fields.createdAt;
   delete fields.contributor;
 
-  if ("level" in fields && !["passive", "contributor"].includes(fields.level)) {
+  if ("level" in fields && !dockLevels.isValid(fields.level)) {
     throw new Error(`Invalid Dock follower level: ${fields.level}`);
-  }
+  } // to catch typos like contributer instead of contributor
 
   const setOnInsert = {
     dockId: dockObjectId,
     guildId,
     createdAt: new Date(),
   };
-  if (!("level" in fields)) setOnInsert.level = "passive";
+  if (!("level" in fields)) setOnInsert.level = dockLevels.DEFAULT_LEVEL;
 
   const update = { $setOnInsert: setOnInsert };
   if (Object.keys(fields).length) update.$set = fields;

@@ -50,7 +50,7 @@ module.exports = async function getDockDisplay(container, dock, buttons, client)
 
   container.addTextDisplayComponents((t) =>
     t.setContent(
-      `**Publisher:** ${client.modules.escapeMarkdown(dockPublisher)}\n**Channel(s):** ${client.modules.escapeMarkdown(channelNames || "Unknown channel")}\n**Default Perms:** ${dock.defaultLevel ?? "passive"}`,
+      `**Publisher:** ${client.modules.escapeMarkdown(dockPublisher)}\n**Channel(s):** ${client.modules.escapeMarkdown(channelNames || "Unknown channel")}\n**Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}`,
     ),
   );
 

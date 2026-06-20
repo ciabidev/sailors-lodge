@@ -1,5 +1,13 @@
-const { MessageFlags } = require("discord.js");
+const {
+  MessageFlags,
+  ContainerBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+} = require("discord.js");
 function getPartyIdFromComponents(message) {
+  if (!message.components) return null;
   for (const row of message.components ?? []) {
     for (const component of row.components ?? []) {
       const customId = component.customId;
@@ -15,6 +23,48 @@ function isPartyCard(message) {
   return Boolean(getPartyIdFromComponents(message));
 }
 
+async function repliedToReference({ message, receivingFollower, channel }) {
+  // check if the message is replying to another message and relay the reference too
+  if (!message.reference?.messageId) return null;
+
+  const original = await message.fetchReference().catch(() => null); // the original message that is being replied to
+  if (!original) return null;
+  const dockMessage = await message.client.modules.db.getDockMessageFromRoot(
+    original.channel.id,
+    original.id,
+  ); // find the dock message of the replied to message
+
+  let delivery = null;
+  let relayed = null;
+  if (dockMessage) {
+    delivery = dockMessage.deliveries?.find(
+      (d) => d.guildId === receivingFollower.guildId && d.channelId === channel.id,
+    );
+    if (!delivery) return null;
+    relayed = await channel.messages.fetch(delivery.messageId).catch(() => null);
+    if (!relayed) return null;
+  }
+
+  const embed = new EmbedBuilder()
+    .setAuthor({
+      name: `Reply to ${original.author.username}`,
+      iconURL: original.author.displayAvatarURL(),
+    })
+    .setDescription(original.content?.slice(0, 4096) || "*No text content*");
+  let row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setURL(original.url)
+      .setLabel("Jump to reply (in original server)")
+      .setStyle(ButtonStyle.Link),
+  );
+  if (dockMessage) {
+    row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setURL(relayed.url).setLabel("Jump to reply").setStyle(ButtonStyle.Link),
+    );
+  }  
+
+  return { embed, row };
+}
 async function getWritableConnections(client, channelId, guildId) {
   // one channel can follow multiple docks, so return the docks as dock and its follower settings together
   // each follower can have different contributor access, ping roles, and a guild name used in the relay label
@@ -27,7 +77,7 @@ async function getWritableConnections(client, channelId, guildId) {
   );
 
   return connections.filter(
-    ({ dock, follower }) => dock && (dock.guildId === guildId || follower.contributor === true), // only writable connections are returned here or normal followers could publish back into a dock
+    ({ dock, follower }) => dock && (dock.guildId === guildId || follower.level === "contributor"), // only writable connections are returned here or normal followers could publish back into a dock
   );
 }
 
@@ -45,12 +95,11 @@ async function getDockWebhook(client, channel, dockFollower) {
     avatar: client.user.displayAvatarURL(),
   });
 
-  await client.modules.db.setDockWebhook(
-    dockFollower.guildId,
-    dockFollower.guildName,
-    webhook.id,
-    webhook.token,
-  );
+  await client.modules.db.setDockWebhook(dockFollower.guildId, {
+    guildName: dockFollower.guildName,
+    webhookId: webhook.id,
+    webhookToken: webhook.token,
+  });
 
   return webhook;
 }
@@ -71,7 +120,6 @@ function getRelayContent(message, options = {}) {
 
   // join the content with the newlines and append a single > to the beginning of the content
   return `> -# ***➡️ Forwarded***\n> ${content.split("\n").join("\n> ")}`;
-
 }
 
 function getRelayEmbeds(message) {
@@ -205,7 +253,7 @@ async function relayThreadMessage(message) {
       dock._id,
       sendingThread.guildId,
     );
-    if (sendingFollower?.contributor !== true) return;
+    if (sendingFollower?.level !== "contributor") return;
   }
   // build the message payload
   const username = `${message.author.username} [${dock.name}] [${sendingThread.guildName}]`;
@@ -254,7 +302,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
 
   const dock = await message.client.modules.db.getDock(sendingFollower?.dockId);
   if (!dock) return;
-  if (dock.guildId !== sendingFollower.guildId && sendingFollower.contributor !== true) return;
+  if (dock.guildId !== sendingFollower.guildId && sendingFollower.level !== "contributor") return;
 
   const receivingFollowers = (await message.client.modules.db.getDockFollowers(dock._id))
     .map((dockFollower) => ({
@@ -299,16 +347,26 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         allowedMentions: { users: [message.author.id] },
         flags: components.length ? [MessageFlags.IsComponentsV2] : undefined,
       };
-      
+
+      if (message.reference?.messageId) {
+        const reply = await repliedToReference({ message, receivingFollower, channel });
+
+        if (reply) {
+          messagePayload.embeds = [reply.embed, ...messagePayload.embeds];
+          messagePayload.components = [reply.row];
+        }
+      }
       const relayedMessage = await webhook.send(messagePayload);
       let pingRoles = [];
 
       if (isDockPing) {
-        pingRoles = [...new Set(
-          (dockPing.keywords ?? []).flatMap((keyword) =>
-            receivingFollower.keywordPings?.[keyword] ?? [],
+        pingRoles = [
+          ...new Set(
+            (dockPing.keywords ?? []).flatMap(
+              (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
+            ),
           ),
-        )];
+        ];
         const pingContent = `${dock.name} ping triggered by ${dockPing.username}>!`;
         messagePayload.content = pingRoles.length
           ? `${pingRoles.map((roleId) => `<@&${roleId}>`).join(" ")} ${pingContent}`
@@ -317,7 +375,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         messagePayload.allowedMentions.roles = pingRoles;
         delete messagePayload.username;
         delete messagePayload.avatarURL;
-        
+
         await channel.send(messagePayload);
       }
 
@@ -330,12 +388,11 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           keywordPings: pingRoles,
         },
       ]);
-
     }
   }
 }
 
-async function relayAlert({ client, dockId, ...payload }) { 
+async function relayAlert({ client, dockId, ...payload }) {
   const dock = await client.modules.db.getDock(dockId);
   if (!dock) return;
 
@@ -347,7 +404,8 @@ async function relayAlert({ client, dockId, ...payload }) {
       const channel = await client.channels.fetch(channelId).catch(() => null);
       if (!channel) continue;
 
-      if (payload.party) { // all party cards in docks get relayed as alerts so we need to detect party cards and rebuild them here
+      if (payload.party) {
+        // all party cards in docks get relayed as alerts so we need to detect party cards and rebuild them here
         // we cant rebuild them in messageCreate cause thats not where the party card gets relayed obv
         if (channelId === payload.sourceChannelId) continue;
 
@@ -365,10 +423,7 @@ async function relayAlert({ client, dockId, ...payload }) {
           client.dockRelayedPartyCardMessages = new Set();
         }
         client.dockRelayedPartyCardMessages.add(message.id);
-        setTimeout(
-          () => client.dockRelayedPartyCardMessages.delete(message.id),
-          60 * 60 * 1000,
-        );
+        setTimeout(() => client.dockRelayedPartyCardMessages.delete(message.id), 60 * 60 * 1000);
 
         await client.modules.db.addPartyCardMessage(payload.party._id, {
           channelId,
@@ -407,4 +462,4 @@ module.exports = {
   relayMessage,
   relayThread,
   relayThreadMessage,
-}
+};

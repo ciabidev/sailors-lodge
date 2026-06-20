@@ -16,6 +16,19 @@ module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }
     ),
   );
 
+  container.addSectionComponents(
+    new SectionBuilder()
+      .addTextDisplayComponents((text) =>
+        text.setContent("Configure the default permission level for new followers."),
+      )
+      .setButtonAccessory(
+        new ButtonBuilder()
+          .setCustomId(`dock-manage-default-level:${dock._id}`)
+          .setLabel("Set Default Level")
+          .setStyle(ButtonStyle.Primary),
+      ),
+  );
+
   if (!page.length) {
     container.addTextDisplayComponents((t) =>
       t.setContent("This Dock doesn't have any followers yet."),
@@ -28,14 +41,14 @@ module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }
       new SectionBuilder()
         .addTextDisplayComponents(
           new TextDisplayBuilder().setContent(
-            `### ${client.modules.escapeMarkdown(follower.guildName ?? follower.guildId)}\n**Status:** ${follower.contributor ? "Contributor" : "Read-only"}`,
+            `### ${client.modules.escapeMarkdown(follower.guildName ?? follower.guildId)}\n**Status:** ${follower.level === "contributor" ? "Contributor" : "Read-only"}`,
           ),
         )
         .setButtonAccessory(
           new ButtonBuilder()
             .setCustomId(`dock-alter-follower:${dock._id}:${follower.guildId}`)
-            .setLabel(follower.contributor ? "Demote" : "Promote")
-            .setStyle(follower.contributor ? ButtonStyle.Danger : ButtonStyle.Success),
+            .setLabel(follower.level === "contributor" ? "Demote" : "Promote")
+            .setStyle(follower.level === "contributor" ? ButtonStyle.Danger : ButtonStyle.Success),
         ),
     );
     container.addSeparatorComponents((s) =>

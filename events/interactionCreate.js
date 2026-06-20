@@ -228,9 +228,11 @@ module.exports = {
           await interaction.client.modules.db.setDockFollower(
             dockId,
             interaction.guildId,
-            interaction.guild.name,
-            channelIds,
-            [],
+            {
+              guildName: interaction.guild.name,
+              channelIds,
+              keywordPings: {},
+            },
           );
 
           return interaction.reply({
@@ -254,9 +256,11 @@ module.exports = {
         await interaction.client.modules.db.setDockFollower(
           createdDock.insertedId,
           interaction.guildId,
-          interaction.guild.name,
-          channelIds,
-          [],
+          {
+            guildName: interaction.guild.name,
+            channelIds,
+            keywordPings: {},
+          },
         );
 
         return interaction.reply({
@@ -320,15 +324,20 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-
-        await interaction.client.modules.db.setDockFollower(
-          dockId,
-          interaction.guildId,
-          interaction.guild.name,
-          [channelId],
-          currentKeywordPings,
-        );
         const dock = await interaction.client.modules.db.getDock(dockId);
+        if (!dock) {
+          return interaction.reply({
+            content: "I couldn't find that Dock anymore.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
+          guildName: interaction.guild.name,
+          channelIds: [channelId],
+          keywordPings: currentKeywordPings,
+          level: isConfiguringFollower ? undefined : (dock.defaultLevel ?? "passive"),
+        });
 
         interaction.reply({
           content:
@@ -378,9 +387,11 @@ module.exports = {
         await interaction.client.modules.db.setDockFollower(
           dockId,
           interaction.guildId,
-          interaction.guild.name,
-          channelIds,
-          keywordPings,
+          {
+            guildName: interaction.guild.name,
+            channelIds,
+            keywordPings,
+          },
         );
 
         await interaction.reply({
@@ -388,6 +399,28 @@ module.exports = {
           flags: MessageFlags.Ephemeral,
         });
       } 
+
+      [modalId, dockId] = interaction.customId.split(":");
+      if (modalId === "dock-default-level") {
+        const dock = await interaction.client.modules.db.getDock(dockId);
+
+        if (!dock || dock.guildId !== interaction.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        const level = interaction.fields.getStringSelectValues("level")[0];
+        await interaction.client.modules.db.updateDock(dockId, {
+          $set: {
+            defaultLevel: level,
+          },
+        });
+        return interaction.reply({
+          content: `Updated ${dock.name} default follower level to ${level}.`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
     }
     async function handlePartyButton(interaction) {
       const btn = interaction;
@@ -465,7 +498,7 @@ module.exports = {
 
         return;
       }
-
+    
       if (buttonId === "docks-manage-prev" || buttonId === "docks-manage-next") {
         let state = dockManagePages.get(interaction.user.id);
         if (!state) return;
@@ -731,12 +764,8 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-
-        await interaction.client.modules.db.setDockFollowerContributor(
-          dockId,
-          guildId,
-          follower.contributor !== true,
-        );
+        const level = follower.level === "contributor" ? "passive" : "contributor";
+        await interaction.client.modules.db.setDockFollower(dockId, guildId, { level });
 
         const followers = (await interaction.client.modules.db.getDockFollowers(dockId))
           .filter((follower) => follower.guildId !== dock.guildId)
@@ -763,6 +792,19 @@ module.exports = {
           flags: interaction.message.flags,
         });
 
+        return;
+      }
+
+      if (interaction.customId.startsWith("dock-manage-default-level")) {
+        const [, dockId] = interaction.customId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+        if (!dock || dock.guildId !== interaction.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        interaction.client.modules.dockDefaultLevelModal(interaction, dockId);
         return;
       }
 

@@ -77,7 +77,7 @@ async function getWritableConnections(client, channelId, guildId) {
   );
 
   return connections.filter(
-    ({ dock, follower }) => dock && (dock.guildId === guildId || follower.contributor === true), // only writable connections are returned here or normal followers could publish back into a dock
+    ({ dock, follower }) => dock && (dock.guildId === guildId || follower.level === "contributor"), // only writable connections are returned here or normal followers could publish back into a dock
   );
 }
 
@@ -95,12 +95,11 @@ async function getDockWebhook(client, channel, dockFollower) {
     avatar: client.user.displayAvatarURL(),
   });
 
-  await client.modules.db.setDockWebhook(
-    dockFollower.guildId,
-    dockFollower.guildName,
-    webhook.id,
-    webhook.token,
-  );
+  await client.modules.db.setDockWebhook(dockFollower.guildId, {
+    guildName: dockFollower.guildName,
+    webhookId: webhook.id,
+    webhookToken: webhook.token,
+  });
 
   return webhook;
 }
@@ -254,7 +253,7 @@ async function relayThreadMessage(message) {
       dock._id,
       sendingThread.guildId,
     );
-    if (sendingFollower?.contributor !== true) return;
+    if (sendingFollower?.level !== "contributor") return;
   }
   // build the message payload
   const username = `${message.author.username} [${dock.name}] [${sendingThread.guildName}]`;
@@ -303,7 +302,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
 
   const dock = await message.client.modules.db.getDock(sendingFollower?.dockId);
   if (!dock) return;
-  if (dock.guildId !== sendingFollower.guildId && sendingFollower.contributor !== true) return;
+  if (dock.guildId !== sendingFollower.guildId && sendingFollower.level !== "contributor") return;
 
   const receivingFollowers = (await message.client.modules.db.getDockFollowers(dock._id))
     .map((dockFollower) => ({

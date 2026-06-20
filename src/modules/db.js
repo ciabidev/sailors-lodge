@@ -30,7 +30,10 @@ async function initDb() {
     if (!cleanupSchedulerStarted) {
       startPartyCleanupScheduler();
       cleanupSchedulerStarted = true;
-    }
+    } 
+    await migrateDockFollowsCollection();
+    await migrateDockFollowers();
+
     return db;
   })();
 
@@ -265,6 +268,48 @@ async function deleteExpiredParties() {
   return expiredParties.length;
 }
 
+async function migrateDockFollowsCollection() {
+  const migrationClient = new MongoClient(mongoUri);
+
+  try {
+    await migrationClient.connect();
+
+    const database = migrationClient.db(devMode ? "development" : "production");
+
+    const oldExists = await database
+      .listCollections({ name: "dockServers" }, { nameOnly: true })
+      .hasNext();
+
+    const newExists = await database
+      .listCollections({ name: "dockFollows" }, { nameOnly: true })
+      .hasNext();
+
+    if (oldExists && !newExists) {
+      await database.collection("dockServers").rename("dockFollows");
+    }
+  } finally {
+    await migrationClient.close();
+  }
+}
+async function migrateDockFollowers() {
+  const followers = getCollection("dockFollows");
+
+  await followers.updateMany({ level: { $exists: false } }, [
+    {
+      $set: {
+        level: {
+          $cond: ["$contributor", "contributor", "passive"],
+        },
+      },
+    },
+  ]);
+
+  await followers.updateMany(
+    { contributor: { $exists: true } },
+    { $unset: { contributor: "" } },
+  );
+}
+
 function startPartyCleanupScheduler() {
   setInterval(() => {
     deleteExpiredParties().catch((err) => {
@@ -361,7 +406,7 @@ async function removePartyCardMessage(messageId) {
 
 // ## Changes
 // - [x] Add `docks` collection (publisher id/name, channel ids, title, description, publish mode, keywords, directory visibility, access mode)
-// - [x] Add `dockServers` collection (dock id, follower id/name, receiving channels, ping roles)
+// - [x] Add `dockFollows` collection (dock id, follower id/name, receiving channels, ping roles)
 // - [x] Add `/dock publish` command with modal
 // - [x] Add `/dock browse` command displaying the public dock directory with follow buttons
 // - [x] Add `/dock edit` command for dock owners to view, edit, and remove their docks
@@ -402,17 +447,17 @@ const getDocksFromChannelId = async (channelId) => {
 
 
 async function getDockFollowers(dockId) {
-  const dockFollowers = getCollection("dockServers");
+  const dockFollowers = getCollection("dockFollows");
   return dockFollowers.find({ dockId: new ObjectId(dockId) }).toArray();
 }
 
 async function getManyDockFollowers(dockIds) {
-  const dockFollowers = getCollection("dockServers");
+  const dockFollowers = getCollection("dockFollows");
   return dockFollowers.find({ dockId: { $in: dockIds } }).toArray();
 }
 
 async function getDockFollowsForChannel(channelId) { // channels can follow multiple docks so this needs to return all matches
-  const dockFollowers = getCollection("dockServers");
+  const dockFollowers = getCollection("dockFollows");
   return dockFollowers.find({ channelIds: channelId }).toArray();
 }
 
@@ -425,6 +470,7 @@ async function createDock(
   keywords = [],
   publishMode = "manual",
   accessMode = "open",
+  defaultLevel = "passive",
 ) {
   const docks = getCollection("docks");
   return docks.insertOne({
@@ -436,6 +482,7 @@ async function createDock(
     keywords,
     publishMode,
     accessMode,
+    defaultLevel,
     createdAt: new Date(),
   });
 }
@@ -454,56 +501,56 @@ async function updateDock(dockId, update) {
 async function removeDock(dockId) {
   const docks = getCollection("docks");
   await docks.deleteOne({ _id: new ObjectId(dockId) });
-  const dockFollowers = getCollection("dockServers");
+  const dockFollowers = getCollection("dockFollows");
   return dockFollowers.deleteMany({ dockId: new ObjectId(dockId) });
 }
 
-async function addDockFollower(dockId, guildId, guildName, channelIds = [], keywordPings = {}) {
-  return setDockFollower(dockId, guildId, guildName, channelIds, keywordPings);
-}
-
-async function setDockFollower(dockId, guildId, guildName, channelIds = [], keywordPings = {}) {
-  const dockFollowers = getCollection("dockServers");
+async function setDockFollower(dockId, guildId, changes = {}) {
+  const dockFollowers = getCollection("dockFollows");
   const dockObjectId = new ObjectId(dockId);
+
+  const fields = Object.fromEntries(
+    Object.entries(changes).filter(([, value]) => value !== undefined),
+  );
+  delete fields._id;
+  delete fields.dockId;
+  delete fields.guildId;
+  delete fields.createdAt;
+  delete fields.contributor;
+
+  if ("level" in fields && !["passive", "contributor"].includes(fields.level)) {
+    throw new Error(`Invalid Dock follower level: ${fields.level}`);
+  }
+
+  const setOnInsert = {
+    dockId: dockObjectId,
+    guildId,
+    createdAt: new Date(),
+  };
+  if (!("level" in fields)) setOnInsert.level = "passive";
+
+  const update = { $setOnInsert: setOnInsert };
+  if (Object.keys(fields).length) update.$set = fields;
+
   return dockFollowers.updateOne(
     { dockId: dockObjectId, guildId },
-    {
-      $set: {
-        guildName,
-        channelIds,
-        keywordPings,
-      },
-      $setOnInsert: {
-        dockId: dockObjectId,
-        guildId,
-        contributor: false,
-        createdAt: new Date(),
-      },
-    },
+    update,
     { upsert: true },
   );
 }
 
-async function setDockFollowerContributor(dockId, guildId, contributor) {
-  const dockFollowers = getCollection("dockServers");
-  return dockFollowers.updateOne(
-    { dockId: new ObjectId(dockId), guildId },
-    { $set: { contributor } },
-  );
-}
-
 async function removeDockFollower(dockId, guildId) {
-  const dockFollowers = getCollection("dockServers");
+  const dockFollowers = getCollection("dockFollows");
   return dockFollowers.deleteOne({ dockId: new ObjectId(dockId), guildId });
 }
 
 async function getDockFollower(dockId, guildId) {
-  const dockFollowers = getCollection("dockServers");
+  const dockFollowers = getCollection("dockFollows");
   return dockFollowers.findOne({ dockId: new ObjectId(dockId), guildId });
 }
 
 async function getFollowedDocksForGuild(guildId) {
-  const dockFollowers = getCollection("dockServers");
+  const dockFollowers = getCollection("dockFollows");
   const dockFollowsForGuild = await dockFollowers.find({ guildId }).toArray();
   if (!dockFollowsForGuild.length) return [];
 
@@ -525,15 +572,20 @@ async function getDockWebhook(guildId) {
   return dockWebhooks.findOne({ guildId });
 }
 
-async function setDockWebhook(guildId, guildName, webhookId, webhookToken) { // each follower has a singular webhook to manage all dock messages
+async function setDockWebhook(guildId, changes = {}) { // each follower has a singular webhook to manage all dock messages
   const dockWebhooks = getCollection("dockWebhooks");
+  const fields = Object.fromEntries(
+    Object.entries(changes).filter(([, value]) => value !== undefined),
+  );
+  delete fields._id;
+  delete fields.guildId;
+  delete fields.createdAt;
+
   return dockWebhooks.updateOne(
     { guildId },
     {
       $set: {
-        guildName,
-        webhookId,
-        webhookToken,
+        ...fields,
         updatedAt: new Date(),
       },
       $setOnInsert: {
@@ -675,9 +727,7 @@ module.exports = {
   createDock,
   updateDock,
   removeDock,
-  addDockFollower,
   setDockFollower,
-  setDockFollowerContributor,
   removeDockFollower,
   getDockFollower,
   getFollowedDocksForGuild,

@@ -14,6 +14,10 @@ module.exports = async function updateDockManagePage(interaction, options = {}) 
 
   const { mode, resetPage = mode !== undefined, pageIndex } = options;
   if (mode === "published" || mode === "following") state.mode = mode;
+  if (options.search !== undefined) {
+    state.search = options.search.trim().toLowerCase();
+    state.pageIndex = 0;
+  }
   if (pageIndex !== undefined) state.pageIndex = pageIndex;
   if (resetPage) state.pageIndex = 0;
   delete state.followerManager;

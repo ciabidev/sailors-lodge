@@ -7,6 +7,10 @@ const {
   ChannelType,
   Events,
   ContainerBuilder,
+  LabelBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } = require("discord.js");
 const { ObjectId } = require("mongodb");
 
@@ -40,6 +44,15 @@ module.exports = {
       let dockId;
       let partyId;
       let dmFlag;
+
+      if (interaction.customId === "docks-browse-search-modal") {
+        const search = interaction.fields.getTextInputValue("search");
+        return interaction.client.modules.updateDockBrowsePage(interaction, { search });
+      }
+      if (interaction.customId === "docks-manage-search-modal") {
+        const search = interaction.fields.getTextInputValue("search");
+        return interaction.client.modules.updateDockManagePage(interaction, { search });
+      }
 
       [modalId, partyId, dmFlag] = interaction.customId.split(":");
       if (modalId === "party-modal") {
@@ -489,29 +502,67 @@ module.exports = {
       const buttonId = interaction.customId;
       let [action] = buttonId.split(":");
 
+      if (buttonId === "docks-browse-search") {
+        const state = dockBrowsePages.get(interaction.user.id);
+        if (!state) return interaction.client.modules.updateDockBrowsePage(interaction);
+
+        const searchInput = new TextInputBuilder()
+          .setCustomId("search")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("Dock name, publisher, or channel")
+          .setRequired(false);
+        if (state.search) searchInput.setValue(state.search);
+
+        return interaction.showModal(
+          new ModalBuilder()
+            .setCustomId("docks-browse-search-modal")
+            .setTitle("Search Docks")
+            .addLabelComponents(
+              new LabelBuilder().setLabel("Search").setTextInputComponent(searchInput),
+            ),
+        );
+      }
+
+      if (buttonId === "docks-browse-search-clear") {
+        return interaction.client.modules.updateDockBrowsePage(interaction, { search: "" });
+      }
+
+      if (buttonId === "docks-manage-search") {
+        const state = dockManagePages.get(interaction.user.id);
+        if (!state) return interaction.client.modules.updateDockManagePage(interaction);
+
+        const searchInput = new TextInputBuilder()
+          .setCustomId("search")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("Dock name, publisher, or channel")
+          .setRequired(false);
+        if (state.search) searchInput.setValue(state.search);
+
+        return interaction.showModal(
+          new ModalBuilder()
+            .setCustomId("docks-manage-search-modal")
+            .setTitle("Search Managed Docks")
+            .addLabelComponents(
+              new LabelBuilder().setLabel("Search").setTextInputComponent(searchInput),
+            ),
+        );
+      }
+
+      if (buttonId === "docks-manage-search-clear") {
+        return interaction.client.modules.updateDockManagePage(interaction, { search: "" });
+      }
+
       if (buttonId === "docks-prev" || buttonId === "docks-next") {
-        let state = dockBrowsePages.get(interaction.user.id);
-        if (!state) return;
+        const state = dockBrowsePages.get(interaction.user.id);
+        if (!state) return interaction.client.modules.updateDockBrowsePage(interaction);
 
-        let { pages } = state;
-
-        state.pageIndex =
+        const pageCount = Math.max(state.pageCount, 1);
+        const pageIndex =
           buttonId === "docks-prev"
-            ? (state.pageIndex - 1 + pages.length) % pages.length
-            : (state.pageIndex + 1) % pages.length;
+            ? (state.pageIndex - 1 + pageCount) % pageCount
+            : (state.pageIndex + 1) % pageCount;
 
-        await interaction.update({
-          components: [
-            await interaction.client.modules.dockBrowsePage({
-              pages,
-              pageIndex: state.pageIndex,
-              client: interaction.client,
-            }),
-            interaction.message.components[1],
-          ],
-        });
-
-        return;
+        return interaction.client.modules.updateDockBrowsePage(interaction, { pageIndex });
       }
 
       if (buttonId === "docks-manage-prev" || buttonId === "docks-manage-next") {

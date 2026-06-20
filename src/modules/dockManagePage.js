@@ -11,14 +11,17 @@ async function addDisplayData(client, dock) {
 }
 
 async function matchesSearch(client, search, dock) {
-  if (!search) return true;
+  if (!search?.trim()) return true;
 
   const channels = await Promise.all(
     (dock.channelIds ?? []).map((channelId) => client.channels.fetch(channelId).catch(() => null)),
   );
-  return [dock.name, dock.description, dock.guildName, ...channels.map((channel) => channel?.name)]
-    .filter(Boolean)
-    .some((value) => value.toLowerCase().includes(search));
+  return client.modules.matchesSearch(search, [
+    dock.name,
+    dock.description,
+    dock.guildName,
+    channels.map((channel) => channel?.name),
+  ]);
 }
 
 module.exports = async function dockManagePage({ client, state }) {
@@ -53,6 +56,22 @@ module.exports = async function dockManagePage({ client, state }) {
 
   const title =
     state.mode === "published" ? "👑 Manage Published Docks" : "🌐 Manage Followed Docks";
+  const searchRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("docks-manage-search")
+      .setLabel(state.search ? `Search: ${state.search.slice(0, 65)}` : "Search Docks")
+      .setEmoji("🔎")
+      .setStyle(ButtonStyle.Secondary),
+  );
+  if (state.search) {
+    searchRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId("docks-manage-search-clear")
+        .setLabel("Clear")
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+
   const container = new ContainerBuilder().addTextDisplayComponents((text) =>
     text.setContent(
       `## ${title} (Page ${state.pageIndex + 1}/${Math.max(currentPages.length, 1)})`,
@@ -151,7 +170,7 @@ module.exports = async function dockManagePage({ client, state }) {
   );
 
   return {
-    components: [container, modeSelector, pageSelector],
+    components: [searchRow, container, modeSelector, pageSelector],
     hasDocks: publishedDocks.length > 0 || followedDocks.length > 0,
   };
 };

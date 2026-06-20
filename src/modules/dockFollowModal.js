@@ -13,7 +13,6 @@ module.exports = async function dockFollowModal(
   customId = "dock-follow-modal",
   defaults = {},
 ) {
-  const isHomePingRoles = customId === "dock-home-ping-roles";
   const channelSelect = new ChannelSelectMenuBuilder()
     .setCustomId("dock-follow-channel")
     .setChannelTypes([ChannelType.GuildText, ChannelType.GuildAnnouncement])
@@ -28,7 +27,7 @@ module.exports = async function dockFollowModal(
         .setCustomId("keyword")
         .setPlaceholder("Select a keyword")
         .setMinValues(1)
-        .setMaxValues(1)
+        .setMaxValues(keywords.length)
         .addOptions(
           keywords.map((keyword) => ({
             label: keyword.slice(0, 100),
@@ -44,10 +43,10 @@ module.exports = async function dockFollowModal(
     channelSelect.setDefaultChannels(defaults.channelIds.slice(0, 1));
   }
   const modal = new ModalBuilder()
-    .setTitle(isHomePingRoles ? "Home Ping Roles" : "Dock Follow Settings")
+    .setTitle(customId === "dock-home-ping-roles" ? "Home Ping Roles" : "Dock Follow Settings")
     .setCustomId(`${customId}:${dockId}`);
 
-  if (!isHomePingRoles) {
+  if (customId !== "dock-home-ping-roles") {
     modal.addLabelComponents(
       new LabelBuilder()
         .setLabel("Set receiving channel")
@@ -60,8 +59,8 @@ module.exports = async function dockFollowModal(
     modal
       .addLabelComponents(
         new LabelBuilder()
-          .setLabel("Set keyword")
-          .setDescription("Choose a keyword to assign ping roles to")
+          .setLabel("Select keywords")
+          .setDescription("Select keywords to assign ping roles to. More pings be added later")
           .setStringSelectMenuComponent(keywordSelect),
       )
       .addLabelComponents(

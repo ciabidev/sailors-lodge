@@ -61,9 +61,7 @@ module.exports = async function dockManagePage({ client, state }) {
 
   for (const dock of currentPages[state.pageIndex] ?? []) {
     const fromThisGuild = dock.guildId === state.guildId;
-    const follower = fromThisGuild
-      ? null
-      : await client.modules.db.getDockFollower(dock._id, state.guildId);
+    const follower = await client.modules.db.getDockFollower(dock._id, state.guildId);
     const canManageFollowers =
       fromThisGuild || client.modules.dockLevels.canManage(follower?.level);
     const buttons = [
@@ -77,7 +75,7 @@ module.exports = async function dockManagePage({ client, state }) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`dock-home-ping-roles:${dock._id}`)
-          .setLabel("Home Ping Roles")
+          .setLabel("Set Ping Roles")
           .setStyle(ButtonStyle.Secondary),
       );
       
@@ -108,7 +106,13 @@ module.exports = async function dockManagePage({ client, state }) {
       );
     }
 
-    await client.modules.getDockDisplay(container, dock, buttons, client);
+    await client.modules.getDockDisplay(
+      container,
+      dock,
+      buttons,
+      client,
+      state.guildId,
+    );
   }
 
   if (!currentPages.length) {

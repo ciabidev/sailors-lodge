@@ -94,8 +94,6 @@ module.exports = {
             guildId: interaction.guildId,
           });
           await interaction.client.modules.sendPartyTip(interaction.user);
-         
-          
         } else {
           // EDIT branch
           const party = await interaction.client.modules.db.getParty(new ObjectId(partyId));
@@ -169,9 +167,7 @@ module.exports = {
         const selectedChannels = Array.from(channels.values());
         const channelIds = selectedChannels.map((channel) => channel.id);
 
-        if (
-          !(await interaction.client.modules.dockBotPerms.check(interaction, selectedChannels))
-        ) {
+        if (!(await interaction.client.modules.dockBotPerms.check(interaction, selectedChannels))) {
           return;
         }
 
@@ -226,15 +222,11 @@ module.exports = {
               channelNames: "",
             },
           });
-          await interaction.client.modules.db.setDockFollower(
-            dockId,
-            interaction.guildId,
-            {
-              guildName: interaction.guild.name,
-              channelIds,
-              keywordPings: {},
-            },
-          );
+          await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
+            guildName: interaction.guild.name,
+            channelIds,
+            keywordPings: {},
+          });
 
           return interaction.client.modules.updateDockManagePage(interaction);
         }
@@ -262,7 +254,9 @@ module.exports = {
         return interaction.reply({
           content: `Published! ${selectedChannels.length} Channel(s): ${selectedChannels
             .map((channel) => `<#${channel.id}>`)
-            .join(", ")}. \nPlease use \`/dock manage\` to configure your Home Ping Roles, Default Permission Levels and more. `,
+            .join(
+              ", ",
+            )}. \nPlease use \`/dock manage\` to configure your Home Ping Roles, Default Permission Levels and more. `,
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -280,9 +274,7 @@ module.exports = {
         const keyword = hasKeywordField
           ? interaction.fields.getStringSelectValues("keyword")[0]
           : null;
-        const roles = hasKeywordField
-          ? interaction.fields.getSelectedRoles("roles", false)
-          : null;
+        const roles = hasKeywordField ? interaction.fields.getSelectedRoles("roles", false) : null;
         const roleIds = roles ? Array.from(roles.keys()) : [];
 
         if (!(await interaction.client.modules.dockBotPerms.check(interaction, channel))) {
@@ -338,16 +330,13 @@ module.exports = {
         });
 
         interaction.reply({
-          content:
-            isConfiguringFollower
-              ? `Updated Dock \`${dock.name}\` to post in <#${channelId}>.`
-              : `Followed Dock \`${dock.name}\` in <#${channelId}>.`,
+          content: isConfiguringFollower
+            ? `Updated Dock \`${dock.name}\` to post in <#${channelId}>.`
+            : `Followed Dock \`${dock.name}\` in <#${channelId}>.`,
           flags: MessageFlags.Ephemeral,
         });
-        const container = new ContainerBuilder()
-        container.addTextDisplayComponents((t) =>
-          t.setContent(`### New Dock Follower`),
-        );
+        const container = new ContainerBuilder();
+        container.addTextDisplayComponents((t) => t.setContent(`### New Dock Follower`));
         container.addTextDisplayComponents((t) =>
           t.setContent(
             `**${interaction.guild.name}** is now following this dock (\`${interaction.client.modules.escapeMarkdown(
@@ -390,29 +379,27 @@ module.exports = {
         if (!selfFollow) return;
 
         const channelIds = selfFollow?.channelIds?.length ? selfFollow.channelIds : dock.channelIds;
-        const keyword = interaction.fields.getStringSelectValues("keyword")[0];
+        const keywords = interaction.fields.getStringSelectValues("keyword");
         const roles = interaction.fields.getSelectedRoles("roles", false);
         const roleIds = roles ? Array.from(roles.keys()) : [];
         const keywordPings = Array.isArray(selfFollow.keywordPings)
           ? {}
           : { ...(selfFollow.keywordPings ?? {}) };
-        keywordPings[keyword] = roleIds;
+        keywords.forEach((keyword) => {
+          keywordPings[keyword] = roleIds;
+        });
 
-        await interaction.client.modules.db.setDockFollower(
-          dockId,
-          interaction.guildId,
-          {
-            guildName: interaction.guild.name,
-            channelIds,
-            keywordPings,
-          },
-        );
+        await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
+          guildName: interaction.guild.name,
+          channelIds,
+          keywordPings,
+        });
 
         await interaction.reply({
-          content: `Updated \`${interaction.client.modules.escapeMarkdown(keyword)}\` Home Ping Roles for Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\` to ${roleIds.map((roleId) => `<@&${roleId}>`).join(", ") || "none"}.`,
+          content: `Updated \`${interaction.client.modules.escapeMarkdown(keywords.join(", "))}\` Home Ping Roles for Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\` to ${roleIds.map((roleId) => `<@&${roleId}>`).join(", ") || "none"}.`,
           flags: MessageFlags.Ephemeral,
         });
-      } 
+      }
 
       [modalId, dockId] = interaction.customId.split(":");
       if (modalId === "dock-default-level") {
@@ -437,8 +424,15 @@ module.exports = {
             defaultLevel: level,
           },
         });
-        return interaction.reply({
+        return interaction.client.modules.dockRelay.relayAlert({
           content: `Updated ${dock.name} default follower level to ${interaction.client.modules.dockLevels.get(level).label}.`,
+          components: [
+            new ContainerBuilder().addTextDisplayComponents((t) =>
+              t.setContent(
+                `The default level for this dock was changed to ${interaction.client.modules.dockLevels.get(level).label} by **${interaction.guild.name}**`,
+              ),
+            ),
+          ],
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -519,7 +513,7 @@ module.exports = {
 
         return;
       }
-    
+
       if (buttonId === "docks-manage-prev" || buttonId === "docks-manage-next") {
         let state = dockManagePages.get(interaction.user.id);
         if (!state) return interaction.client.modules.updateDockManagePage(interaction);
@@ -612,7 +606,7 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-        
+
         return interaction.client.modules.dockFollowModal(
           interaction,
           dockId,
@@ -722,7 +716,7 @@ module.exports = {
               content: "I couldn't find that Dock in this Discord server.",
               flags: MessageFlags.Ephemeral,
             });
-          } 
+          }
           return interaction.reply({
             content: "You don't have permission to manage this Dock.",
             flags: MessageFlags.Ephemeral,
@@ -736,7 +730,9 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-        await interaction.client.modules.db.setDockFollower(dockId, guildId, { level: newLevel });
+        await interaction.client.modules.db.setDockFollower(dockId, follower.guildId, {
+          level: newLevel,
+        });
         const followers = (await interaction.client.modules.db.getDockFollowers(dockId))
           .filter((follower) => follower.guildId !== dock.guildId)
           .sort((a, b) => (a.guildName ?? "").localeCompare(b.guildName ?? ""));
@@ -746,10 +742,7 @@ module.exports = {
         state.followerManager = {
           dock,
           pages,
-          pageIndex: Math.min(
-            state.followerManager?.pageIndex ?? 0,
-            Math.max(pages.length - 1, 0),
-          ),
+          pageIndex: Math.min(state.followerManager?.pageIndex ?? 0, Math.max(pages.length - 1, 0)),
         };
 
         await interaction.update({
@@ -761,14 +754,25 @@ module.exports = {
           }),
           flags: interaction.message.flags,
         });
-        
-        const guildName = await interaction.client.guilds.fetch(dock.guildId).name;
-        await interaction.client.modules.relayAlert({
+        const guildName = (await interaction.client.guilds.fetch(follower.guildId)).name;
+        const dockLevels = interaction.client.modules.dockLevels;
+
+        const oldLevelIndex = dockLevels.order.indexOf(dockLevels.normalize(follower.level));
+        const newLevelIndex = dockLevels.order.indexOf(newLevel);
+
+        const action = newLevelIndex > oldLevelIndex ? "promoted" : "demoted";
+
+        await interaction.client.modules.dockRelay.relayAlert({
           client: interaction.client,
           dockId,
-          components: [ new ContainerBuilder().addTextDisplayComponents((t) =>
-          t.setContent(`The server **${guildName}** was promoted to ${interaction.client.modules.dockLevels.get(newLevel).label} level.`),
-        )],
+          components: [
+            new ContainerBuilder().addTextDisplayComponents((t) =>
+              t.setContent(
+                `The server **${guildName}** was ${action} to ${dockLevels.get(newLevel).label} by **${interaction.guild.name}**.\n` +
+                  `-# **${dockLevels.get(newLevel).description}**`,
+              ),
+            ),
+          ],
           flags: MessageFlags.IsComponentsV2,
         });
         return;
@@ -790,11 +794,7 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-        interaction.client.modules.dockDefaultLevelModal(
-          interaction,
-          dockId,
-          dock.defaultLevel,
-        );
+        interaction.client.modules.dockDefaultLevelModal(interaction, dockId, dock.defaultLevel);
         return;
       }
 
@@ -809,32 +809,35 @@ module.exports = {
         const [, dockId] = buttonId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
         if (!dock) {
-            return interaction.reply({
-              content: "I couldn't find that Dock",
-              flags: MessageFlags.Ephemeral,
-            });
+          return interaction.reply({
+            content: "I couldn't find that Dock",
+            flags: MessageFlags.Ephemeral,
+          });
         }
 
         await interaction.client.modules.dockRelay.relayAlert({
           client: interaction.client,
           dockId,
-          components: [ new ContainerBuilder().addTextDisplayComponents((t) =>
-          t.setContent(`The server **${interaction.guild.name}** is no longer following this dock.`),
-        )],
+          components: [
+            new ContainerBuilder().addTextDisplayComponents((t) =>
+              t.setContent(
+                `The server **${interaction.guild.name}** is no longer following this dock.`,
+              ),
+            ),
+          ],
           flags: MessageFlags.IsComponentsV2,
         });
 
-
         await interaction.client.modules.db.removeDockFollower(dockId, interaction.guildId);
         await interaction.client.modules.updateDockManagePage(interaction);
-await interaction.followUp({
-  content: `Unfollowed Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\`.`,
-  flags: MessageFlags.Ephemeral,
-});
+        await interaction.followUp({
+          content: `Unfollowed Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\`.`,
+          flags: MessageFlags.Ephemeral,
+        });
       }
 
       if (buttonId.startsWith("dock-delete")) {
-        const [, dockId] = interaction.customId.split(":")
+        const [, dockId] = interaction.customId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
         if (!dock || dock.guildId !== interaction.guildId) {
           return interaction.reply({
@@ -844,18 +847,23 @@ await interaction.followUp({
         }
         const guildName = await interaction.client.guilds.fetch(dock.guildId).name;
 
-        await interaction.client.modules.dockRelay.relayAlert({
-          client: interaction.client,
-          dockId,
-          components: [ new ContainerBuilder().addTextDisplayComponents((t) =>
-          t.setContent(`### Dock Deleted\nThe dock **${interaction.client.modules.escapeMarkdown(dock.name)}** has been deleted by ${guildName}.`),
-        )],
-          flags: MessageFlags.IsComponentsV2,
-        }).then(async () => {
-          await interaction.client.modules.db.removeDock(dock._id);
-          await interaction.client.modules.updateDockManagePage(interaction);
-        });
-
+        await interaction.client.modules.dockRelay
+          .relayAlert({
+            client: interaction.client,
+            dockId,
+            components: [
+              new ContainerBuilder().addTextDisplayComponents((t) =>
+                t.setContent(
+                  `### Dock Deleted\nThe dock **${interaction.client.modules.escapeMarkdown(dock.name)}** has been deleted by ${guildName}.`,
+                ),
+              ),
+            ],
+            flags: MessageFlags.IsComponentsV2,
+          })
+          .then(async () => {
+            await interaction.client.modules.db.removeDock(dock._id);
+            await interaction.client.modules.updateDockManagePage(interaction);
+          });
       }
       // Handle party buttons
       let [, partyId] = buttonId.split(":");

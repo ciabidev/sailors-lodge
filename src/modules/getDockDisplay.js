@@ -49,10 +49,10 @@ module.exports = async function getDockDisplay(
   const displayedDescription = viewingGuildId ? "" : truncatedDescription;
   
   const actionButtons = Array.isArray(buttons) ? buttons.filter(Boolean) : [buttons].filter(Boolean);
-
+  const followerCount = await client.modules.db.countDockFollowers(dock._id) - 1;
   const section = new SectionBuilder().addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `### ${client.modules.escapeMarkdown(dockName)}${displayedDescription ? `\n${displayedDescription}` : ""}`,
+      `### ${client.modules.escapeMarkdown(dockName)}\n-# **Server:** ${client.modules.escapeMarkdown(dockPublisher)} ● **${followerCount} ${followerCount > 1 ? "Followers" : "Follower"}**\n${displayedDescription ? `\n${displayedDescription}` : ""}`,
     ),
   );
 
@@ -68,7 +68,7 @@ module.exports = async function getDockDisplay(
 
   container.addTextDisplayComponents((t) =>
     t.setContent(
-      `**Publisher:** ${client.modules.escapeMarkdown(dockPublisher)}\n**Channel(s):** ${client.modules.escapeMarkdown(channelNames || "Unknown channel")}\n**Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}\n-# **Ping Keywords:** ${pingKeywords.join(" | ") || "None"}`,
+      `**Channel(s):** ${client.modules.escapeMarkdown(channelNames || "Unknown channel")}\n**Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}\n-# **Ping Keywords:** ${pingKeywords.join(" | ") || "None"}`,
     ),
   );
 

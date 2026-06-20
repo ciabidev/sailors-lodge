@@ -561,6 +561,12 @@ async function getDockFollower(dockId, guildId) {
   return dockFollowers.findOne({ dockId: new ObjectId(dockId), guildId });
 }
 
+async function countDockFollowers(dockId) {
+  const dockFollowers = getCollection("dockFollows");
+  let count = await dockFollowers.countDocuments({ dockId: new ObjectId(dockId) });
+  return count;
+}
+
 async function getFollowedDocksForGuild(guildId) {
   const dockFollowers = getCollection("dockFollows");
   const dockFollowsForGuild = await dockFollowers.find({ guildId }).toArray();
@@ -736,6 +742,7 @@ module.exports = {
   getDocks,
   getDock,
   getDockFollowers,
+  countDockFollowers,
   createDock,
   updateDock,
   removeDock,

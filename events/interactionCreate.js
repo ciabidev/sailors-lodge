@@ -6,6 +6,7 @@ const {
   MessageFlags,
   ChannelType,
   Events,
+  ContainerBuilder,
 } = require("discord.js");
 const { ObjectId } = require("mongodb");
 
@@ -266,7 +267,7 @@ module.exports = {
         return interaction.reply({
           content: `Published! ${selectedChannels.length} Channel(s): ${selectedChannels
             .map((channel) => `<#${channel.id}>`)
-            .join(", ")}. \n Please use \`/dock manage\` to configure your Home Ping Roles and more `,
+            .join(", ")}. \nPlease use \`/dock manage\` to configure your Home Ping Roles, Default Permission Levels and more. `,
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -346,12 +347,28 @@ module.exports = {
               : `Followed Dock \`${dock.name}\` in <#${channelId}>.`,
           flags: MessageFlags.Ephemeral,
         });
-
+        const container = new ContainerBuilder()
+        container.addTextDisplayComponents((t) =>
+          t.setContent(`### New Dock Follower`),
+        );
+        container.addTextDisplayComponents((t) =>
+          t.setContent(
+            `**${interaction.guild.name}** is now following this dock (\`${interaction.client.modules.escapeMarkdown(
+              dock.name,
+            )}\`).`,
+          ),
+        );
+        container.addTextDisplayComponents((t) =>
+          t.setContent(
+            `**Permission Level:** ${dock.defaultLevel}\n**Channel:** <#${channelId}>`,
+          ),
+        );
         if (!isConfiguringFollower) {
           interaction.client.modules.dockRelay.relayAlert({
             client: interaction.client,
             dockId,
-            content: `🎊 **${interaction.guild.name}** is now following \`${interaction.client.modules.escapeMarkdown(dock.name)}\` in <#${channelId}>.`,
+            components: [container],
+            flags: MessageFlags.IsComponentsV2,
           });
         }
 

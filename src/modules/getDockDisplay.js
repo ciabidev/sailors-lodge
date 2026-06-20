@@ -15,6 +15,7 @@ module.exports = function getDockDisplay(container, dock, buttons, client) {
     channelIds,
     guildId: publisherGuildId,
     guildIconURL,
+    defaultLevel,
   } = dock;
 
   const dockName = name ?? "Untitled Dock";
@@ -24,7 +25,7 @@ module.exports = function getDockDisplay(container, dock, buttons, client) {
   const dockPublisher = guildName ?? publisherGuildId ?? "Unknown publisher";
 
   const truncatedDescription =
-    description?.length > 100 ? description.slice(0, 100) + "..." : description;
+    description?.length > 300 ? description.slice(0, 300) + "..." : description;
   const actionButtons = Array.isArray(buttons) ? buttons.filter(Boolean) : [buttons].filter(Boolean);
 
   const section = new SectionBuilder().addTextDisplayComponents(
@@ -45,7 +46,7 @@ module.exports = function getDockDisplay(container, dock, buttons, client) {
 
   container.addTextDisplayComponents((t) =>
     t.setContent(
-      `**Publisher:** ${client.modules.escapeMarkdown(dockPublisher)} | **Channel(s):** ${client.modules.escapeMarkdown(dockChannels || "Unknown channel")}`,
+      `**Publisher:** ${client.modules.escapeMarkdown(dockPublisher)}\n**Channel(s):** ${client.modules.escapeMarkdown(dockChannels || "Unknown channel")}\n**Default Perms:** ${dock.defaultLevel ?? "passive"}`,
     ),
   );
 

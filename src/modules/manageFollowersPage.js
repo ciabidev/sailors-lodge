@@ -3,7 +3,6 @@ const {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
-  SeparatorSpacingSize,
   SectionBuilder,
   TextDisplayBuilder,
 } = require("discord.js");
@@ -36,23 +35,31 @@ module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }
   }
 
   for (const follower of page) {
+    const level = client.modules.dockLevels.normalize(follower.level);
+    const levelDetails = client.modules.dockLevels.get(level);
+    const previousLevel = client.modules.dockLevels.previous(level);
+    const nextLevel = client.modules.dockLevels.next(level);
 
-    container.addSectionComponents(
-      new SectionBuilder()
-        .addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(
-            `### ${client.modules.escapeMarkdown(follower.guildName ?? follower.guildId)}\n**Status:** ${follower.level === "contributor" ? "Contributor" : "Read-only"}`,
-          ),
-        )
-        .setButtonAccessory(
-          new ButtonBuilder()
-            .setCustomId(`dock-alter-follower:${dock._id}:${follower.guildId}`)
-            .setLabel(follower.level === "contributor" ? "Demote" : "Promote")
-            .setStyle(follower.level === "contributor" ? ButtonStyle.Danger : ButtonStyle.Success),
-        ),
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `### ${client.modules.escapeMarkdown(follower.guildName ?? follower.guildId)}\n**Level:** ${levelDetails.label}\n${levelDetails.description}`,
+      ),
     );
-    container.addSeparatorComponents((s) =>
-      s.setDivider(true).setSpacing(SeparatorSpacingSize.Small),
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(
+            `dock-set-follower-level:${dock._id}:${follower.guildId}:${previousLevel}`,
+          )
+          .setLabel("Demote")
+          .setStyle(ButtonStyle.Danger)
+          .setDisabled(level === client.modules.dockLevels.order[0]),
+        new ButtonBuilder()
+          .setCustomId(`dock-set-follower-level:${dock._id}:${follower.guildId}:${nextLevel}`)
+          .setLabel("Promote")
+          .setStyle(ButtonStyle.Success)
+          .setDisabled(level === client.modules.dockLevels.order.at(-1)),
+      ),
     );
   }
 

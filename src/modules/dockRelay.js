@@ -67,7 +67,7 @@ async function repliedToReference({ message, receivingFollower, channel }) {
 }
 async function getWritableConnections(client, channelId, guildId) {
   // one channel can follow multiple docks, so return the docks as dock and its follower settings together
-  // each follower can have different contributor access, ping roles, and a guild name used in the relay label
+  // Each follower can have different access, ping roles, and a guild name used in the relay label.
   const followers = await client.modules.db.getDockFollowsForChannel(channelId);
   const connections = await Promise.all(
     followers.map(async (follower) => ({
@@ -77,7 +77,9 @@ async function getWritableConnections(client, channelId, guildId) {
   );
 
   return connections.filter(
-    ({ dock, follower }) => dock && (dock.guildId === guildId || follower.level === "contributor"), // only writable connections are returned here or normal followers could publish back into a dock
+    ({ dock, follower }) =>
+      dock &&
+      (dock.guildId === guildId || client.modules.dockLevels.canSend(follower.level)),
   );
 }
 
@@ -253,7 +255,7 @@ async function relayThreadMessage(message) {
       dock._id,
       sendingThread.guildId,
     );
-    if (sendingFollower?.level !== "contributor") return;
+    if (!message.client.modules.dockLevels.canSend(sendingFollower?.level)) return;
   }
   // build the message payload
   const username = `${message.author.username} [${dock.name}] [${sendingThread.guildName}]`;
@@ -291,7 +293,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
   if (isPartyCard(message)) return;
 
   if (!sendingFollower) {
-    // to get which docks we can write to, which docks we are contributors in
+    // Find a Dock this channel has permission to publish to.
     const [connection] = await getWritableConnections(
       message.client,
       message.channel.id,
@@ -302,7 +304,10 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
 
   const dock = await message.client.modules.db.getDock(sendingFollower?.dockId);
   if (!dock) return;
-  if (dock.guildId !== sendingFollower.guildId && sendingFollower.level !== "contributor") return;
+  if (
+    dock.guildId !== sendingFollower.guildId &&
+    !message.client.modules.dockLevels.canSend(sendingFollower.level)
+  ) return;
 
   const receivingFollowers = (await message.client.modules.db.getDockFollowers(dock._id))
     .map((dockFollower) => ({
@@ -313,7 +318,10 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     }))
     .filter((dockFollower) => dockFollower.channelIds.length > 0);
   if (receivingFollowers.length === 0) return;
-  const isDockPing = message.client.dockPingMetadata?.has(message.id);
+  const isDockPing =
+    message.client.dockPingMetadata?.has(message.id) &&
+    (dock.guildId === sendingFollower.guildId ||
+      message.client.modules.dockLevels.canPing(sendingFollower.level));
   const dockPing = message.client.dockPingMetadata?.get(message.id);
 
   await message.client.modules.db.indexDockMessage({

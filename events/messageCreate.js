@@ -50,7 +50,7 @@ module.exports = {
       return;
 
     try {
-      // a channel can be connected to multiple docks now, but only owners and contributors can publish
+      // A channel can connect to multiple Docks; level capabilities decide which are writable.
       const dockConnections = await message.client.modules.dockRelay.getWritableConnections(
         message.client,
         message.channel.id,
@@ -106,7 +106,12 @@ module.exports = {
               keyword,
             };
           })
-          .filter(({ keyword }) => keyword);
+          .filter(
+            ({ dock, follower, keyword }) =>
+              keyword &&
+              (dock.guildId === message.guildId ||
+                message.client.modules.dockLevels.canPing(follower.level)),
+          );
         const matchedKeywords = [...new Set(matchingDockConnections.map(({ keyword }) => keyword))];
         const matchedGroups = (settings.pingGroups ?? []).filter(
           (group) =>

@@ -9,9 +9,19 @@ module.exports = {
     const container = new ContainerBuilder()
       .addTextDisplayComponents((text) =>
         text.setContent(
-          "# Dock help\nDocks are *live* feeds that forward messages from chosen channels in this server -> to channels in other servers! \n**Followers:** The people that connect to your dock are called Followers.\n- By default, Followers are read-only; Promote them to contributors to let them publish messages.\n-# If you're a normal member who wants this, you can tell a server admin to set up docks",
+          "# Dock help\nDocks are *live* feeds that forward messages from chosen channels in this server -> to channels in other servers!\n-# If you're a normal member who wants this, you can tell a server admin to set up docks",
         ),
       )
+      .addTextDisplayComponents((text) =>
+        text.setContent(
+          "## Followers\nThe people that connect to your dock are called Followers.\n- **Passive:** receive messages\n- **Sender:** send messages\n- **Contributor:** send messages and trigger Dock pings\n- **Admin:** manage follower access",
+        ),
+      )
+      .addTextDisplayComponents((text) =>
+          text.setContent(
+            "## Commands"
+          ),
+        )
       .addTextDisplayComponents(
         (text) =>
           text.setContent(
@@ -23,11 +33,11 @@ module.exports = {
           ),
         (text) =>
           text.setContent(
-            "### `/dock manage [search]`\nManage the Docks this server publishes or follows. Here you can configure the receiving channels and ping roles, edit or remove published Docks, set home ping roles, and promote followers to contributors.",
+            "### `/dock manage [search]`\nManage the Docks this server publishes or follows. Configure receiving channels, ping roles, published Docks, and follower access levels.",
           ),
         (text) =>
           text.setContent(
-            "## Permissions and ping roles\n- Docks must be used in a Discord server and require **Manage Channels**. \nDock ping roles are separate from the server-only ping groups that were configured under `/settings ping`.",
+            "## Permissions and ping roles\n- Docks must be used in a Discord server and require **Manage Channels**. \nDock ping roles are separate from the server-only ping groups.",
           ),
       );
 

@@ -1,51 +1,40 @@
 const {
-  ChannelSelectMenuBuilder,
-  ChannelType,
   LabelBuilder,
   ModalBuilder,
   StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   TextDisplayBuilder,
 } = require("discord.js");
 
-module.exports = async function dockDefaultLevelModal(
-  interaction,
-  dockId,
-  defaults = {},
-  customId = "dock-default-level",
-) {
-  interaction.showModal(
+module.exports = async function dockDefaultLevelModal(interaction, dockId, currentLevel) {
+  const dockLevels = interaction.client.modules.dockLevels;
+  const levelSelect = new StringSelectMenuBuilder()
+    .setCustomId("level")
+    .addOptions(
+      dockLevels.order.map((level) => {
+        const details = dockLevels.get(level);
+        return {
+          label: details.label,
+          value: level,
+          description: details.description,
+          emoji: details.emoji,
+          default: level === dockLevels.normalize(currentLevel),
+        };
+      }),
+    );
+
+  return interaction.showModal(
     new ModalBuilder()
-      .setTitle("Modal")
-      .setCustomId(`${customId}:${dockId}`)
+      .setTitle("Default Follower Level")
+      .setCustomId(`dock-default-level:${dockId}`)
       .addTextDisplayComponents(
         new TextDisplayBuilder().setContent(
-          "# Set a Default permission level for followers\nAny follower who joins will be assigned the Default level until you promote them manually",
+          "Choose the permission level assigned to new followers.",
         ),
       )
       .addLabelComponents(
         new LabelBuilder()
-          .setLabel("Set Default Level")
-          .setStringSelectMenuComponent(
-            new StringSelectMenuBuilder()
-              .setCustomId("level")
-              .addOptions(
-                new StringSelectMenuOptionBuilder()
-                  .setLabel("Passive")
-                  .setValue("passive")
-                  .setDescription("Followers can only read messages from dock senders")
-                  .setEmoji("📥"),
-                new StringSelectMenuOptionBuilder()
-                  .setLabel("Contributor")
-                  .setValue("contributor")
-                  .setDescription(
-                    "Followers can send messages through the rest of the dock to other followers and",
-                  )
-                  .setEmoji("📤"),
-              ),
-          ),
+          .setLabel("Default Level")
+          .setStringSelectMenuComponent(levelSelect),
       ),
   );
 };

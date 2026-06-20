@@ -1,15 +1,11 @@
 const {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   Collection,
   MessageFlags,
-  SlashCommandSubcommandBuilder,
   PermissionFlagsBits,
+  SlashCommandSubcommandBuilder,
 } = require("discord.js");
 
 const browsePages = new Collection();
-
 
 module.exports = {
   browsePages,
@@ -24,81 +20,32 @@ module.exports = {
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
       return interaction.reply({
-        content: "You don't have permission to follow this server to docks (`Manage Channels`)",
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-    async function getDockLabels(dock) {
-      const guild = dock.guildId
-        ? await interaction.client.guilds.fetch(dock.guildId).catch(() => null)
-        : null;
-
-      return {
-        ...dock,
-        guildName: guild?.name ?? dock.guildId ?? "Unknown publisher",
-        guildIconURL: guild?.iconURL({ extension: "png", size: 64 }),
-      };
-    }
-
-    const db = interaction.client.modules.db;
-    const search = interaction.options.getString("search")?.toLowerCase();
-
-    let docks = await db.getDocks();
-    docks = await Promise.all(docks.map((dock) => getDockLabels(dock)));
-
-    if (search) {
-      const matches = await Promise.all(
-        docks.map(async (dock) => {
-          const channels = await Promise.all(
-            (dock.channelIds ?? []).map((channelId) =>
-              interaction.client.channels.fetch(channelId).catch(() => null),
-            ),
-          );
-          return [dock.name, dock.description, dock.guildName, ...channels.map((c) => c?.name)]
-            .filter(Boolean)
-            .some((value) => value.toLowerCase().includes(search));
-        }),
-      );
-      docks = docks.filter((_, index) => matches[index]);
-    }
-
-    if (!docks.length) {
-      return interaction.reply({
-        content: search ? "No Docks matched that search." : "no Docks are published yet.",
+        content: "You don't have permission to follow Docks (`Manage Channels`)",
         flags: MessageFlags.Ephemeral,
       });
     }
 
-    const pages = interaction.client.modules.chunkArray(docks, 3);
-    const pageIndex = 0;
-    const pageSelector = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("docks-prev")
-        .setLabel("Previous")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(pages.length <= 1),
-      new ButtonBuilder()
-        .setCustomId("docks-next")
-        .setLabel("Next")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(pages.length <= 1),
-    );
-
-    await interaction.reply({
-      components: [
-        await interaction.client.modules.dockBrowsePage({
-          pages,
-          pageIndex,
-          client: interaction.client,
-        }),
-        pageSelector,
-      ],
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    const state = {
+      pageIndex: 0,
+      pageCount: 0,
+      search: interaction.options.getString("search")?.trim().toLowerCase() ?? "",
+    };
+    const view = await interaction.client.modules.dockBrowsePage({
+      client: interaction.client,
+      state,
     });
 
-    browsePages.set(interaction.user.id, {
-      pages,
-      pageIndex,
+    if (!view.hasDocks) {
+      return interaction.reply({
+        content: state.search ? "No Docks matched that search." : "No Docks are published yet.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    browsePages.set(interaction.user.id, state);
+    return interaction.reply({
+      components: view.components,
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   },
 };

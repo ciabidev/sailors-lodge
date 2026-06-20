@@ -33,22 +33,9 @@ module.exports = {
         ? await interaction.client.guilds.fetch(dock.guildId).catch(() => null)
         : null;
 
-      const channelIds = dock.channelIds ?? [];
-      const channels = await Promise.all(
-        channelIds.map((channelId) =>
-          interaction.client.channels.fetch(channelId).catch(() => null),
-        ),
-      );
-      const channelNames = channels.map((channel, index) => {
-        if (channel?.name) return `#${channel.name}`;
-        return `#${channelIds[index]}`;
-      });
-
       return {
         ...dock,
         guildName: guild?.name ?? dock.guildId ?? "Unknown publisher",
-        channelIds,
-        channelNames,
         guildIconURL: guild?.iconURL({ extension: "png", size: 64 }),
       };
     }
@@ -60,11 +47,19 @@ module.exports = {
     docks = await Promise.all(docks.map((dock) => getDockLabels(dock)));
 
     if (search) {
-      docks = docks.filter((dock) =>
-        [dock.name, dock.description, dock.guildName, ...(dock.channelNames ?? [])]
-          .filter(Boolean)
-          .some((value) => value.toLowerCase().includes(search)),
+      const matches = await Promise.all(
+        docks.map(async (dock) => {
+          const channels = await Promise.all(
+            (dock.channelIds ?? []).map((channelId) =>
+              interaction.client.channels.fetch(channelId).catch(() => null),
+            ),
+          );
+          return [dock.name, dock.description, dock.guildName, ...channels.map((c) => c?.name)]
+            .filter(Boolean)
+            .some((value) => value.toLowerCase().includes(search));
+        }),
       );
+      docks = docks.filter((_, index) => matches[index]);
     }
 
     if (!docks.length) {
@@ -91,7 +86,11 @@ module.exports = {
 
     await interaction.reply({
       components: [
-        interaction.client.modules.dockBrowsePage({ pages, pageIndex, client: interaction.client }),
+        await interaction.client.modules.dockBrowsePage({
+          pages,
+          pageIndex,
+          client: interaction.client,
+        }),
         pageSelector,
       ],
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,

@@ -6,11 +6,10 @@ const {
   ThumbnailBuilder,
 } = require("discord.js");
 
-module.exports = function getDockDisplay(container, dock, buttons, client) {
+module.exports = async function getDockDisplay(container, dock, buttons, client) {
   const {
     name,
     description,
-    channelNames,
     guildName,
     channelIds,
     guildId: publisherGuildId,
@@ -19,9 +18,14 @@ module.exports = function getDockDisplay(container, dock, buttons, client) {
   } = dock;
 
   const dockName = name ?? "Untitled Dock";
-  const dockChannels = channelNames?.length
-    ? channelNames.join(", ")
-    : (channelIds ?? []).map((id) => `#${id}`).join(", ");
+  const channels = await Promise.all(
+    (channelIds ?? []).map((channelId) =>
+      client.channels.fetch(channelId).catch(() => null),
+    ),
+  );
+  const channelNames = channels
+    .map((channel, index) => `#${channel?.name ?? channelIds[index]}`)
+    .join(", ");
   const dockPublisher = guildName ?? publisherGuildId ?? "Unknown publisher";
 
   const truncatedDescription =
@@ -46,7 +50,7 @@ module.exports = function getDockDisplay(container, dock, buttons, client) {
 
   container.addTextDisplayComponents((t) =>
     t.setContent(
-      `**Publisher:** ${client.modules.escapeMarkdown(dockPublisher)}\n**Channel(s):** ${client.modules.escapeMarkdown(dockChannels || "Unknown channel")}\n**Default Perms:** ${dock.defaultLevel ?? "passive"}`,
+      `**Publisher:** ${client.modules.escapeMarkdown(dockPublisher)}\n**Channel(s):** ${client.modules.escapeMarkdown(channelNames || "Unknown channel")}\n**Default Perms:** ${dock.defaultLevel ?? "passive"}`,
     ),
   );
 

@@ -367,7 +367,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
             ),
           ),
         ];
-        const pingContent = `${dock.name} ping triggered by ${dockPing.username}>!`;
+        const pingContent = `${dock.name} ping triggered by ${dockPing.username}!`;
         messagePayload.content = pingRoles.length
           ? `${pingRoles.map((roleId) => `<@&${roleId}>`).join(" ")} ${pingContent}`
           : pingContent;

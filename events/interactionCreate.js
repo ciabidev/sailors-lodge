@@ -236,12 +236,7 @@ module.exports = {
             },
           );
 
-          return interaction.reply({
-            content: `Updated ${dock.name} with ${selectedChannels.length} channel${selectedChannels.length === 1 ? "" : "s"}: ${selectedChannels
-              .map((channel) => `<#${channel.id}>`)
-              .join(", ")}.`,
-            flags: MessageFlags.Ephemeral,
-          });
+          return interaction.client.modules.updateDockManagePage(interaction);
         }
 
         const createdDock = await interaction.client.modules.db.createDock(
@@ -360,7 +355,7 @@ module.exports = {
         );
         container.addTextDisplayComponents((t) =>
           t.setContent(
-            `**Permission Level:** ${dock.defaultLevel}\n**Channels:** ${channels.map((channel) => interaction.client.channels.cache.get(channel).name).join(", ")}`,
+            `**Permission Level:** ${dock.defaultLevel ?? "passive"}\n**Channels:** ${channels.map((channel) => channel.name ?? channel.id).join(", ")}`,
           ),
         );
         if (!isConfiguringFollower) {
@@ -504,7 +499,7 @@ module.exports = {
 
         await interaction.update({
           components: [
-            interaction.client.modules.dockBrowsePage({
+            await interaction.client.modules.dockBrowsePage({
               pages,
               pageIndex: state.pageIndex,
               client: interaction.client,
@@ -518,45 +513,15 @@ module.exports = {
     
       if (buttonId === "docks-manage-prev" || buttonId === "docks-manage-next") {
         let state = dockManagePages.get(interaction.user.id);
-        if (!state) return;
+        if (!state) return interaction.client.modules.updateDockManagePage(interaction);
 
-        const pages = state.pages[state.mode] ?? [];
-        const pageCount = Math.max(pages.length, 1);
-
-        state.pageIndex =
+        const pageCount = Math.max(state.pageCount ?? 1, 1);
+        const pageIndex =
           buttonId === "docks-manage-prev"
             ? (state.pageIndex - 1 + pageCount) % pageCount
             : (state.pageIndex + 1) % pageCount;
 
-        const pageSelector = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId("docks-manage-prev")
-            .setLabel("Previous")
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(pages.length <= 1),
-          new ButtonBuilder()
-            .setCustomId("docks-manage-next")
-            .setLabel("Next")
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(pages.length <= 1),
-        );
-
-        await interaction.update({
-          components: [
-            interaction.client.modules.dockManagePage({
-              pages,
-              pageIndex: state.pageIndex,
-              mode: state.mode,
-              guildId: state.guildId,
-              client: interaction.client,
-            }),
-            interaction.message.components[1],
-            pageSelector,
-          ],
-          flags: interaction.message.flags,
-        });
-
-        return;
+        return interaction.client.modules.updateDockManagePage(interaction, { pageIndex });
       }
 
       if (buttonId === "dock-manage-followers-prev" || buttonId === "dock-manage-followers-next") {
@@ -583,51 +548,7 @@ module.exports = {
       }
 
       if (buttonId === "dock-manage-followers-back") {
-        let state = dockManagePages.get(interaction.user.id);
-        if (!state) return;
-
-        const pages = state.pages[state.mode] ?? [];
-        const modeSelector = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId("docks-manage-mode:published")
-            .setLabel("Manage Published")
-            .setEmoji("👑")
-            .setStyle(state.mode === "published" ? ButtonStyle.Primary : ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId("docks-manage-mode:following")
-            .setLabel("Manage Followed")
-            .setEmoji("🌐")
-            .setStyle(state.mode === "following" ? ButtonStyle.Primary : ButtonStyle.Secondary),
-        );
-        const pageSelector = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId("docks-manage-prev")
-            .setLabel("Previous")
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(pages.length <= 1),
-          new ButtonBuilder()
-            .setCustomId("docks-manage-next")
-            .setLabel("Next")
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(pages.length <= 1),
-        );
-
-        delete state.followerManager;
-
-        await interaction.update({
-          components: [
-            interaction.client.modules.dockManagePage({
-              pages,
-              pageIndex: state.pageIndex,
-              mode: state.mode,
-              guildId: state.guildId,
-              client: interaction.client,
-            }),
-            modeSelector,
-            pageSelector,
-          ],
-          flags: interaction.message.flags,
-        });
+        await interaction.client.modules.updateDockManagePage(interaction, { resetPage: true });
 
         return;
       }
@@ -812,7 +733,7 @@ module.exports = {
         return;
       }
 
-      if (interaction.customId.startsWith("dock-manage-default-level")) {
+      if (buttonId.startsWith("dock-manage-default-level")) {
         const [, dockId] = interaction.customId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
         if (!dock || dock.guildId !== interaction.guildId) {
@@ -825,56 +746,64 @@ module.exports = {
         return;
       }
 
-      if (interaction.customId.startsWith("docks-manage-mode")) {
+      if (buttonId.startsWith("docks-manage-mode")) {
         const [, mode] = interaction.customId.split(":");
-        const state = dockManagePages.get(interaction.user.id);
-        if (!state) return;
-
-        state.mode = mode;
-        state.pageIndex = 0;
-
-        const pages = state.pages[state.mode] ?? [];
-        const modeSelector = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId("docks-manage-mode:published")
-            .setLabel("Manage Published")
-            .setEmoji("👑")
-            .setStyle(state.mode === "published" ? ButtonStyle.Primary : ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId("docks-manage-mode:following")
-            .setLabel("Manage Followed")
-            .setEmoji("🌐")
-            .setStyle(state.mode === "following" ? ButtonStyle.Primary : ButtonStyle.Secondary),
-        );
-        const pageSelector = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId("docks-manage-prev")
-            .setLabel("Previous")
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(pages.length <= 1),
-          new ButtonBuilder()
-            .setCustomId("docks-manage-next")
-            .setLabel("Next")
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(pages.length <= 1),
-        );
-
-        await interaction.update({
-          components: [
-            interaction.client.modules.dockManagePage({
-              pages,
-              pageIndex: state.pageIndex,
-              mode: state.mode,
-              guildId: state.guildId,
-              client: interaction.client,
-            }),
-            modeSelector,
-            pageSelector,
-          ],
-          flags: interaction.message.flags,
-        });
+        await interaction.client.modules.updateDockManagePage(interaction, { mode });
 
         return;
+      }
+
+      if (buttonId.startsWith("dock-unfollow")) {
+        const [, dockId] = buttonId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+        if (!dock) {
+            return interaction.reply({
+              content: "I couldn't find that Dock",
+              flags: MessageFlags.Ephemeral,
+            });
+        }
+
+        await interaction.client.modules.dockRelay.relayAlert({
+          client: interaction.client,
+          dockId,
+          components: [ new ContainerBuilder().addTextDisplayComponents((t) =>
+          t.setContent(`The server **${interaction.guild.name}** is no longer following this dock.`),
+        )],
+          flags: MessageFlags.IsComponentsV2,
+        });
+
+
+        await interaction.client.modules.db.removeDockFollower(dockId, interaction.guildId);
+        await interaction.client.modules.updateDockManagePage(interaction);
+await interaction.followUp({
+  content: `Unfollowed Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\`.`,
+  flags: MessageFlags.Ephemeral,
+});
+      }
+
+      if (buttonId.startsWith("dock-delete")) {
+        const [, dockId] = interaction.customId.split(":")
+        const dock = await interaction.client.modules.db.getDock(dockId);
+        if (!dock || dock.guildId !== interaction.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        const guildName = await interaction.client.guilds.fetch(dock.guildId).name;
+
+        await interaction.client.modules.dockRelay.relayAlert({
+          client: interaction.client,
+          dockId,
+          components: [ new ContainerBuilder().addTextDisplayComponents((t) =>
+          t.setContent(`### Dock Deleted\nThe dock **${interaction.client.modules.escapeMarkdown(dock.name)}** has been deleted by ${guildName}.`),
+        )],
+          flags: MessageFlags.IsComponentsV2,
+        }).then(async () => {
+          await interaction.client.modules.db.removeDock(dock._id);
+          await interaction.client.modules.updateDockManagePage(interaction);
+        });
+
       }
       // Handle party buttons
       let [, partyId] = buttonId.split(":");

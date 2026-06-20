@@ -40,64 +40,101 @@ module.exports = {
     if (!message.guildId || !message.channel?.id) return;
     if (message.webhookId) return;
     if (message.client.dockRelayedPartyCardMessages?.has(message.id)) return;
+    const partyCardId = message.client.modules.dockRelay.getPartyIdFromComponents(message);
     if (
       message.author.id === message.client.user.id &&
-      ![MessageType.Default, MessageType.Reply].includes(message.type)
+      ![MessageType.Default, MessageType.Reply].includes(message.type) &&
+      !partyCardId
     )
+      // ordinary bot interaction responses are ignored, but party cards are allowed
       return;
 
     try {
-      const dockFollower = await message.client.modules.db.getDockFollowForChannel(
+      // a channel can be connected to multiple docks now, but only owners and contributors can publish
+      const dockConnections = await message.client.modules.dockRelay.getWritableConnections(
+        message.client,
         message.channel.id,
+        message.guildId,
       );
-      const dock = dockFollower
-        ? await message.client.modules.db.getDock(dockFollower.dockId)
-        : null;
       const settings = await message.client.modules.db.getSettings(message.guildId);
       const publishPrefix = "!p";
-      const publishMode = dock?.publishMode;
-      const canPublishToDock = dock?.guildId === message.guildId || dockFollower?.contributor === true;
-      let messageToPublish = message;
-      let publishOptions = {};
-      let publishThis = Boolean(dock) && canPublishToDock && publishMode !== "manual";
+      const isPublishCommand = /^!p(?:\s|$)/i.test((message.content ?? "").trim());
+      let manualSelection = null;
+      let manualPublishOptions = {};
 
-      if (dock && canPublishToDock && publishMode === "manual" && /^!p(?:\s|$)/i.test((message.content ?? "").trim())) {
+      // keep the !p selection separate because the same channel can have manual and automatic docks
+      if (isPublishCommand) {
         const publishContent = (message.content ?? "").trim().slice(publishPrefix.length).trim();
-        if (publishContent) { // The user typed text after !p
-          publishOptions = { content: publishContent };
-          publishThis = true;
-        } else if (message.reference?.messageId) { // !p is replying to a message
-          messageToPublish = await message.channel.messages
+        if (publishContent) {
+          // The user typed text after !p
+          manualSelection = message;
+          manualPublishOptions = { content: publishContent };
+        } else if (message.reference?.messageId) {
+          // !p is replying to a message
+          manualSelection = await message.channel.messages
             .fetch(message.reference.messageId)
             .catch(() => null);
-          publishThis = Boolean(messageToPublish);
         }
       }
 
-      if (!(message.author.bot && message.author.id === message.client.user.id)) {
-        const keywordSource = getMessageText(messageToPublish) || getMessageText(message);
-        const includesKeyword = (keywords = []) =>
-          keywords.some((keyword) =>
-            keywordSource.toLowerCase().includes(keyword.toLowerCase().trim()),
-          );
+      // decide what each dock gets before relaying so every dock can respect its own publish mode
+      const relayJobs = dockConnections
+        .map(({ dock, follower }) => ({
+          dock,
+          follower,
+          messageToPublish: dock.publishMode === "manual" ? manualSelection : message,
+          publishOptions: dock.publishMode === "manual" ? manualPublishOptions : {},
+        }))
+        .filter(({ messageToPublish }) => Boolean(messageToPublish));
 
-        const dockKeywordMatched = includesKeyword(dock?.keywords ?? []);
+      if (!(message.author.bot && message.author.id === message.client.user.id)) {
+        const serverPingText = getMessageText(manualSelection) || getMessageText(message);
+
+        // check each dock separately because docks sharing a channel can have different keywords
+        const matchingDockConnections = dockConnections
+          .map(({ dock, follower }) => {
+            const dockMessageText =
+              dock.publishMode === "manual"
+                ? getMessageText(manualSelection)
+                : getMessageText(message);
+            const keyword = (dock.keywords ?? []).find((keyword) =>
+              dockMessageText.toLowerCase().includes(keyword.toLowerCase().trim()),
+            );
+            return {
+              dock,
+              follower,
+              keyword,
+            };
+          })
+          .filter(({ keyword }) => keyword);
+        const matchedKeywords = [...new Set(matchingDockConnections.map(({ keyword }) => keyword))];
         const matchedGroups = (settings.pingGroups ?? []).filter(
-          (group) => group.roleId && includesKeyword(group.keywords ?? []),
+          (group) =>
+            group.roleId &&
+            (group.keywords ?? []).some((keyword) =>
+              serverPingText.toLowerCase().includes(keyword.toLowerCase().trim()),
+            ),
         );
 
-        if (dockKeywordMatched || matchedGroups.length > 0) {
+        if (matchedKeywords.length > 0 || matchedGroups.length > 0) {
           let roleIds = [];
           const labels = matchedGroups.map((group) => group.name).filter(Boolean);
           const label = labels.length ? labels.join(", ") : "";
           let pingMessage = null;
 
-          if (dockKeywordMatched) {
-            roleIds = dockFollower?.pingRoleIds ?? [];
+          if (matchedKeywords.length > 0) {
+            roleIds = [
+              ...new Set(
+                matchingDockConnections.flatMap(
+                  ({ follower, keyword }) => follower.keywordPings?.[keyword] ?? [],
+                ),
+              ),
+            ];
+            const dockNames = matchingDockConnections.map(({ dock }) => dock.name).join(", ");
             pingMessage = await message
               .reply({
                 content:
-                  `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${dock?.name} ping triggered by <@${message.author.id}>!`.trim(),
+                  `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${dockNames} ping triggered by <@${message.author.id}>!`.trim(),
                 allowedMentions: { roles: roleIds, repliedUser: false },
               })
               .catch((error) => {
@@ -117,38 +154,47 @@ module.exports = {
                 return null;
               });
           }
-          
 
-          if (dockKeywordMatched && pingMessage && messageToPublish) {
-            if (!message.client.dockPingMessages) {
-              message.client.dockPingMessages = new Map();
+          if (matchedKeywords.length > 0 && pingMessage) {
+            if (!message.client.dockPingMetadata) {
+              message.client.dockPingMetadata = new Map();
             }
 
-            message.client.dockPingMessages.set(messageToPublish.id, {
-              content: `${dock?.name} ping triggered by <@${message.author.id}>!`,
-            });
-            setTimeout(
-              () => {
-                message.client.dockPingMessages.delete(messageToPublish.id);
-              },
-              60 * 60 * 1000,
-            );
+            // relayMessage checks this map by message id when it adds follower ping roles
+            const messageIdToRelay = relayJobs[0]?.messageToPublish.id;
+
+            if (messageIdToRelay) {
+              message.client.dockPingMetadata.set(messageIdToRelay, {
+                username: message.author.username,
+                keywords: matchedKeywords,
+              });
+
+              setTimeout(
+                () => {
+                  message.client.dockPingMetadata.delete(messageIdToRelay);
+                },
+                60 * 60 * 1000,
+              );
+            }
           }
         }
       }
 
-      if (publishThis && messageToPublish) {
-        const partyId = message.client.modules.dockRelay.getPartyIdFromComponents(messageToPublish);
-
+      // one discord message may need to be sent through more than one dock
+      for (const { dock, follower, messageToPublish, publishOptions } of relayJobs) {
+        const partyId =
+          messageToPublish === message
+            ? partyCardId
+            : message.client.modules.dockRelay.getPartyIdFromComponents(messageToPublish);
+        if (message.author.id === message.client.user.id && !partyCardId) {
+          return;
+        }
         if (partyId) {
           const party = await message.client.modules.db.getParty(new ObjectId(partyId));
-          if (party?.visibility === "private") {
-            if (!(/^!p(?:\s|$)/i.test((message.content ?? "").trim()))) {
-              return;
-            }
-          }
+          if (party?.visibility === "private") continue;
           if (party) {
-            await message.client.modules.dockRelay.relayAlert({ // relay all party cards as alerts
+            await message.client.modules.dockRelay.relayAlert({
+              // relay all party cards as alerts
               client: message.client,
               dockId: dock._id,
               party,
@@ -158,10 +204,13 @@ module.exports = {
             });
           }
         } else {
-          await message.client.modules.dockRelay.relayMessage(messageToPublish, publishOptions);
+          await message.client.modules.dockRelay.relayMessage(
+            messageToPublish,
+            publishOptions,
+            follower,
+          );
         }
       }
-
     } catch (error) {
       console.error("[message-create] Failed to relay Dock message:", error);
     }

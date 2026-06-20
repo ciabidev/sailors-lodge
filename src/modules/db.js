@@ -279,8 +279,6 @@ async function removeMembersFromParty(partyId, memberIds, interaction) {
   // Remove the member(s) by matching their id
 party.members = party.members.filter((m) => !memberIds.includes(m.id));
 
-  console.log(party.members); // should no longer include the removed member
-
   return await updateParty(party._id, { $set: { members: party.members } }, interaction);
 
 }
@@ -413,12 +411,7 @@ async function getManyDockFollowers(dockIds) {
   return dockFollowers.find({ dockId: { $in: dockIds } }).toArray();
 }
 
-async function getDockFollowForChannel(channelId) {
-  const dockFollowers = getCollection("dockServers");
-  return dockFollowers.findOne({ channelIds: channelId });
-}
-
-async function getDockFollowsForChannel(channelId) { // returns all the dock connections for that channel
+async function getDockFollowsForChannel(channelId) { // channels can follow multiple docks so this needs to return all matches
   const dockFollowers = getCollection("dockServers");
   return dockFollowers.find({ channelIds: channelId }).toArray();
 }
@@ -465,11 +458,11 @@ async function removeDock(dockId) {
   return dockFollowers.deleteMany({ dockId: new ObjectId(dockId) });
 }
 
-async function addDockFollower(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
-  return setDockFollower(dockId, guildId, guildName, channelIds, pingRoleIds);
+async function addDockFollower(dockId, guildId, guildName, channelIds = [], keywordPings = {}) {
+  return setDockFollower(dockId, guildId, guildName, channelIds, keywordPings);
 }
 
-async function setDockFollower(dockId, guildId, guildName, channelIds = [], pingRoleIds = []) {
+async function setDockFollower(dockId, guildId, guildName, channelIds = [], keywordPings = {}) {
   const dockFollowers = getCollection("dockServers");
   const dockObjectId = new ObjectId(dockId);
   return dockFollowers.updateOne(
@@ -478,7 +471,7 @@ async function setDockFollower(dockId, guildId, guildName, channelIds = [], ping
       $set: {
         guildName,
         channelIds,
-        pingRoleIds,
+        keywordPings,
       },
       $setOnInsert: {
         dockId: dockObjectId,
@@ -692,7 +685,6 @@ module.exports = {
   setDockWebhook,
   getDocksFromChannelId,
   getManyDockFollowers,
-  getDockFollowForChannel,
   getDockFollowsForChannel,
   getPublishedDocksForGuild,
   indexDockMessage,

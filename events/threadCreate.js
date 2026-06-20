@@ -4,17 +4,16 @@ module.exports = {
   name: Events.ThreadCreate,
   async execute(thread) {
     try {
-      const dockFollower = await thread.client.modules.db.getDockFollowForChannel(
-        thread.parentId,
-      );
-      const dock = dockFollower
-        ? await thread.client.modules.db.getDock(dockFollower.dockId)
-        : null;
-
-      if (!dock) return;
-      if (dock.guildId !== dockFollower.guildId && dockFollower.contributor !== true) return;
+      // threads stay on one dock network even when the parent channel follows multiple docks
+      const [connection] =
+        await thread.client.modules.dockRelay.getWritableConnections(
+          thread.client,
+          thread.parentId,
+          thread.guildId,
+        );
+      if (!connection) return;
       
-      await thread.client.modules.dockRelay.relayThread(thread);
+      await thread.client.modules.dockRelay.relayThread(thread, connection.follower);
     } catch (error) {
       console.error("[thread-create] Failed to relay Dock thread:", error);
     }

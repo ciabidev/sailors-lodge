@@ -360,7 +360,7 @@ module.exports = {
         );
         container.addTextDisplayComponents((t) =>
           t.setContent(
-            `**Permission Level:** ${dock.defaultLevel}\n**Channel:** <#${channelId}>`,
+            `**Permission Level:** ${dock.defaultLevel}\n**Channels:** ${channels.map((channel) => interaction.client.channels.cache.get(channel).name).join(", ")}`,
           ),
         );
         if (!isConfiguringFollower) {

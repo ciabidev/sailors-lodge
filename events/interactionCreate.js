@@ -439,6 +439,7 @@ module.exports = {
         });
         return interaction.client.modules.dockRelay.relayAlert({
           client: interaction.client,
+          dockId,
           content: `Updated ${dock.name} default follower level to ${interaction.client.modules.dockLevels.get(level).label}.`,
           components: [
             new ContainerBuilder().addTextDisplayComponents((t) =>

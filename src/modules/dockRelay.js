@@ -43,8 +43,7 @@ async function repliedToReference({
   let relayed = null;
   if (dockMessage) {
     delivery = dockMessage.deliveries?.find(
-      (d) =>
-        d.guildId === receivingFollower.guildId && d.channelId === deliveryChannelId,
+      (d) => d.guildId === receivingFollower.guildId && d.channelId === deliveryChannelId,
     );
     if (!delivery) return null;
     relayed = await channel.messages.fetch(delivery.messageId).catch(() => null);
@@ -67,7 +66,7 @@ async function repliedToReference({
     row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setURL(relayed.url).setLabel("Jump to reply").setStyle(ButtonStyle.Link),
     );
-  }  
+  }
 
   return { embed, row };
 }
@@ -84,8 +83,7 @@ async function getWritableConnections(client, channelId, guildId) {
 
   return connections.filter(
     ({ dock, follower }) =>
-      dock &&
-      (dock.guildId === guildId || client.modules.dockLevels.canSend(follower.level)),
+      dock && (dock.guildId === guildId || client.modules.dockLevels.canSend(follower.level)),
   );
 }
 
@@ -349,7 +347,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
   if (
     dock.guildId !== sendingFollower.guildId &&
     !message.client.modules.dockLevels.canSend(sendingFollower.level)
-  ) return;
+  )
+    return;
 
   const receivingFollowers = (await message.client.modules.db.getDockFollowers(dock._id))
     .map((dockFollower) => ({
@@ -448,7 +447,15 @@ async function relayAlert({ client, dockId, ...payload }) {
 
   const followers = await client.modules.db.getDockFollowers(dock._id);
   if (followers.length === 0) return;
-
+  if (payload.party && payload.source) {
+    await client.modules.db.indexDockMessage({
+      dockId: dock._id,
+      rootGuildId: payload.source.guildId,
+      rootChannelId: payload.source.channel.id,
+      rootMessageId: payload.source.id,
+      deliveries: [],
+    });
+  } // index the source party card and its relayed copies so relayThread can find each counterpart and attach relayed threads to the each relayed card
   for (const follower of followers) {
     for (const channelId of follower.channelIds ?? []) {
       const channel = await client.channels.fetch(channelId).catch(() => null);
@@ -481,8 +488,26 @@ async function relayAlert({ client, dockId, ...payload }) {
           userId: payload.userId,
           guildId: follower.guildId,
         });
-        continue;
+
+         await client.modules.db.addDockMessageDeliveries(
+           payload.source.channel.id,
+           payload.source.id,
+           [
+             {
+               guildId: follower.guildId,
+               guildName: follower.guildName,
+               channelId,
+               messageId: message.id,
+               keywordPings: [],
+             },
+           ],
+         );
+         // index the source party card and its relayed copies so relayThread can find each counterpart and attach relayed threads to the each relayed card
+         
+         continue;
       }
+
+     
 
       await channel.send(payload);
     }
@@ -506,6 +531,7 @@ async function dockRelay(input) {
 }
 
 module.exports = {
+  RELAYED_THREAD_MARKER,
   getPartyIdFromComponents,
   getWritableConnections,
   relayAlert,

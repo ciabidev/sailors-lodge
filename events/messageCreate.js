@@ -36,11 +36,19 @@ module.exports = {
 
       await message.react("📢").catch(() => {});
     }
+    const partyCardId = message.client.modules.dockRelay.getPartyIdFromComponents(message);
 
     if (!message.guildId || !message.channel?.id) return;
-    if (message.webhookId) return;
-    if (message.client.dockRelayedPartyCardMessages?.has(message.id)) return;
-    const partyCardId = message.client.modules.dockRelay.getPartyIdFromComponents(message);
+    if (message.webhookId && !partyCardId) return;
+    // Party cards created by interactions have a webhook ID. Copies created by
+    // relayAlert use channel.send(), so ignore them before they can relay again.
+    if (
+      partyCardId &&
+      message.author.id === message.client.user.id &&
+      !message.webhookId
+    )
+      return;
+    if (message.client.dockRelayedPartyCardMessages?.has(message.id)) return; // prevents party cards from bouncing endlessly between connected Dock channels.
     if (
       message.author.id === message.client.user.id &&
       ![MessageType.Default, MessageType.Reply].includes(message.type) &&
@@ -210,10 +218,21 @@ module.exports = {
               client: message.client,
               dockId: dock._id,
               party,
-              source: message,
+              source: messageToPublish,
               sourceChannelId: messageToPublish.channel.id,
               userId: party.host.id,
             });
+            if (messageToPublish.startThread && !messageToPublish.hasThread) {
+              await messageToPublish.startThread({
+                name: Array.from(
+                  `${party.name}`,
+                )
+                  .slice(0, 100)
+                  .join(""),
+                autoArchiveDuration: 1440,
+                reason: "Party card dock thread",
+              });
+            }
           }
         } else {
           await message.client.modules.dockRelay.relayMessage(

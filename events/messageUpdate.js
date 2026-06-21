@@ -3,6 +3,9 @@ const { Events } = require("discord.js");
 module.exports = {
   name: Events.MessageUpdate,
   async execute(oldMessage, message) {
+    if (message.client.modules.dockRelay.getPartyIdFromComponents(message)) {
+      return;
+    }
     if (message.partial) {
       message = await message.fetch().catch(() => null);
       if (!message) return;
@@ -13,6 +16,7 @@ module.exports = {
       message.id,
     );
     if (!dockMessage) return;
+
 
     for (const delivery of dockMessage.deliveries ?? []) {
       const savedWebhook = await message.client.modules.db.getDockWebhook(delivery.guildId);

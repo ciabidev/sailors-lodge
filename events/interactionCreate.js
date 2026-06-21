@@ -265,7 +265,7 @@ module.exports = {
         );
 
         return interaction.reply({
-          content: `Published! ${selectedChannels.length} Channel(s): ${selectedChannels
+          content: `Published ${selectedChannels.length} Channel(s): ${selectedChannels
             .map((channel) => `<#${channel.id}>`)
             .join(
               ", ",
@@ -341,13 +341,8 @@ module.exports = {
             ? undefined
             : interaction.client.modules.dockLevels.normalize(dock.defaultLevel),
         });
-
-        interaction.reply({
-          content: isConfiguringFollower
-            ? `Updated Dock \`${dock.name}\` to post in <#${channelId}>.`
-            : `Followed Dock \`${dock.name}\` in <#${channelId}>.`,
-          flags: MessageFlags.Ephemeral,
-        });
+        await interaction.client.modules.updateDockManagePage(interaction);
+      
         const container = new ContainerBuilder();
         container.addTextDisplayComponents((t) => t.setContent(`### New Dock Follower`));
         container.addTextDisplayComponents((t) =>
@@ -371,6 +366,7 @@ module.exports = {
           });
         }
 
+        
         return;
       }
 
@@ -408,10 +404,7 @@ module.exports = {
           keywordPings,
         });
 
-        await interaction.reply({
-          content: `Updated \`${interaction.client.modules.escapeMarkdown(keywords.join(", "))}\` Home Ping Roles for Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\` to ${roleIds.map((roleId) => `<@&${roleId}>`).join(", ") || "none"}.`,
-          flags: MessageFlags.Ephemeral,
-        });
+        await interaction.client.modules.updateDockManagePage(interaction);
       }
 
       [modalId, dockId] = interaction.customId.split(":");

@@ -38,11 +38,11 @@ A server can follow a Dock and receive relevant messages and pings in one of its
 A server manager can:
 
 1. Use `/dock publish` to turn up to 10 channels into a Dock that other servers can discover.
-2. Choose whether the Dock forwards every message or only messages deliberately published with `!p`.
-3. Keep the Dock open for anyone to follow, or require approval for new followers.
-4. Add keywords that trigger configured Dock ping roles when matching messages arrive.
-5. Use `/dock browse` to discover another server's Dock and select a local channel to receive its feed.
-6. Use `/dock manage` to edit published Docks, configure followed feeds and ping roles, or manage followers and requests.
+2. Choose whether the Dock forwards every message, or only messages published with `!p` prefix.
+3. Keep the Dock open for anyone to follow, or request-to-follow
+4. Add keywords that trigger configured Dock ping roles
+5. Use `/dock browse` to discover another server's Dock.
+6. Use `/dock manage` to configure published or followed docks
 
 **Note:** Dock settings and Dock ping roles are *separate* from the regular ping groups. Regular ping groups only belong only to the Discord server where they were created, while Dock pings are across servers
 - Dock management requires the **Manage Channels** permission so server owners remain in control.

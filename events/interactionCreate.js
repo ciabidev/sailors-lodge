@@ -448,7 +448,7 @@ module.exports = {
               ),
             ),
           ],
-          flags: MessageFlags.Ephemeral,
+          flags: MessageFlags.IsComponentsV2,
         });
       }
     }

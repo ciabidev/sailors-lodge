@@ -14,7 +14,7 @@ module.exports = {
           .catch(() => null);
         if (!webhook || webhook.channelId !== delivery.channelId) continue;
 
-        await webhook.deleteMessage(delivery.messageId);
+        await webhook.deleteMessage(delivery.messageId, delivery.threadId);
       }
     }
   },

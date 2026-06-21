@@ -23,7 +23,12 @@ function isPartyCard(message) {
   return Boolean(getPartyIdFromComponents(message));
 }
 
-async function repliedToReference({ message, receivingFollower, channel }) {
+async function repliedToReference({
+  message,
+  receivingFollower,
+  channel,
+  deliveryChannelId = channel.id,
+}) {
   // check if the message is replying to another message and relay the reference too
   if (!message.reference?.messageId) return null;
 
@@ -38,7 +43,8 @@ async function repliedToReference({ message, receivingFollower, channel }) {
   let relayed = null;
   if (dockMessage) {
     delivery = dockMessage.deliveries?.find(
-      (d) => d.guildId === receivingFollower.guildId && d.channelId === channel.id,
+      (d) =>
+        d.guildId === receivingFollower.guildId && d.channelId === deliveryChannelId,
     );
     if (!delivery) return null;
     relayed = await channel.messages.fetch(delivery.messageId).catch(() => null);
@@ -117,7 +123,7 @@ function getRelayContent(message, options = {}) {
   const snapshot = getForwardedSnapshot(message);
   const content = options.content || message.content || snapshot?.content || null;
 
-  if (!snapshot) return content;
+  if (!snapshot || !content) return content;
   // append a > to the beginning of the content. the quote should encapsulate the entire message
 
   // join the content with the newlines and append a single > to the beginning of the content
@@ -233,6 +239,8 @@ async function relayThread(thread, sendingFollower = null) {
 }
 
 async function relayThreadMessage(message) {
+  if (isPartyCard(message)) return;
+
   const dockThread = await message.client.modules.db.getDockThread(message.channel.id);
   if (!dockThread) return;
 
@@ -257,35 +265,69 @@ async function relayThreadMessage(message) {
     );
     if (!message.client.modules.dockLevels.canSend(sendingFollower?.level)) return;
   }
-  // build the message payload
   const username = `${message.author.username} [${dock.name}] [${sendingThread.guildName}]`;
   const formattedUsername =
     Array.from(username).length > 80
       ? Array.from(username).slice(0, 76).join("") + "..."
       : username;
 
-  let messagePayload = {
-    username: formattedUsername,
-    avatarURL: message.author.displayAvatarURL(),
-    content: getRelayContent(message),
-    embeds: getRelayEmbeds(message),
-    files: getRelayFiles(message),
-    components: getRelayComponents(message),
-    allowedMentions: { users: [message.author.id] },
-  };
-  // loop through each thread and forward messages
+  await message.client.modules.db.indexDockMessage({
+    dockId: dock._id,
+    rootGuildId: message.guildId,
+    rootChannelId: message.channel.id,
+    rootMessageId: message.id,
+    deliveries: [],
+  });
 
   for (const thread of threads) {
     if (thread.threadId === message.channel.id) continue;
 
-    const channel = await message.client.channels.fetch(thread.channelId).catch(() => null);
+    const targetThread = await message.client.channels.fetch(thread.threadId).catch(() => null);
+    if (!targetThread?.isThread?.()) continue;
+
+    const channel =
+      targetThread.parent ??
+      (await message.client.channels.fetch(thread.channelId).catch(() => null));
     if (!channel) continue;
 
     const webhook = await getDockWebhook(message.client, channel, thread);
-    await webhook.send({
-      ...messagePayload,
+    const components = getRelayComponents(message);
+    const messagePayload = {
+      username: formattedUsername,
+      avatarURL: message.author.displayAvatarURL(),
+      content: components.length ? "" : getRelayContent(message),
+      embeds: getRelayEmbeds(message),
+      files: getRelayFiles(message),
+      components,
+      allowedMentions: { users: [message.author.id] },
+      flags: components.length ? [MessageFlags.IsComponentsV2] : undefined,
       threadId: thread.threadId,
-    });
+    };
+
+    if (message.reference?.messageId && !components.length) {
+      const reply = await repliedToReference({
+        message,
+        receivingFollower: thread,
+        channel: targetThread,
+        deliveryChannelId: thread.channelId,
+      });
+      if (reply) {
+        messagePayload.embeds = [reply.embed, ...messagePayload.embeds];
+        messagePayload.components = [reply.row];
+      }
+    }
+
+    const relayedMessage = await webhook.send(messagePayload);
+    await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
+      {
+        guildId: thread.guildId,
+        guildName: thread.guildName,
+        channelId: thread.channelId,
+        threadId: thread.threadId,
+        messageId: relayedMessage.id,
+        keywordPings: [],
+      },
+    ]);
   }
 }
 

@@ -50,6 +50,13 @@ module.exports = {
       return;
 
     try {
+      // Threads are connected through their dockThreads record, not as channel followers.
+      // Route them before the normal channel lookup or they will have no relay jobs.
+      if (message.channel.isThread?.()) {
+        await message.client.modules.dockRelay.relayThreadMessage(message);
+        return;
+      }
+
       // A channel can connect to multiple Docks; level capabilities decide which are writable.
       const dockConnections = await message.client.modules.dockRelay.getWritableConnections(
         message.client,

@@ -35,7 +35,6 @@ module.exports = {
       await webhook.editMessage(delivery.messageId, {
         content,
         embeds: message.embeds || [],
-        attachments: message.attachments.map((attachment) => attachment.url) || [],
         allowedMentions: { users: [message.author.id], roles: keywordPings },
         threadId: delivery.threadId,
       });

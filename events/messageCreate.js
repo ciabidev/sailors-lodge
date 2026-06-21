@@ -43,7 +43,7 @@ module.exports = {
       const announcement = new EmbedBuilder()
         .setColor(0x5865f2)
         .setAuthor({
-          name: "Sailors Lodge • Official Developer Notice",
+          name: "Sailors Lodge Developer Message",
           iconURL: botAvatar,
         })
         .addFields(
@@ -55,11 +55,6 @@ module.exports = {
           {
             name: "Original author",
             value: `${sourceMessage.author}`,
-            inline: true,
-          },
-          {
-            name: "Published",
-            value: `<t:${publishedAt}:R>`,
             inline: true,
           },
         )

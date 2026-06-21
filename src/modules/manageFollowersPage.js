@@ -4,6 +4,7 @@ const {
   ButtonStyle,
   ContainerBuilder,
   SectionBuilder,
+  StringSelectMenuBuilder,
   TextDisplayBuilder,
 } = require("discord.js");
 
@@ -11,14 +12,14 @@ module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }
   const page = pages[pageIndex] ?? [];
   const container = new ContainerBuilder().addTextDisplayComponents((t) =>
     t.setContent(
-      `## Followers for ${client.modules.escapeMarkdown(dock.name)} (Page ${pageIndex + 1}/${Math.max(pages.length, 1)})`,
+      `## Followers for ${client.modules.escapeMarkdown(dock.name)}`,
     ),
   );
 
   container.addSectionComponents(
     new SectionBuilder()
       .addTextDisplayComponents((text) =>
-        text.setContent("Configure the default permission level for new followers."),
+        text.setContent("*Choose the default permission level assigned to new followers...*"),
       )
       .setButtonAccessory(
         new ButtonBuilder()
@@ -37,8 +38,6 @@ module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }
   for (const follower of page) {
     const level = client.modules.dockLevels.normalize(follower.level);
     const levelDetails = client.modules.dockLevels.get(level);
-    const previousLevel = client.modules.dockLevels.previous(level);
-    const nextLevel = client.modules.dockLevels.next(level);
 
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
@@ -47,18 +46,21 @@ module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }
     );
     container.addActionRowComponents(
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(
-            `dock-set-follower-level:${dock._id}:${follower.guildId}:${previousLevel}`,
-          )
-          .setLabel("Demote")
-          .setStyle(ButtonStyle.Danger)
-          .setDisabled(level === client.modules.dockLevels.order[0]),
-        new ButtonBuilder()
-          .setCustomId(`dock-set-follower-level:${dock._id}:${follower.guildId}:${nextLevel}`)
-          .setLabel("Promote")
-          .setStyle(ButtonStyle.Success)
-          .setDisabled(level === client.modules.dockLevels.order.at(-1)),
+        new StringSelectMenuBuilder()
+          .setCustomId(`dock-set-follower-level:${dock._id}:${follower.guildId}`)
+          .setPlaceholder("Set follower level")
+          .addOptions(
+            client.modules.dockLevels.order.map((levelId) => {
+              const details = client.modules.dockLevels.get(levelId);
+              return {
+                label: details.label,
+                value: levelId,
+                description: details.description,
+                emoji: details.emoji,
+                default: levelId === level,
+              };
+            }),
+          ),
       ),
     );
   }
@@ -69,6 +71,11 @@ module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }
       .setLabel("Previous")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(pages.length <= 1),
+    new ButtonBuilder()
+      .setCustomId("dock-manage-followers-position")
+      .setLabel(`${pageIndex + 1} / ${Math.max(pages.length, 1)}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
     new ButtonBuilder()
       .setCustomId("dock-manage-followers-next")
       .setLabel("Next")

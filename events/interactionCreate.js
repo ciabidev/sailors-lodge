@@ -498,6 +498,87 @@ module.exports = {
       }
     }
 
+    if (
+      interaction.isStringSelectMenu() &&
+      interaction.customId.startsWith("dock-set-follower-level")
+    ) {
+      const [, dockId, guildId] = interaction.customId.split(":");
+      const newLevel = interaction.values[0];
+      const dock = await interaction.client.modules.db.getDock(dockId);
+
+      if (
+        !dock ||
+        !(await interaction.client.modules.dockLevels.guildCanManage(
+          interaction.client,
+          dock,
+          interaction.guildId,
+        ))
+      ) {
+        return interaction.reply({
+          content: "I couldn't find that Dock in this Discord server.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const follower = await interaction.client.modules.db.getDockFollower(dockId, guildId);
+      if (!follower || follower.guildId === dock.guildId) {
+        return interaction.reply({
+          content: "I couldn't find that follower anymore.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      await interaction.client.modules.db.setDockFollower(dockId, guildId, { level: newLevel });
+      const followers = (await interaction.client.modules.db.getDockFollowers(dockId))
+        .filter((dockFollower) => dockFollower.guildId !== dock.guildId)
+        .sort((a, b) => (a.guildName ?? "").localeCompare(b.guildName ?? ""));
+      const pages = interaction.client.modules.chunkArray(followers, 3);
+      const state = dockManagePages.get(interaction.user.id);
+      if (!state) return;
+
+      state.followerManager = {
+        dock,
+        pages,
+        pageIndex: Math.min(
+          state.followerManager?.pageIndex ?? 0,
+          Math.max(pages.length - 1, 0),
+        ),
+      };
+
+      await interaction.update({
+        components: interaction.client.modules.manageFollowersPage({
+          dock,
+          pages,
+          pageIndex: state.followerManager.pageIndex,
+          client: interaction.client,
+        }),
+      });
+
+      if (newLevel !== follower.level) {
+        const guild = await interaction.client.guilds.fetch(follower.guildId).catch(() => null);
+        const dockLevels = interaction.client.modules.dockLevels;
+        const oldLevelIndex = dockLevels.order.indexOf(dockLevels.normalize(follower.level));
+        const newLevelIndex = dockLevels.order.indexOf(newLevel);
+        const action = newLevelIndex > oldLevelIndex ? "promoted" : "demoted";
+
+        await interaction.client.modules.dockRelay.relayAlert({
+          client: interaction.client,
+          dockId,
+          components: [
+            new ContainerBuilder().addTextDisplayComponents((text) =>
+              text.setContent(
+                `The server **${guild?.name ?? follower.guildName ?? follower.guildId}** was ${action} to ${dockLevels.get(newLevel).label} by **${interaction.guild.name}**.\n` +
+                  `-# **${dockLevels.get(newLevel).description}**`,
+              ),
+            ),
+          ],
+          flags: MessageFlags.IsComponentsV2,
+        });
+      }
+
+      return;
+    }
+
     if (interaction.isButton()) {
       const buttonId = interaction.customId;
       let [action] = buttonId.split(":");
@@ -750,85 +831,6 @@ module.exports = {
         return;
       }
 
-      if (buttonId.startsWith("dock-set-follower-level")) {
-        const [, dockId, guildId, newLevel] = buttonId.split(":");
-        const dock = await interaction.client.modules.db.getDock(dockId);
-
-        if (
-          !dock ||
-          !(await interaction.client.modules.dockLevels.guildCanManage(
-            interaction.client,
-            dock,
-            interaction.guildId,
-          ))
-        ) {
-          if (!dock) {
-            return interaction.reply({
-              content: "I couldn't find that Dock in this Discord server.",
-              flags: MessageFlags.Ephemeral,
-            });
-          }
-          return interaction.reply({
-            content: "You don't have permission to manage this Dock.",
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-
-        const follower = await interaction.client.modules.db.getDockFollower(dockId, guildId);
-        if (!follower || follower.guildId === dock.guildId) {
-          return interaction.reply({
-            content: "I couldn't find that follower anymore.",
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-        await interaction.client.modules.db.setDockFollower(dockId, follower.guildId, {
-          level: newLevel,
-        });
-        const followers = (await interaction.client.modules.db.getDockFollowers(dockId))
-          .filter((follower) => follower.guildId !== dock.guildId)
-          .sort((a, b) => (a.guildName ?? "").localeCompare(b.guildName ?? ""));
-        const pages = interaction.client.modules.chunkArray(followers, 3);
-        let state = dockManagePages.get(interaction.user.id);
-        if (!state) return;
-        state.followerManager = {
-          dock,
-          pages,
-          pageIndex: Math.min(state.followerManager?.pageIndex ?? 0, Math.max(pages.length - 1, 0)),
-        };
-
-        await interaction.update({
-          components: interaction.client.modules.manageFollowersPage({
-            dock,
-            pages: state.followerManager.pages,
-            pageIndex: state.followerManager.pageIndex,
-            client: interaction.client,
-          }),
-          flags: interaction.message.flags,
-        });
-        const guildName = (await interaction.client.guilds.fetch(follower.guildId)).name;
-        const dockLevels = interaction.client.modules.dockLevels;
-
-        const oldLevelIndex = dockLevels.order.indexOf(dockLevels.normalize(follower.level));
-        const newLevelIndex = dockLevels.order.indexOf(newLevel);
-
-        const action = newLevelIndex > oldLevelIndex ? "promoted" : "demoted";
-
-        await interaction.client.modules.dockRelay.relayAlert({
-          client: interaction.client,
-          dockId,
-          components: [
-            new ContainerBuilder().addTextDisplayComponents((t) =>
-              t.setContent(
-                `The server **${guildName}** was ${action} to ${dockLevels.get(newLevel).label} by **${interaction.guild.name}**.\n` +
-                  `-# **${dockLevels.get(newLevel).description}**`,
-              ),
-            ),
-          ],
-          flags: MessageFlags.IsComponentsV2,
-        });
-        return;
-      }
-
       if (buttonId.startsWith("dock-manage-default-level")) {
         const [, dockId] = interaction.customId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
@@ -887,7 +889,11 @@ module.exports = {
         });
       }
 
-      if (buttonId.startsWith("dock-delete")) {
+      if (buttonId.startsWith("dock-delete-cancel")) {
+        return interaction.client.modules.updateDockManagePage(interaction);
+      }
+
+      if (buttonId.startsWith("dock-delete:")) {
         const [, dockId] = interaction.customId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
         if (!dock || dock.guildId !== interaction.guildId) {
@@ -896,7 +902,37 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-        const guildName = await interaction.client.guilds.fetch(dock.guildId).name;
+
+        const confirmation = new ContainerBuilder().addTextDisplayComponents((text) =>
+          text.setContent(
+            `## Delete ${interaction.client.modules.escapeMarkdown(dock.name)}?\nThis permanently removes the Dock and disconnects every follower.`,
+          ),
+        );
+        const actions = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`dock-delete-cancel:${dockId}`)
+            .setLabel("Cancel")
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId(`dock-delete-confirm:${dockId}`)
+            .setLabel("Delete Dock")
+            .setStyle(ButtonStyle.Danger),
+        );
+
+        return interaction.update({ components: [confirmation, actions] });
+      }
+
+      if (buttonId.startsWith("dock-delete-confirm")) {
+        const [, dockId] = interaction.customId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+        if (!dock || dock.guildId !== interaction.guildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        const guild = await interaction.client.guilds.fetch(dock.guildId).catch(() => null);
+        const guildName = guild?.name ?? dock.guildName ?? interaction.guild.name;
 
         await interaction.client.modules.dockRelay
           .relayAlert({
@@ -915,6 +951,8 @@ module.exports = {
             await interaction.client.modules.db.removeDock(dock._id);
             await interaction.client.modules.updateDockManagePage(interaction);
           });
+
+        return;
       }
       // Handle party buttons
       let [, partyId] = buttonId.split(":");

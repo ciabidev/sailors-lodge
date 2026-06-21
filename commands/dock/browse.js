@@ -26,6 +26,7 @@ module.exports = {
     }
 
     const state = {
+      guildId: interaction.guildId,
       pageIndex: 0,
       pageCount: 0,
       search: interaction.options.getString("search")?.trim().toLowerCase() ?? "",

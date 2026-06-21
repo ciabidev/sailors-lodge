@@ -11,8 +11,9 @@ module.exports = async function getDockDisplay(
   dock,
   buttons,
   client,
-  viewingGuildId,
+  context = {},
 ) {
+  const { guildId: viewingGuildId, mode } = context;
   const {
     name,
     description,
@@ -25,50 +26,78 @@ module.exports = async function getDockDisplay(
   } = dock;
 
   const dockName = name ?? "Untitled Dock";
-  const channels = await Promise.all(
-    (channelIds ?? []).map((channelId) =>
-      client.channels.fetch(channelId).catch(() => null),
-    ),
-  );
+  const follower = viewingGuildId
+    ? await client.modules.db.getDockFollower(dock._id, viewingGuildId)
+    : null;
+  const channels = mode
+    ? []
+    : await Promise.all(
+        (channelIds ?? []).map((channelId) =>
+          client.channels.fetch(channelId).catch(() => null),
+        ),
+      );
   const channelNames = channels
     .map((channel, index) => `#${channel?.name ?? channelIds[index]}`)
     .join(", ");
   const dockPublisher = guildName ?? publisherGuildId ?? "Unknown publisher";
-  const follower = viewingGuildId
-    ? await client.modules.db.getDockFollower(dock._id, viewingGuildId)
-    : null;
+  const receivingChannelIds = (follower?.channelIds ?? [follower?.channelId]).filter(Boolean);
+  const displayedChannelIds = mode === "following" ? receivingChannelIds : channelIds ?? [];
+  const channelLabel =
+    mode === "following"
+      ? "🔗 Receiving Channels"
+      : mode === "published"
+        ? "🔗 Publishing Channels"
+        : "🔗 Channels";
+  const displayedChannels =
+    mode
+      ? displayedChannelIds.map((channelId) => `<#${channelId}>`).join(", ")
+      : client.modules.escapeMarkdown(channelNames);
   const keywordPings = follower?.keywordPings ?? {};
-  const pingKeywords = (keywords ?? []).map((keyword) => {
+  const visibleKeywords = (keywords ?? []).slice(0, 5);
+  const hiddenKeywordCount = Math.max((keywords ?? []).length - visibleKeywords.length, 0);
+  const pingKeywords = visibleKeywords.map((keyword) => {
     const roleIds = Array.isArray(keywordPings?.[keyword]) ? keywordPings[keyword] : [];
     const roles = roleIds.map((roleId) => `<@&${roleId}>`).join(" ");
-    return `[**${client.modules.escapeMarkdown(keyword)}**${roles ? ` -> ${roles}` : ""}]`;
+    return `- **${client.modules.escapeMarkdown(keyword)}** → ${roles || "*No role*"}`;
   });
+  const browseKeywords = visibleKeywords
+    .map((keyword) => client.modules.escapeMarkdown(keyword))
+    .join(" · ");
 
   const truncatedDescription =
     description?.length > 300 ? description.slice(0, 300) + "..." : description;
-  const displayedDescription = viewingGuildId ? "" : truncatedDescription;
+  const displayedDescription = mode ? "" : truncatedDescription;
   
   const actionButtons = Array.isArray(buttons) ? buttons.filter(Boolean) : [buttons].filter(Boolean);
-  const followerCount = await client.modules.db.countDockFollowers(dock._id) - 1;
+  const followerCount = await client.modules.db.countDockFollowers(dock._id, publisherGuildId);
+  const summary = [];
+  if (mode !== "published") summary.push(`**Server:** ${client.modules.escapeMarkdown(dockPublisher)}`);
+  summary.push(`👥 **${followerCount} ${followerCount === 1 ? "Follower" : "Followers"}**`);
+  if (mode === "following" && follower) {
+    summary.push(`**Level:** ${client.modules.dockLevels.get(follower.level).label}`);
+  }
+  const headerContent = `### ${client.modules.escapeMarkdown(dockName)}\n-# ${summary.join(" • ")}${displayedDescription ? `\n\n${displayedDescription}` : ""}`;
   const section = new SectionBuilder().addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `### ${client.modules.escapeMarkdown(dockName)}\n-# **Server:** ${client.modules.escapeMarkdown(dockPublisher)} ● **${followerCount} ${followerCount > 1 ? "Followers" : "Follower"}**\n${displayedDescription ? `\n${displayedDescription}` : ""}`,
-    ),
+    new TextDisplayBuilder().setContent(headerContent),
   );
 
   if (guildIconURL) {
     section.setThumbnailAccessory(
       new ThumbnailBuilder().setURL(guildIconURL).setDescription(dockPublisher),
     );
+    container.addSectionComponents(section);
   } else if (actionButtons.length === 1) {
     section.setButtonAccessory(actionButtons[0]);
+    container.addSectionComponents(section);
+  } else {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(headerContent));
   }
-
-  container.addSectionComponents(section);
 
   container.addTextDisplayComponents((t) =>
     t.setContent(
-      `**Channel(s):** ${client.modules.escapeMarkdown(channelNames || "Unknown channel")}\n**Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}\n-# **Ping Keywords:** ${pingKeywords.join(" | ") || "None"}`,
+      mode
+        ? `**${channelLabel}:** ${displayedChannels || "Unknown channel"}\n🛡️ **Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}\n🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`
+        : `🔗 **Channels:** ${client.modules.escapeMarkdown(channelNames || "Unknown channel")}\n🛡️ **Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}\n🔑 **Keywords:** ${browseKeywords || "None"}${hiddenKeywordCount ? ` · +${hiddenKeywordCount} more` : ""}`,
     ),
   );
 

@@ -58,15 +58,26 @@ module.exports = async function dockBrowsePage({ client, state }) {
 
   const container = new ContainerBuilder().addTextDisplayComponents((text) =>
     text.setContent(
-      `## Browse Docks (Page ${state.pageIndex + 1}/${Math.max(pages.length, 1)})`,
+      `## Browse Docks${state.search ? `\n-# Results for **${client.modules.escapeMarkdown(state.search)}**` : ""}`,
     ),
   );
 
   for (const dock of pages[state.pageIndex] ?? []) {
+    const follower = await client.modules.db.getDockFollower(dock._id, state.guildId);
+    const publishedHere = dock.guildId === state.guildId;
     const followButton = new ButtonBuilder()
       .setCustomId(`dock-follow:${dock._id}`)
-      .setLabel(dock.accessMode === "request" ? "Request To Follow" : "Follow")
-      .setStyle(ButtonStyle.Success);
+      .setLabel(
+        publishedHere
+          ? "Published Here"
+          : follower
+            ? "Following"
+            : dock.accessMode === "request"
+              ? "Request To Follow"
+              : "Follow",
+      )
+      .setStyle(follower || publishedHere ? ButtonStyle.Secondary : ButtonStyle.Success)
+      .setDisabled(Boolean(follower) || publishedHere);
 
     await client.modules.getDockDisplay(container, dock, [followButton], client);
   }
@@ -83,6 +94,11 @@ module.exports = async function dockBrowsePage({ client, state }) {
       .setLabel("Previous")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(pages.length <= 1),
+    new ButtonBuilder()
+      .setCustomId("docks-page-position")
+      .setLabel(`${state.pageIndex + 1} / ${Math.max(pages.length, 1)}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
     new ButtonBuilder()
       .setCustomId("docks-next")
       .setLabel("Next")

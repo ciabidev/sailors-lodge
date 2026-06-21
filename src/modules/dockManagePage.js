@@ -41,9 +41,14 @@ module.exports = async function dockManagePage({ client, state }) {
   followedDocks = followedDocks.filter((_, index) => followedMatches[index]);
   publishedDocks = publishedDocks.filter((_, index) => publishedMatches[index]);
 
+  // A published Dock can use up to ten nested Components V2 items once its
+  // thumbnail, details, action row, and buttons are counted. Two cards leave
+  // enough room for the search, mode, and pagination controls under Discord's
+  // 40-component limit.
+  const docksPerPage = 2;
   const pages = {
-    published: client.modules.chunkArray(publishedDocks, 3),
-    following: client.modules.chunkArray(followedDocks, 3),
+    published: client.modules.chunkArray(publishedDocks, docksPerPage),
+    following: client.modules.chunkArray(followedDocks, docksPerPage),
   };
   if (!state.mode) state.mode = pages.published.length ? "published" : "following";
 

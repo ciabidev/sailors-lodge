@@ -89,17 +89,18 @@ async function getWritableConnections(client, channelId, guildId) {
 
 async function getDockWebhook(client, channel, dockFollower) {
   const savedWebhook = await client.modules.db.getDockWebhook(dockFollower.guildId);
+  let webhook = null
   if (savedWebhook?.webhookId) {
-    const webhook = await client
+    webhook = await client
       .fetchWebhook(savedWebhook.webhookId, savedWebhook.webhookToken)
       .catch(() => null);
     if (webhook?.channelId === channel.id) return webhook;
-  }
-
-  const webhook = await channel.createWebhook({
+  } else {
+    webhook = await channel.createWebhook({
     name: "Sailors Lodge Dock Webhook",
     avatar: client.user.displayAvatarURL(),
   });
+  }
 
   await client.modules.db.setDockWebhook(dockFollower.guildId, {
     guildName: dockFollower.guildName,

@@ -74,7 +74,7 @@ module.exports = async function dockManagePage({ client, state }) {
 
   const container = new ContainerBuilder().addTextDisplayComponents((text) =>
     text.setContent(
-      `## ${title} (Page ${state.pageIndex + 1}/${Math.max(currentPages.length, 1)})`,
+      `## ${title}${state.search ? `\n-# Results for **${client.modules.escapeMarkdown(state.search)}**` : ""}`,
     ),
   );
 
@@ -130,7 +130,7 @@ module.exports = async function dockManagePage({ client, state }) {
       dock,
       buttons,
       client,
-      state.guildId,
+      { guildId: state.guildId, mode: state.mode },
     );
   }
 
@@ -162,6 +162,11 @@ module.exports = async function dockManagePage({ client, state }) {
       .setLabel("Previous")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPages.length <= 1),
+    new ButtonBuilder()
+      .setCustomId("docks-manage-page-position")
+      .setLabel(`${state.pageIndex + 1} / ${Math.max(currentPages.length, 1)}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
     new ButtonBuilder()
       .setCustomId("docks-manage-next")
       .setLabel("Next")

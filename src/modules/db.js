@@ -561,10 +561,12 @@ async function getDockFollower(dockId, guildId) {
   return dockFollowers.findOne({ dockId: new ObjectId(dockId), guildId });
 }
 
-async function countDockFollowers(dockId) {
+async function countDockFollowers(dockId, publisherGuildId) {
   const dockFollowers = getCollection("dockFollows");
-  let count = await dockFollowers.countDocuments({ dockId: new ObjectId(dockId) });
-  return count;
+  return dockFollowers.countDocuments({
+    dockId: new ObjectId(dockId),
+    ...(publisherGuildId ? { guildId: { $ne: publisherGuildId } } : {}),
+  });
 }
 
 async function getFollowedDocksForGuild(guildId) {

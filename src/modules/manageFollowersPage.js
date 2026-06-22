@@ -39,6 +39,7 @@ module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }
     const level = client.modules.dockLevels.normalize(follower.level);
     const levelDetails = client.modules.dockLevels.get(level);
 
+    
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         `### ${client.modules.escapeMarkdown(follower.guildName ?? follower.guildId)}\n**Level:** ${levelDetails.label}\n${levelDetails.description}`,

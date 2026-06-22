@@ -23,7 +23,7 @@ async function check(interaction, channels) {
 
   if (missingPermissions.length > 0) {
     const response = {
-      content: `I am missing one or more of these permissions for these channels/myself:\n${missingPermissions.map(label => `- ${label.label}`).join("\n")}`,
+      content: `I am missing the following permissions:\n${missingPermissions.map(label => `- ${label.label}`).join("\n")}`,
       flags: MessageFlags.Ephemeral,
     };
 

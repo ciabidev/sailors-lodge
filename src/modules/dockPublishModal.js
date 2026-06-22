@@ -38,7 +38,7 @@ module.exports = async function dockPublishModal(
               .setCustomId("name")
               .setStyle(TextInputStyle.Short)
               .setValue(defaults.name ?? "")
-              .setPlaceholder("Party Central (Luck Parties)")
+              .setPlaceholder("Luck Parties")
               .setMaxLength(150),
           ),
       )

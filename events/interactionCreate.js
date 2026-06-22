@@ -455,26 +455,31 @@ module.exports = {
 
         // set keyword pings
         const channelIds = selfFollow?.channelIds?.length ? selfFollow.channelIds : dock.channelIds;
-        const keywords = interaction.fields.getStringSelectValues("keyword", false);
-        const roles = interaction.fields.getSelectedRoles("roles", false);
-        const roleIds = roles ? [...roles.keys()] : [];
-        const keywordPings = Array.isArray(selfFollow.keywordPings)
-          ? {}
-          : { ...(selfFollow.keywordPings ?? {}) };
-        keywords.forEach((keyword) => {
-          keywordPings[keyword] = roleIds;
-        });
+        let keywords
+        let roles
+        if (dock.keywords?.length > 0) {
+          keywords = interaction.fields.getStringSelectValues("keyword", false);
+          roles = interaction.fields.getSelectedRoles("roles", false);
+          const roleIds = roles ? [...roles.keys()] : [];
+          const keywordPings = Array.isArray(selfFollow.keywordPings)
+            ? {}
+            : { ...(selfFollow.keywordPings ?? {}) };
+          keywords.forEach((keyword) => {
+            keywordPings[keyword] = roleIds;
+          });
 
-        await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
-          guildName: interaction.guild.name,
-          channelIds,
-          keywordPings,
-        });
-
+          await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
+            guildName: interaction.guild.name,
+            channelIds,
+            keywordPings,
+          });
+        }
+     
+        
+        console.log( interaction.fields.getSelectedRoles("gatekeeper"))
         // set gatekeeper role
-        const gatekeeperRoleId = interaction.fields.getRoleSelectValues("gatekeeper")
-          ? interaction.fields.getRoleSelectValues("gatekeeper")[0]
-          : null;
+        const gatekeeperRole = interaction.fields.getSelectedRoles("gatekeeper")
+        const gatekeeperRoleId = gatekeeperRole ? [...gatekeeperRole.keys()][0] : null;
         if (gatekeeperRoleId) {
           await interaction.client.modules.db.updateDock(dockId, {
             $set: {

@@ -89,8 +89,14 @@ async function getWritableConnections(client, channelId, guildId) {
   );
 }
 
-async function getDockWebhook(client, channel, dockFollower) {
-  const savedWebhook = await client.modules.db.getDockWebhook(dockFollower.guildId);
+const dockWebhookPromises = new Map();
+const DOCK_WEBHOOK_NAME = "Sailors Lodge Dock Webhook";
+
+async function resolveDockWebhook(client, channel, dockFollower) {
+  const savedWebhook = await client.modules.db.getDockWebhook(
+    dockFollower.guildId,
+    channel.id,
+  );
 
   let webhook = null;
 
@@ -104,21 +110,42 @@ async function getDockWebhook(client, channel, dockFollower) {
     }
   }
 
-  // create a new one whenever the old one is missing,
-  // invalid, or belongs to another channel
+  // Recover webhooks created before webhooks were stored per channel. This also
+  // avoids creating another webhook after a database reset or failed write.
+  const channelWebhooks = await channel.fetchWebhooks().catch(() => null);
+  webhook = channelWebhooks?.find(
+    (candidate) =>
+      candidate.name === DOCK_WEBHOOK_NAME && candidate.owner?.id === client.user.id,
+  );
 
-  webhook = await channel.createWebhook({
-    name: "Sailors Lodge Dock Webhook",
-    avatar: client.user.displayAvatarURL(),
-  });
+  if (!webhook) {
+    webhook = await channel.createWebhook({
+      name: DOCK_WEBHOOK_NAME,
+      avatar: client.user.displayAvatarURL(),
+    });
+  }
 
-  await client.modules.db.setDockWebhook(dockFollower.guildId, {
+  await client.modules.db.setDockWebhook(dockFollower.guildId, channel.id, {
     guildName: dockFollower.guildName,
     webhookId: webhook.id,
     webhookToken: webhook.token,
   });
 
   return webhook;
+}
+
+async function getDockWebhook(client, channel, dockFollower) {
+  const cacheKey = `${dockFollower.guildId}:${channel.id}`;
+  let pending = dockWebhookPromises.get(cacheKey);
+
+  if (!pending) {
+    pending = resolveDockWebhook(client, channel, dockFollower).finally(() => {
+      dockWebhookPromises.delete(cacheKey);
+    });
+    dockWebhookPromises.set(cacheKey, pending);
+  }
+
+  return pending;
 }
 
 const RELAYED_THREAD_MARKER = "[Relayed]"; // This marks relayed threads. Threads with this marker dont get recreated, preventing infinite thread creation loops.

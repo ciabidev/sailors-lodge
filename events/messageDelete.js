@@ -6,7 +6,10 @@ module.exports = {
     const dockMessage = await message.client.modules.db.getDockMessageFromRoot(message.channel.id, message.id);
     if (dockMessage) {
       for (const delivery of dockMessage.deliveries ?? []) {
-        const savedWebhook = await message.client.modules.db.getDockWebhook(delivery.guildId);
+        const savedWebhook = await message.client.modules.db.getDockWebhook(
+          delivery.guildId,
+          delivery.channelId,
+        );
         if (!savedWebhook?.webhookId) continue;
 
         const webhook = await message.client

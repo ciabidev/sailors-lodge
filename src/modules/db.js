@@ -594,22 +594,32 @@ async function getPublishedDocksForGuild(guildId) {
   const docks = getCollection("docks");
   return docks.find({ guildId }).toArray();
 }
-async function getDockWebhook(guildId) {
+async function getDockWebhook(guildId, channelId) {
   const dockWebhooks = getCollection("dockWebhooks");
-  return dockWebhooks.findOne({ guildId });
+  if (!channelId) return dockWebhooks.findOne({ guildId });
+
+  return (
+    (await dockWebhooks.findOne({ guildId, channelId })) ??
+    // Backward compatibility for the old one-webhook-per-guild schema.
+    (await dockWebhooks.findOne({
+      guildId,
+      channelId: { $exists: false },
+    }))
+  );
 }
 
-async function setDockWebhook(guildId, changes = {}) { // each follower has a singular webhook to manage all dock messages
+async function setDockWebhook(guildId, channelId, changes = {}) {
   const dockWebhooks = getCollection("dockWebhooks");
   const fields = Object.fromEntries(
     Object.entries(changes).filter(([, value]) => value !== undefined),
   );
   delete fields._id;
   delete fields.guildId;
+  delete fields.channelId;
   delete fields.createdAt;
 
   return dockWebhooks.updateOne(
-    { guildId },
+    { guildId, channelId },
     {
       $set: {
         ...fields,
@@ -617,6 +627,7 @@ async function setDockWebhook(guildId, changes = {}) { // each follower has a si
       },
       $setOnInsert: {
         guildId,
+        channelId,
         createdAt: new Date(),
       },
     },

@@ -8,11 +8,20 @@ module.exports = {
       option.setName("command").setDescription("The command to reload").setRequired(true)
     ),
   async execute(interaction) {
+    const DEV_IDS = (process.env.DEV_IDS ?? "").split(",").map((id) => id.trim());
+    if (!DEV_IDS.includes(interaction.user.id)) {
+      return interaction.reply({
+        content: "Only a developer can reload commands.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
     const commandName = interaction.options.getString("command", true).toLowerCase();
     const command = interaction.client.commands.get(commandName);
     if (!command) {
       return interaction.reply(`There is no command with name \`${commandName}\``);
     }
+
+    
 
     delete require.cache[require.resolve(command.__path)]; // changed
 

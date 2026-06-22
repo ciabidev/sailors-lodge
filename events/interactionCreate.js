@@ -344,7 +344,11 @@ module.exports = {
               ? "no-access"
               : interaction.client.modules.dockLevels.normalize(dock.defaultLevel),
         });
-        await interaction.client.modules.updateDockBrowsePage(interaction);
+        if (!isManagingDocks) {
+           await interaction.client.modules.updateDockBrowsePage(interaction);
+        } else {
+          await interaction.client.modules.updateDockManagePage(interaction)
+        }
         const container = new ContainerBuilder();
         const escapedDockName = interaction.client.modules.escapeMarkdown(dock.name);
         const escapedGuildName = interaction.client.modules.escapeMarkdown(interaction.guild.name);

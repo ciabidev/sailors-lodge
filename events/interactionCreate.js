@@ -362,7 +362,12 @@ module.exports = {
                 components: [container],
                 flags: MessageFlags.IsComponentsV2,
               });
+              
             }
+            interaction.reply({
+            content: "✅",
+            flags: MessageFlags.Ephemeral,
+          });
           } else {
             const gatekeeperRoleId = dock.gatekeeperRoleId;
             const requester = `${interaction.user} [${interaction.client.modules.escapeMarkdown(interaction.user.username)}]`;
@@ -395,6 +400,11 @@ module.exports = {
               flags: MessageFlags.IsComponentsV2,
               guildIds: [dock.guildId],
             });
+            
+            interaction.reply({
+            content: "Follow request sent.",
+            flags: MessageFlags.Ephemeral,
+          });
           }
         } catch (err) {
           console.error(err);

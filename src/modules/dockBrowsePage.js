@@ -67,7 +67,7 @@ module.exports = async function dockBrowsePage({ client, state }) {
     const publishedHere = dock.guildId === state.guildId;
     const isBanned = follower?.banned === true;
     const isPending = follower?.level === "no-access" && !isBanned;
-    const isFollowing = Boolean(follower && follower.level !== "no-access");
+    const isFollowing = client.modules.dockLevels.canRead(follower);
 
     let followLabel = "Follow";
 

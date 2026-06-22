@@ -37,6 +37,10 @@ module.exports = {
           ),
         (text) =>
           text.setContent(
+            "### `/dock ban` and `/dock unban`\nBan a follower server with a reason, or allow it to follow the Dock again.",
+          ),
+        (text) =>
+          text.setContent(
             "## Permissions and ping roles\n- Docks must be used in a Discord server and require **Manage Channels**. \nDock ping roles are separate from the server-only ping groups.",
           ),
       );

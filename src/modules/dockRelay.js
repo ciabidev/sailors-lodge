@@ -83,7 +83,9 @@ async function getWritableConnections(client, channelId, guildId) {
 
   return connections.filter(
     ({ dock, follower }) =>
-      dock && (dock.guildId === guildId || client.modules.dockLevels.canSend(follower.level)),
+      dock &&
+      client.modules.dockLevels.canRead(follower) &&
+      (dock.guildId === guildId || client.modules.dockLevels.canSend(follower.level)),
   );
 }
 
@@ -178,7 +180,11 @@ async function relayThread(thread, sendingFollower = null) {
         (channelId) => channelId && channelId !== thread.parentId,
       ),
     }))
-    .filter((dockFollower) => dockFollower.channelIds.length > 0 && dockFollower.level !== "no-access");
+    .filter(
+      (dockFollower) =>
+        dockFollower.channelIds.length > 0 &&
+        thread.client.modules.dockLevels.canRead(dockFollower),
+    );
   if (receivingFollowers.length === 0) return;
 
   await thread.client.modules.db.indexDockThread({
@@ -254,6 +260,13 @@ async function relayThreadMessage(message) {
   const dock = await message.client.modules.db.getDock(dockThread.dockId);
   if (!dock) return;
 
+  const activeGuildIds = new Set(
+    (await message.client.modules.db.getDockFollowers(dock._id))
+      .filter((follower) => message.client.modules.dockLevels.canRead(follower))
+      .map((follower) => follower.guildId),
+  );
+  activeGuildIds.add(dock.guildId);
+
   const threads = [
     {
       guildId: dockThread.rootGuildId,
@@ -262,7 +275,7 @@ async function relayThreadMessage(message) {
       threadId: dockThread.rootThreadId,
     },
     ...(dockThread.deliveries ?? []),
-  ].filter((delivery) => delivery.threadId);
+  ].filter((delivery) => delivery.threadId && activeGuildIds.has(delivery.guildId));
   const sendingThread = threads.find((delivery) => delivery.threadId === message.channel.id);
   if (!sendingThread) return;
   if (dock.guildId !== sendingThread.guildId) {
@@ -270,7 +283,10 @@ async function relayThreadMessage(message) {
       dock._id,
       sendingThread.guildId,
     );
-    if (!message.client.modules.dockLevels.canSend(sendingFollower?.level)) return;
+    if (
+      !message.client.modules.dockLevels.canRead(sendingFollower) ||
+      !message.client.modules.dockLevels.canSend(sendingFollower?.level)
+    ) return;
   }
   const username = `${message.author.username} [${dock.name}] [${sendingThread.guildName}]`;
   const formattedUsername =
@@ -355,7 +371,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
   if (!dock) return;
   if (
     dock.guildId !== sendingFollower.guildId &&
-    !message.client.modules.dockLevels.canSend(sendingFollower.level)
+    (!message.client.modules.dockLevels.canRead(sendingFollower) ||
+      !message.client.modules.dockLevels.canSend(sendingFollower.level))
   )
     return;
 
@@ -366,7 +383,11 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         (channelId) => channelId && channelId !== message.channel.id,
       ),
     }))
-    .filter((dockFollower) => dockFollower.channelIds.length > 0 && dockFollower.level !== "no-access");
+    .filter(
+      (dockFollower) =>
+        dockFollower.channelIds.length > 0 &&
+        message.client.modules.dockLevels.canRead(dockFollower),
+    );
   if (receivingFollowers.length === 0) return;
   const isDockPing =
     message.client.dockPingMetadata?.has(message.id) &&
@@ -458,7 +479,7 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
   const followers = (await client.modules.db.getDockFollowers(dock._id)).filter((follower) =>
     targetGuildIds
       ? targetGuildIds.has(follower.guildId)
-      : follower.level !== "no-access",
+      : client.modules.dockLevels.canRead(follower),
   );
   if (followers.length === 0) return;
   if (payload.party && payload.source) {

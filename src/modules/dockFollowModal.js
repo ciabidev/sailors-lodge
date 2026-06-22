@@ -2,6 +2,7 @@ const {
   ChannelSelectMenuBuilder,
   ChannelType,
   LabelBuilder,
+  MessageFlags,
   ModalBuilder,
   RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
@@ -49,6 +50,12 @@ module.exports = async function dockFollowModal(
     .setCustomId(`${customId}:${dockId}`);
 
   const follower = await interaction.client.modules.db.getDockFollower(dockId, interaction.guildId);
+  if (follower?.banned) {
+    return interaction.reply({
+      content: "This server is banned from following that Dock.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
   if (follower) {
     if (follower.level === "admin" || interaction.guildId === dock.guildId) {
       modal.addLabelComponents(

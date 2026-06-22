@@ -54,6 +54,15 @@ module.exports = {
         const search = interaction.fields.getTextInputValue("search");
         return interaction.client.modules.updateDockManagePage(interaction, { search });
       }
+      if (interaction.customId.startsWith("dock-ban-modal:")) {
+        const [, dockId, followerGuildId] = interaction.customId.split(":");
+        return interaction.client.modules.dockBans.banFollower(
+          interaction,
+          dockId,
+          followerGuildId,
+          interaction.fields.getTextInputValue("reason"),
+        );
+      }
 
       [modalId, partyId, dmFlag] = interaction.customId.split(":");
       if (modalId === "party-modal") {
@@ -299,12 +308,22 @@ module.exports = {
           interaction.guildId,
         );
 
+        if (existingFollower?.banned) {
+          return interaction.reply({
+            content: "This server is banned from following that Dock.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
         const currentKeywordPings = Array.isArray(existingFollower?.keywordPings)
           ? {}
           : { ...(existingFollower?.keywordPings ?? {}) };
         if (keyword) currentKeywordPings[keyword] = roleIds;
 
-        if (!isManagingDocks && existingFollower && existingFollower.level !== "no-access") {
+        if (
+          !isManagingDocks &&
+          interaction.client.modules.dockLevels.canRead(existingFollower)
+        ) {
           return interaction.reply({
             content: "This server is already following this Dock.",
             flags: MessageFlags.Ephemeral,
@@ -368,10 +387,10 @@ module.exports = {
               });
               
             }
-            interaction.reply({
-            content: "✅",
-            flags: MessageFlags.Ephemeral,
-          });
+            await interaction.followUp({
+              content: "✅",
+              flags: MessageFlags.Ephemeral,
+            });
           } else {
             const gatekeeperRoleId = dock.gatekeeperRoleId;
             const requester = `${interaction.user} [${interaction.client.modules.escapeMarkdown(interaction.user.username)}]`;
@@ -405,10 +424,10 @@ module.exports = {
               guildIds: [dock.guildId],
             });
             
-            interaction.reply({
-            content: "Follow request sent.",
-            flags: MessageFlags.Ephemeral,
-          });
+            await interaction.followUp({
+              content: "Follow request sent.",
+              flags: MessageFlags.Ephemeral,
+            });
           }
         } catch (err) {
           console.error(err);
@@ -436,7 +455,7 @@ module.exports = {
 
         // set keyword pings
         const channelIds = selfFollow?.channelIds?.length ? selfFollow.channelIds : dock.channelIds;
-        const keywords = interaction.fields.getStringSelectValues("keyword");
+        const keywords = interaction.fields.getStringSelectValues("keyword", false);
         const roles = interaction.fields.getSelectedRoles("roles", false);
         const roleIds = roles ? [...roles.keys()] : [];
         const keywordPings = Array.isArray(selfFollow.keywordPings)
@@ -580,7 +599,7 @@ module.exports = {
       }
 
       const follower = await interaction.client.modules.db.getDockFollower(dockId, guildId);
-      if (!follower || follower.guildId === dock.guildId) {
+      if (!follower || follower.banned || follower.guildId === dock.guildId) {
         return interaction.reply({
           content: "I couldn't find that follower anymore.",
           flags: MessageFlags.Ephemeral,
@@ -1010,7 +1029,7 @@ module.exports = {
           dockId,
           followerGuildId,
         );
-        if (!follower || follower.level !== "no-access") {
+        if (!follower || follower.banned || follower.level !== "no-access") {
           return interaction.reply({
             content: "This follow request is no longer pending.",
             flags: MessageFlags.Ephemeral,

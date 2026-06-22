@@ -13,9 +13,16 @@ const {
   TextInputStyle,
   PermissionFlagsBits,
 } = require("discord.js");
+const Sentry = require("@sentry/node");
 const { ObjectId } = require("mongodb");
+const {
+  buildReportErrorComponents,
+  captureError,
+  reportError,
+} = require("../src/reportError");
+const { buildBugReportModal } = require("../commands/utility/bugreport");
 
-const issues = process.env.ISSUES_URL;
+const issues = process.env.ISSUES_URL ?? process.env.ISSUES;
 const { browsePages: dockBrowsePages } = require("../commands/dock/browse");
 const { model } = require("mongoose");
 const { managePages: dockManagePages } = require("../commands/dock/manage");
@@ -34,7 +41,11 @@ module.exports = {
       try {
         await command.autocomplete(interaction);
       } catch (error) {
-        console.error("Autocomplete error:", error);
+        captureError(error, {
+          source: "autocomplete",
+          tags: { command: interaction.commandName },
+        });
+        await interaction.respond([]).catch(() => {});
       }
       return;
     }
@@ -45,6 +56,47 @@ module.exports = {
       let dockId;
       let partyId;
       let dmFlag;
+
+      if (interaction.customId.startsWith("bug-report-modal")) {
+        const [, linkedEventId = ""] = interaction.customId.split(":");
+        const goal = interaction.fields.getTextInputValue("goal").trim();
+        const description = interaction.fields.getTextInputValue("description").trim();
+        const steps = interaction.fields.getTextInputValue("steps").trim();
+        const enteredEventId = interaction.fields.getTextInputValue("error_id").trim();
+        const associatedEventId = linkedEventId || enteredEventId;
+        const contactName = interaction.fields.getTextInputValue("contact_name").trim();
+
+        if (associatedEventId && !/^[a-f\d]{32}$/i.test(associatedEventId)) {
+          return interaction.reply({
+            content: "That error ID is invalid. It should contain exactly 32 letters and numbers.",
+            flags: [MessageFlags.Ephemeral],
+          });
+        }
+
+        const message = [
+          `What they were trying to do:\n${goal}`,
+          `What went wrong:\n${description}`,
+          steps ? `Steps to reproduce:\n${steps}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
+        const feedbackId = Sentry.captureFeedback({
+          message,
+          name: contactName || undefined,
+          source: "sailors-lodge",
+          associatedEventId: associatedEventId || undefined,
+          tags: {
+            command: "bugreport",
+            linked_error: Boolean(associatedEventId),
+          },
+        });
+
+        return interaction.reply({
+          content: `Thanks, your bug report was submitted. Report ID: \`${feedbackId}\``,
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
 
       if (interaction.customId === "docks-browse-search-modal") {
         const search = interaction.fields.getTextInputValue("search");
@@ -154,6 +206,8 @@ module.exports = {
                 content: "Party updated successfully!",
                 flags: [MessageFlags.Ephemeral],
               });
+            } else {
+              throw err;
             }
           }
 
@@ -430,7 +484,11 @@ module.exports = {
             });
           }
         } catch (err) {
-          console.error(err);
+          await reportError(err, {
+            source: "modal-submit",
+            context: interaction,
+            tags: { modal: interaction.customId },
+          });
         }
 
         return;
@@ -656,12 +714,26 @@ module.exports = {
         });
       }
 
+      await interaction.reply({
+        content: "✅ Successfully updated.",
+      })
+
+      await interaction.reply({
+        content: "✅ Successfully updated.",
+        flags: MessageFlags.Ephemeral,
+      });
+
       return;
     }
 
     if (interaction.isButton()) {
       const buttonId = interaction.customId;
       let [action] = buttonId.split(":");
+
+      if (buttonId.startsWith("report-error:")) {
+        const [, eventId] = buttonId.split(":");
+        return interaction.showModal(buildBugReportModal(eventId));
+      }
 
       if (buttonId === "docks-browse-search") {
         const state = dockBrowsePages.get(interaction.user.id);
@@ -1128,18 +1200,27 @@ module.exports = {
       try {
         await command.execute(interaction);
       } catch (error) {
-        console.error(error);
-        let content = error.message;
-        if (error.stack) {
-          content += `\n\n${error.stack}`;
-        }
+        const isMissingAccess = error.code === 50001;
+        const eventId = isMissingAccess
+          ? null
+          : Sentry.captureException(error, {
+              tags: {
+                source: "discord-command",
+                command: interaction.commandName,
+              },
+            });
 
-        if (error.code === 50001) {
-          content = "I don't have access to this channel.";
-        }
+        const content = isMissingAccess
+          ? "I don't have access to this channel."
+          : `Something went wrong while executing this command. Error ID: \`${eventId}\``;
+
+        const reportPrompt = issues
+          ? ` Please report it on our [issue board](${issues}).`
+          : " Please report it to the bot developers.";
 
         const replyContent = {
-          content: `An error occurred while executing this command, please report this to us via our [issue board](${issues})\n\`\`\`${content}\`\`\``,
+          content: `${content}${isMissingAccess ? "" : reportPrompt}`,
+          components: eventId ? buildReportErrorComponents(eventId) : [],
           flags: [MessageFlags.Ephemeral],
         };
 
@@ -1153,7 +1234,7 @@ module.exports = {
           if (replyError.code !== 10062) {
             throw replyError;
           }
-          console.error("Failed to send command error response: interaction expired.");
+          console.warn("Failed to send command error response: interaction expired.");
         }
       }
     }

@@ -70,7 +70,7 @@ async function joinParty(interaction, joinCode) {
       components: [new TextDisplayBuilder().setContent("Party card will be sent to you in DM")],
       flags: [MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral],
     });} catch (error) {
-      console.log(error);
+      console.error("[join-party] Failed to send the party confirmation:", error);
     }
 
     // Send persistent card in DM

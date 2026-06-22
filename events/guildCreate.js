@@ -39,7 +39,7 @@ module.exports = {
         flags: MessageFlags.IsComponentsV2,
       });
     } catch (error) {
-      console.warn(`[guild-welcome] Could not DM the bot installer for ${guild.id}:`, error);
+      console.error(`[guild-welcome] Could not DM the bot installer for ${guild.id}:`, error);
     }
   },
 };

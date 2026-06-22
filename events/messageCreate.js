@@ -1,5 +1,6 @@
 const { EmbedBuilder, Events, MessageType } = require("discord.js");
 const { ObjectId } = require("mongodb");
+const { reportError } = require("../src/reportError");
 
 const configuredDeveloperIds = (process.env.DEV_IDS ?? "")
   .split(",")
@@ -326,7 +327,10 @@ module.exports = {
         }
       }
     } catch (error) {
-      console.error("[message-create] Failed to relay Dock message:", error);
+      await reportError(error, {
+        source: "message-create",
+        context: message,
+      });
     }
   },
 };

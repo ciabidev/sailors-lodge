@@ -1,4 +1,5 @@
 const { Events } = require("discord.js");
+const { reportError } = require("../src/reportError");
 
 module.exports = {
   name: Events.ThreadCreate,
@@ -15,7 +16,10 @@ module.exports = {
       
       await thread.client.modules.dockRelay.relayThread(thread, connection.follower);
     } catch (error) {
-      console.error("[thread-create] Failed to relay Dock thread:", error);
+      await reportError(error, {
+        source: "thread-create",
+        context: thread,
+      });
     }
   },
 };

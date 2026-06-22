@@ -28,8 +28,7 @@ module.exports = async function updateDockBrowsePage(interaction, options = {}) 
   if (error.code === 10062 || error.code === 40060) {
     return false;
   }
-    console.error(error);
-    return false;
+    throw error;
   }
   return true;
 };

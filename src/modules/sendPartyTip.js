@@ -6,6 +6,6 @@ module.exports = async function sendPartyTip(user) {
         "> ℹ️ TIP: Use `!a` before your message to announce to the rest of the party! For example: !a Hello everyone. Images work too",
     });
   } catch (error) {
-    console.warn(`[party-tip] Failed to DM party tip to ${user.id}:`, error);
+    console.error(`[party-tip] Failed to DM party tip to ${user.id}:`, error);
   }
 };

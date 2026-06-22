@@ -13,9 +13,16 @@ const {
   TextInputStyle,
   PermissionFlagsBits,
 } = require("discord.js");
+const Sentry = require("@sentry/node");
 const { ObjectId } = require("mongodb");
+const {
+  buildReportErrorComponents,
+  captureError,
+  reportError,
+} = require("../src/reportError");
+const { buildBugReportModal } = require("../commands/utility/bugreport");
 
-const issues = process.env.ISSUES_URL;
+const issues = process.env.ISSUES_URL ?? process.env.ISSUES;
 const { browsePages: dockBrowsePages } = require("../commands/dock/browse");
 const { model } = require("mongoose");
 const { managePages: dockManagePages } = require("../commands/dock/manage");
@@ -34,7 +41,11 @@ module.exports = {
       try {
         await command.autocomplete(interaction);
       } catch (error) {
-        console.error("Autocomplete error:", error);
+        captureError(error, {
+          source: "autocomplete",
+          tags: { command: interaction.commandName },
+        });
+        await interaction.respond([]).catch(() => {});
       }
       return;
     }
@@ -46,6 +57,47 @@ module.exports = {
       let partyId;
       let dmFlag;
 
+      if (interaction.customId.startsWith("bug-report-modal")) {
+        const [, linkedEventId = ""] = interaction.customId.split(":");
+        const goal = interaction.fields.getTextInputValue("goal").trim();
+        const description = interaction.fields.getTextInputValue("description").trim();
+        const steps = interaction.fields.getTextInputValue("steps").trim();
+        const enteredEventId = interaction.fields.getTextInputValue("error_id").trim();
+        const associatedEventId = linkedEventId || enteredEventId;
+        const contactName = interaction.fields.getTextInputValue("contact_name").trim();
+
+        if (associatedEventId && !/^[a-f\d]{32}$/i.test(associatedEventId)) {
+          return interaction.reply({
+            content: "That error ID is invalid. It should contain exactly 32 letters and numbers.",
+            flags: [MessageFlags.Ephemeral],
+          });
+        }
+
+        const message = [
+          `What they were trying to do:\n${goal}`,
+          `What went wrong:\n${description}`,
+          steps ? `Steps to reproduce:\n${steps}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
+        const feedbackId = Sentry.captureFeedback({
+          message,
+          name: contactName || undefined,
+          source: "sailors-lodge",
+          associatedEventId: associatedEventId || undefined,
+          tags: {
+            command: "bugreport",
+            linked_error: Boolean(associatedEventId),
+          },
+        });
+
+        return interaction.reply({
+          content: `Thanks, your bug report was submitted. Report ID: \`${feedbackId}\``,
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
+
       if (interaction.customId === "docks-browse-search-modal") {
         const search = interaction.fields.getTextInputValue("search");
         return interaction.client.modules.updateDockBrowsePage(interaction, { search });
@@ -53,6 +105,15 @@ module.exports = {
       if (interaction.customId === "docks-manage-search-modal") {
         const search = interaction.fields.getTextInputValue("search");
         return interaction.client.modules.updateDockManagePage(interaction, { search });
+      }
+      if (interaction.customId.startsWith("dock-ban-modal:")) {
+        const [, dockId, followerGuildId] = interaction.customId.split(":");
+        return interaction.client.modules.dockBans.banFollower(
+          interaction,
+          dockId,
+          followerGuildId,
+          interaction.fields.getTextInputValue("reason"),
+        );
       }
 
       [modalId, partyId, dmFlag] = interaction.customId.split(":");
@@ -145,6 +206,8 @@ module.exports = {
                 content: "Party updated successfully!",
                 flags: [MessageFlags.Ephemeral],
               });
+            } else {
+              throw err;
             }
           }
 
@@ -299,12 +362,22 @@ module.exports = {
           interaction.guildId,
         );
 
+        if (existingFollower?.banned) {
+          return interaction.reply({
+            content: "This server is banned from following that Dock.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
         const currentKeywordPings = Array.isArray(existingFollower?.keywordPings)
           ? {}
           : { ...(existingFollower?.keywordPings ?? {}) };
         if (keyword) currentKeywordPings[keyword] = roleIds;
 
-        if (!isManagingDocks && existingFollower && existingFollower.level !== "no-access") {
+        if (
+          !isManagingDocks &&
+          interaction.client.modules.dockLevels.canRead(existingFollower)
+        ) {
           return interaction.reply({
             content: "This server is already following this Dock.",
             flags: MessageFlags.Ephemeral,
@@ -368,10 +441,10 @@ module.exports = {
               });
               
             }
-            interaction.reply({
-            content: "✅",
-            flags: MessageFlags.Ephemeral,
-          });
+            await interaction.followUp({
+              content: "✅",
+              flags: MessageFlags.Ephemeral,
+            });
           } else {
             const gatekeeperRoleId = dock.gatekeeperRoleId;
             const requester = `${interaction.user} [${interaction.client.modules.escapeMarkdown(interaction.user.username)}]`;
@@ -405,13 +478,17 @@ module.exports = {
               guildIds: [dock.guildId],
             });
             
-            interaction.reply({
-            content: "Follow request sent.",
-            flags: MessageFlags.Ephemeral,
-          });
+            await interaction.followUp({
+              content: "Follow request sent.",
+              flags: MessageFlags.Ephemeral,
+            });
           }
         } catch (err) {
-          console.error(err);
+          await reportError(err, {
+            source: "modal-submit",
+            context: interaction,
+            tags: { modal: interaction.customId },
+          });
         }
 
         return;
@@ -436,26 +513,31 @@ module.exports = {
 
         // set keyword pings
         const channelIds = selfFollow?.channelIds?.length ? selfFollow.channelIds : dock.channelIds;
-        const keywords = interaction.fields.getStringSelectValues("keyword");
-        const roles = interaction.fields.getSelectedRoles("roles", false);
-        const roleIds = roles ? [...roles.keys()] : [];
-        const keywordPings = Array.isArray(selfFollow.keywordPings)
-          ? {}
-          : { ...(selfFollow.keywordPings ?? {}) };
-        keywords.forEach((keyword) => {
-          keywordPings[keyword] = roleIds;
-        });
+        let keywords
+        let roles
+        if (dock.keywords?.length > 0) {
+          keywords = interaction.fields.getStringSelectValues("keyword", false);
+          roles = interaction.fields.getSelectedRoles("roles", false);
+          const roleIds = roles ? [...roles.keys()] : [];
+          const keywordPings = Array.isArray(selfFollow.keywordPings)
+            ? {}
+            : { ...(selfFollow.keywordPings ?? {}) };
+          keywords.forEach((keyword) => {
+            keywordPings[keyword] = roleIds;
+          });
 
-        await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
-          guildName: interaction.guild.name,
-          channelIds,
-          keywordPings,
-        });
-
+          await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
+            guildName: interaction.guild.name,
+            channelIds,
+            keywordPings,
+          });
+        }
+     
+        
+        console.log( interaction.fields.getSelectedRoles("gatekeeper"))
         // set gatekeeper role
-        const gatekeeperRoleId = interaction.fields.getRoleSelectValues("gatekeeper")
-          ? interaction.fields.getRoleSelectValues("gatekeeper")[0]
-          : null;
+        const gatekeeperRole = interaction.fields.getSelectedRoles("gatekeeper")
+        const gatekeeperRoleId = gatekeeperRole ? [...gatekeeperRole.keys()][0] : null;
         if (gatekeeperRoleId) {
           await interaction.client.modules.db.updateDock(dockId, {
             $set: {
@@ -580,7 +662,7 @@ module.exports = {
       }
 
       const follower = await interaction.client.modules.db.getDockFollower(dockId, guildId);
-      if (!follower || follower.guildId === dock.guildId) {
+      if (!follower || follower.banned || follower.guildId === dock.guildId) {
         return interaction.reply({
           content: "I couldn't find that follower anymore.",
           flags: MessageFlags.Ephemeral,
@@ -632,12 +714,26 @@ module.exports = {
         });
       }
 
+      await interaction.reply({
+        content: "✅ Successfully updated.",
+      })
+
+      await interaction.reply({
+        content: "✅ Successfully updated.",
+        flags: MessageFlags.Ephemeral,
+      });
+
       return;
     }
 
     if (interaction.isButton()) {
       const buttonId = interaction.customId;
       let [action] = buttonId.split(":");
+
+      if (buttonId.startsWith("report-error:")) {
+        const [, eventId] = buttonId.split(":");
+        return interaction.showModal(buildBugReportModal(eventId));
+      }
 
       if (buttonId === "docks-browse-search") {
         const state = dockBrowsePages.get(interaction.user.id);
@@ -1010,7 +1106,7 @@ module.exports = {
           dockId,
           followerGuildId,
         );
-        if (!follower || follower.level !== "no-access") {
+        if (!follower || follower.banned || follower.level !== "no-access") {
           return interaction.reply({
             content: "This follow request is no longer pending.",
             flags: MessageFlags.Ephemeral,
@@ -1104,18 +1200,27 @@ module.exports = {
       try {
         await command.execute(interaction);
       } catch (error) {
-        console.error(error);
-        let content = error.message;
-        if (error.stack) {
-          content += `\n\n${error.stack}`;
-        }
+        const isMissingAccess = error.code === 50001;
+        const eventId = isMissingAccess
+          ? null
+          : Sentry.captureException(error, {
+              tags: {
+                source: "discord-command",
+                command: interaction.commandName,
+              },
+            });
 
-        if (error.code === 50001) {
-          content = "I don't have access to this channel.";
-        }
+        const content = isMissingAccess
+          ? "I don't have access to this channel."
+          : `Something went wrong while executing this command. Error ID: \`${eventId}\``;
+
+        const reportPrompt = issues
+          ? ` Please report it on our [issue board](${issues}).`
+          : " Please report it to the bot developers.";
 
         const replyContent = {
-          content: `An error occurred while executing this command, please report this to us via our [issue board](${issues})\n\`\`\`${content}\`\`\``,
+          content: `${content}${isMissingAccess ? "" : reportPrompt}`,
+          components: eventId ? buildReportErrorComponents(eventId) : [],
           flags: [MessageFlags.Ephemeral],
         };
 
@@ -1129,7 +1234,7 @@ module.exports = {
           if (replyError.code !== 10062) {
             throw replyError;
           }
-          console.error("Failed to send command error response: interaction expired.");
+          console.warn("Failed to send command error response: interaction expired.");
         }
       }
     }

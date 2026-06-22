@@ -20,6 +20,8 @@
     "dev": "npm run postinstall && npx nodemon index.js"
   },
   "dependencies": {
+    "@sentry/browser": "^10.59.0",
+    "@sentry/node": "^10.59.0",
     "@supabase/supabase-js": "^2.84.0",
     "chrono-node": "^2.9.1",
     "discord.js": "^14.24.2",

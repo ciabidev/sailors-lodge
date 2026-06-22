@@ -183,6 +183,10 @@ async function migrateDockFollowers() {
     { level: { $nin: dockLevels.order } },
     { $set: { level: dockLevels.DEFAULT_LEVEL } },
   );
+  await followers.updateMany(
+    { banned: { $exists: false } },
+    { $set: { banned: false } },
+  );
 }
 
 async function migrateDockDefaultLevels() {
@@ -470,7 +474,7 @@ async function getManyDockFollowers(dockIds) {
 
 async function getDockFollowsForChannel(channelId) { // channels can follow multiple docks so this needs to return all matches
   const dockFollowers = getCollection("dockFollows");
-  return dockFollowers.find({ channelIds: channelId }).toArray();
+  return dockFollowers.find({ channelIds: channelId, banned: { $ne: true } }).toArray();
 }
 
 async function createDock(
@@ -565,13 +569,16 @@ async function countDockFollowers(dockId, publisherGuildId) {
   const dockFollowers = getCollection("dockFollows");
   return dockFollowers.countDocuments({
     dockId: new ObjectId(dockId),
+    banned: { $ne: true },
     ...(publisherGuildId ? { guildId: { $ne: publisherGuildId } } : {}),
   });
 }
 
 async function getFollowedDocksForGuild(guildId) {
   const dockFollowers = getCollection("dockFollows");
-  const dockFollowsForGuild = await dockFollowers.find({ guildId }).toArray();
+  const dockFollowsForGuild = await dockFollowers
+    .find({ guildId, banned: { $ne: true } })
+    .toArray();
   if (!dockFollowsForGuild.length) return [];
 
   const docks = getCollection("docks");

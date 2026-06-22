@@ -96,7 +96,7 @@ module.exports = async function getDockDisplay(
   container.addTextDisplayComponents((text) =>
     text.setContent(`**${channelLabel}:** ${displayedChannels || "Unknown channel"}`),
   );
-
+  console.log(dock)
   if (mode === "published") {
     container.addTextDisplayComponents(
       (text) =>
@@ -105,8 +105,9 @@ module.exports = async function getDockDisplay(
         ),
       (text) =>
         text.setContent(
-          `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`,
+          `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}\n**Gatekeeper Role:** ${dock.gatekeeperRoleId ? `<@&${dock.gatekeeperRoleId}>` : "None"}`,
         ),
+      
     );
   } else {
     const levelLabel = client.modules.dockLevels.get(
@@ -120,7 +121,7 @@ module.exports = async function getDockDisplay(
         ),
       (text) =>
         text.setContent(
-          `🔑 **Keywords:** ${browseKeywords || "None"}${hiddenKeywordCount ? ` · +${hiddenKeywordCount} more` : ""}`,
+          `🔑 ${mode !== "following" ? `**Keywords:** ${browseKeywords || "None"}${hiddenKeywordCount ? ` · +${hiddenKeywordCount} more` : ""}` : `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`}`,
         ),
     );
   }

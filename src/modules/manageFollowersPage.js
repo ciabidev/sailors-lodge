@@ -36,6 +36,19 @@ module.exports = function manageFollowersPage({ dock, pages, pageIndex, client }
   }
 
   for (const follower of page) {
+    if (follower.banned) {
+      const reason = client.modules.escapeMarkdown(follower.banReason ?? "No reason provided");
+      const bannedAt = follower.bannedAt
+        ? `\n-# Banned <t:${Math.floor(new Date(follower.bannedAt).getTime() / 1000)}:R>`
+        : "";
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `### ${client.modules.escapeMarkdown(follower.guildName ?? follower.guildId)}\n**Status:** Banned\n**Reason:** ${reason}${bannedAt}`,
+        ),
+      );
+      continue;
+    }
+
     const level = client.modules.dockLevels.normalize(follower.level);
     const levelDetails = client.modules.dockLevels.get(level);
 

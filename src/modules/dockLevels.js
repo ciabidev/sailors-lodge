@@ -45,6 +45,14 @@ function canSend(level) {
   return hasAtLeast(level, "sender");
 }
 
+function canRead(follower) {
+  return Boolean(
+    follower &&
+    !follower.banned &&
+    hasAtLeast(follower.level, "passive"),
+  );
+}
+
 function canPing(level) {
   return hasAtLeast(level, "contributor");
 }
@@ -56,7 +64,7 @@ function canManage(level) {
 async function guildCanManage(client, dock, guildId) {
   if (dock.guildId === guildId) return true;
   const follower = await client.modules.db.getDockFollower(dock._id, guildId);
-  return canManage(follower?.level);
+  return canRead(follower) && canManage(follower.level);
 }
 
 function get(level) {
@@ -81,6 +89,7 @@ module.exports = {
   get,
   previous,
   next,
+  canRead,
   canSend,
   canPing,
   canManage,

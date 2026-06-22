@@ -22,7 +22,14 @@ module.exports = async function updateDockBrowsePage(interaction, options = {}) 
     client: interaction.client,
     state,
   });
-  await interaction.update({ components: view.components });
-
+  try {
+    await interaction.update({ components: view.components });
+  } catch (error) {
+  if (error.code === 10062 || error.code === 40060) {
+    return false;
+  }
+    console.error(error);
+    return false;
+  }
   return true;
 };

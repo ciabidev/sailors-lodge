@@ -11,6 +11,7 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  PermissionFlagsBits,
 } = require("discord.js");
 const { ObjectId } = require("mongodb");
 
@@ -276,7 +277,7 @@ module.exports = {
 
       [modalId, dockId] = interaction.customId.split(":");
       if (modalId === "dock-follow-modal" || modalId === "dock-configure-follower") {
-        const isConfiguringFollower = modalId === "dock-configure-follower";
+        const isManagingDocks = modalId === "dock-configure-follower";
         const channels = interaction.fields.getSelectedChannels("dock-follow-channel", true, [
           ChannelType.GuildText,
           ChannelType.GuildAnnouncement,
@@ -287,8 +288,8 @@ module.exports = {
         const keyword = hasKeywordField
           ? interaction.fields.getStringSelectValues("keyword")[0]
           : null;
-        const roles = hasKeywordField ? interaction.fields.getSelectedRoles("roles", false) : null;
-        const roleIds = roles ? Array.from(roles.keys()) : [];
+        const selectedRoles = hasKeywordField ? interaction.fields.getSelectedRoles("roles", false) : null;
+        const roleIds = selectedRoles ? Array.from(selectedRoles.keys()) : [];
 
         if (!(await interaction.client.modules.dockBotPerms.check(interaction, channel))) {
           return;
@@ -303,14 +304,14 @@ module.exports = {
           : { ...(existingFollower?.keywordPings ?? {}) };
         if (keyword) currentKeywordPings[keyword] = roleIds;
 
-        if (!isConfiguringFollower && existingFollower) {
+        if (!isManagingDocks && existingFollower && existingFollower.level !== "no-access") {
           return interaction.reply({
             content: "This server is already following this Dock.",
             flags: MessageFlags.Ephemeral,
           });
         }
 
-        if (isConfiguringFollower && !existingFollower) {
+        if (isManagingDocks && !existingFollower) {
           return interaction.reply({
             content: "This server is not following that Dock anymore.",
             flags: MessageFlags.Ephemeral,
@@ -337,36 +338,68 @@ module.exports = {
           guildName: interaction.guild.name,
           channelIds: [channelId],
           keywordPings: currentKeywordPings,
-          level: isConfiguringFollower
+          level: isManagingDocks
             ? undefined
-            : interaction.client.modules.dockLevels.normalize(dock.defaultLevel),
+            : dock.accessMode === "request"
+              ? "no-access"
+              : interaction.client.modules.dockLevels.normalize(dock.defaultLevel),
         });
-        await interaction.client.modules.updateDockManagePage(interaction);
-      
+        await interaction.client.modules.updateDockBrowsePage(interaction);
         const container = new ContainerBuilder();
-        container.addTextDisplayComponents((t) => t.setContent(`### New Dock Follower`));
-        container.addTextDisplayComponents((t) =>
-          t.setContent(
-            `**${interaction.guild.name}** is now following this dock (\`${interaction.client.modules.escapeMarkdown(
-              dock.name,
-            )}\`).`,
-          ),
-        );
-        container.addTextDisplayComponents((t) =>
-          t.setContent(
-            `**Permission Level:** ${interaction.client.modules.dockLevels.get(dock.defaultLevel).label}\n**Channels:** ${channels.map((channel) => channel.name ?? channel.id).join(", ")}`,
-          ),
-        );
-        if (!isConfiguringFollower) {
-          interaction.client.modules.dockRelay.relayAlert({
-            client: interaction.client,
-            dockId,
-            components: [container],
-            flags: MessageFlags.IsComponentsV2,
-          });
+        const escapedDockName = interaction.client.modules.escapeMarkdown(dock.name);
+        const escapedGuildName = interaction.client.modules.escapeMarkdown(interaction.guild.name);
+        try {
+          if (dock.accessMode === "open") {
+            container.addTextDisplayComponents((t) =>
+              t.setContent(
+                `### 🌐 New follower\n**${escapedGuildName}** is now following **${escapedDockName}**.\n\n-# Access level: ${interaction.client.modules.dockLevels.get(dock.defaultLevel).label}`,
+              ),
+            );
+            if (!isManagingDocks) {
+              interaction.client.modules.dockRelay.relayAlert({
+                client: interaction.client,
+                dockId,
+                components: [container],
+                flags: MessageFlags.IsComponentsV2,
+              });
+            }
+          } else {
+            const gatekeeperRoleId = dock.gatekeeperRoleId;
+            const requester = `${interaction.user} [${interaction.client.modules.escapeMarkdown(interaction.user.username)}]`;
+            container.addTextDisplayComponents((t) =>
+              t.setContent(
+                `### 📨 New follow request\n**${escapedGuildName}** wants to follow **${escapedDockName}**.`,
+              ),
+            );
+            container.addTextDisplayComponents((t) =>
+              t.setContent(
+                `**Requested by:** ${requester}\n**Receiving channel:** ${channels.map((channel) => `#${interaction.client.modules.escapeMarkdown(channel.name)}`).join(", ")}${gatekeeperRoleId ? `\n\n-# Gatekeepers: <@&${gatekeeperRoleId}>` : ""}`,
+              ),
+            );
+            const actionRow =
+              new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`dock-follow-request:accept:${dockId}:${interaction.guildId}`)
+                  .setLabel("Approve")
+                  .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                  .setCustomId(`dock-follow-request:deny:${dockId}:${interaction.guildId}`)
+                  .setLabel("Deny")
+                  .setStyle(ButtonStyle.Danger),
+              );
+
+            await interaction.client.modules.dockRelay.relayAlert({
+              client: interaction.client,
+              dockId,
+              components: [container, actionRow],
+              flags: MessageFlags.IsComponentsV2,
+              guildIds: [dock.guildId],
+            });
+          }
+        } catch (err) {
+          console.error(err);
         }
 
-        
         return;
       }
 
@@ -387,10 +420,11 @@ module.exports = {
         );
         if (!selfFollow) return;
 
+        // set keyword pings
         const channelIds = selfFollow?.channelIds?.length ? selfFollow.channelIds : dock.channelIds;
         const keywords = interaction.fields.getStringSelectValues("keyword");
         const roles = interaction.fields.getSelectedRoles("roles", false);
-        const roleIds = roles ? Array.from(roles.keys()) : [];
+        const roleIds = roles ? [...roles.keys()] : [];
         const keywordPings = Array.isArray(selfFollow.keywordPings)
           ? {}
           : { ...(selfFollow.keywordPings ?? {}) };
@@ -403,6 +437,18 @@ module.exports = {
           channelIds,
           keywordPings,
         });
+
+        // set gatekeeper role
+        const gatekeeperRoleId = interaction.fields.getRoleSelectValues("gatekeeper")
+          ? interaction.fields.getRoleSelectValues("gatekeeper")[0]
+          : null;
+        if (gatekeeperRoleId) {
+          await interaction.client.modules.db.updateDock(dockId, {
+            $set: {
+              gatekeeperRoleId,
+            },
+          });
+        }
 
         await interaction.client.modules.updateDockManagePage(interaction);
       }
@@ -425,6 +471,7 @@ module.exports = {
           });
         }
         const level = interaction.fields.getStringSelectValues("level")[0];
+        const levelDetails = interaction.client.modules.dockLevels.get(level);
         await interaction.client.modules.db.updateDock(dockId, {
           $set: {
             defaultLevel: level,
@@ -433,11 +480,10 @@ module.exports = {
         return interaction.client.modules.dockRelay.relayAlert({
           client: interaction.client,
           dockId,
-          content: `Updated ${dock.name} default follower level to ${interaction.client.modules.dockLevels.get(level).label}.`,
           components: [
             new ContainerBuilder().addTextDisplayComponents((t) =>
               t.setContent(
-                `The default level for this dock was changed to ${interaction.client.modules.dockLevels.get(level).label} by **${interaction.guild.name}**`,
+                `### ⚙️ Default access updated\nThe default access level for **${interaction.client.modules.escapeMarkdown(dock.name)}** is now **${levelDetails.label}**.\n\n-# Updated by ${interaction.client.modules.escapeMarkdown(interaction.guild.name)}`,
               ),
             ),
           ],
@@ -534,10 +580,7 @@ module.exports = {
       state.followerManager = {
         dock,
         pages,
-        pageIndex: Math.min(
-          state.followerManager?.pageIndex ?? 0,
-          Math.max(pages.length - 1, 0),
-        ),
+        pageIndex: Math.min(state.followerManager?.pageIndex ?? 0, Math.max(pages.length - 1, 0)),
       };
 
       await interaction.update({
@@ -552,9 +595,10 @@ module.exports = {
       if (newLevel !== follower.level) {
         const guild = await interaction.client.guilds.fetch(follower.guildId).catch(() => null);
         const dockLevels = interaction.client.modules.dockLevels;
-        const oldLevelIndex = dockLevels.order.indexOf(dockLevels.normalize(follower.level));
-        const newLevelIndex = dockLevels.order.indexOf(newLevel);
-        const action = newLevelIndex > oldLevelIndex ? "promoted" : "demoted";
+        const levelDetails = dockLevels.get(newLevel);
+        const followerGuildName = interaction.client.modules.escapeMarkdown(
+          guild?.name ?? follower.guildName ?? follower.guildId,
+        );
 
         await interaction.client.modules.dockRelay.relayAlert({
           client: interaction.client,
@@ -562,8 +606,7 @@ module.exports = {
           components: [
             new ContainerBuilder().addTextDisplayComponents((text) =>
               text.setContent(
-                `The server **${guild?.name ?? follower.guildName ?? follower.guildId}** was ${action} to ${dockLevels.get(newLevel).label} by **${interaction.guild.name}**.\n` +
-                  `-# **${dockLevels.get(newLevel).description}**`,
+                `### 🛡️ Follower access updated\n**${followerGuildName}** now has **${levelDetails.label}** access to **${interaction.client.modules.escapeMarkdown(dock.name)}**.\n\n-# ${levelDetails.description} • Updated by ${interaction.client.modules.escapeMarkdown(interaction.guild.name)}`,
               ),
             ),
           ],
@@ -688,14 +731,6 @@ module.exports = {
         let dock = await interaction.client.modules.db.getDock(dockId);
         let accessMode = dock?.accessMode ?? "open";
 
-        // return interaction.reply({
-        //   content:
-        //     accessMode === "request"
-        //       ? "Dock request-to-join is coming soon."
-        //       : "Dock followers are coming soon.",
-        //   flags: MessageFlags.Ephemeral,
-        // });
-
         if (interaction.inGuild()) {
           await interaction.client.modules.dockFollowModal(interaction, dockId);
           return;
@@ -756,12 +791,6 @@ module.exports = {
           dockId,
           interaction.guildId,
         );
-        if (!dock.keywords?.some(Boolean)) {
-          return interaction.reply({
-            content: "Add ping keywords to this Dock before assigning Home Ping Roles.",
-            flags: MessageFlags.Ephemeral,
-          });
-        }
 
         return interaction.client.modules.dockFollowModal(
           interaction,
@@ -869,7 +898,7 @@ module.exports = {
           components: [
             new ContainerBuilder().addTextDisplayComponents((t) =>
               t.setContent(
-                `The server **${interaction.guild.name}** is no longer following this dock.`,
+                `### 🚪 Follower left\n**${interaction.client.modules.escapeMarkdown(interaction.guild.name)}** stopped following **${interaction.client.modules.escapeMarkdown(dock.name)}**.`,
               ),
             ),
           ],
@@ -936,7 +965,7 @@ module.exports = {
             components: [
               new ContainerBuilder().addTextDisplayComponents((t) =>
                 t.setContent(
-                  `### Dock Deleted\nThe dock **${interaction.client.modules.escapeMarkdown(dock.name)}** has been deleted by ${guildName}.`,
+                  `### 🗑️ Dock deleted\n**${interaction.client.modules.escapeMarkdown(dock.name)}** was deleted by **${interaction.client.modules.escapeMarkdown(guildName)}**.`,
                 ),
               ),
             ],
@@ -948,6 +977,88 @@ module.exports = {
           });
 
         return;
+      }
+
+      if (buttonId.startsWith("dock-follow-request")) {
+        const [, action, dockId, followerGuildId] = buttonId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+        if (!dock || dock.guildId !== interaction.guildId || !followerGuildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock request in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        const follower = await interaction.client.modules.db.getDockFollower(
+          dockId,
+          followerGuildId,
+        );
+        if (!follower || follower.level !== "no-access") {
+          return interaction.reply({
+            content: "This follow request is no longer pending.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        const canApprove =
+            interaction.member.permissions.has(PermissionFlagsBits.ManageChannels) ||
+            interaction.member.roles.cache.has(dock.gatekeeperRoleId);
+
+        if (!canApprove) {
+          return interaction.reply({
+            content: "You don't have permission to approve/deny follower requests.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        const container = new ContainerBuilder();
+        const escapedDockName = interaction.client.modules.escapeMarkdown(dock.name);
+        const escapedFollowerName = interaction.client.modules.escapeMarkdown(
+          follower.guildName ?? follower.guildId,
+        );
+        const escapedPublisherName = interaction.client.modules.escapeMarkdown(
+          interaction.guild.name,
+        );
+        if (action === "deny") {
+          await interaction.reply({
+            content: `Denied **${escapedFollowerName}**'s request to follow this Dock.`,
+            flags: MessageFlags.Ephemeral,
+          });
+          await interaction.client.modules.dockRelay.relayAlert({
+            client: interaction.client,
+            dockId,
+            components: [
+              new ContainerBuilder().addTextDisplayComponents((t) =>
+                t.setContent(
+                  `### ❌ Follow request denied\n**${escapedPublisherName}** denied your server’s request to follow **${escapedDockName}**.`,
+                ),
+              ),
+            ],
+            flags: MessageFlags.IsComponentsV2,
+            guildIds: [follower.guildId],
+          });
+          await interaction.client.modules.db.removeDockFollower(dockId, follower.guildId);
+        } else {
+          await interaction.reply({
+            content: `Approved **${escapedFollowerName}**'s request to follow this Dock.`,
+            flags: MessageFlags.Ephemeral,
+          });
+          await interaction.client.modules.db.setDockFollower(dockId, follower.guildId, {
+            level: dock.defaultLevel,
+          });
+          const levelDetails = interaction.client.modules.dockLevels.get(dock.defaultLevel);
+          container.addTextDisplayComponents((t) =>
+            t.setContent(
+              `### ✅ Follow request approved\n**${escapedFollowerName}** is now following **${escapedDockName}**.\n\n-# Access level: ${levelDetails.label} • Approved by ${escapedPublisherName}`,
+            ),
+          );
+
+          await interaction.client.modules.dockRelay.relayAlert({
+            client: interaction.client,
+            dockId,
+            components: [container],
+            flags: MessageFlags.IsComponentsV2,
+          });
+        }
+
       }
       // Handle party buttons
       let [, partyId] = buttonId.split(":");

@@ -5,6 +5,7 @@ const {
   ModalBuilder,
   RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
+  TextDisplayBuilder,
 } = require("discord.js");
 
 module.exports = async function dockFollowModal(
@@ -21,20 +22,21 @@ module.exports = async function dockFollowModal(
 
   const dock = await interaction.client.modules.db.getDock(dockId);
   const keywords = [...new Set((dock?.keywords ?? []).filter(Boolean))].slice(0, 25);
-
-  const keywordSelect = keywords.length
-    ? new StringSelectMenuBuilder()
-        .setCustomId("keyword")
-        .setPlaceholder("Select a keyword")
-        .setMinValues(1)
-        .setMaxValues(keywords.length)
-        .addOptions(
-          keywords.map((keyword) => ({
-            label: keyword.slice(0, 100),
-            value: keyword.slice(0, 100),
-          })),
-        )
-    : null;
+  const keywordSelect =
+    keywords?.length > 0
+      ? new StringSelectMenuBuilder()
+          .setCustomId("keyword")
+          .setPlaceholder("Select one or more keywords")
+          .setMinValues(1)
+          .setMaxValues(keywords.length)
+          .setRequired(false)
+          .addOptions(
+            keywords.map((keyword) => ({
+              label: keyword.slice(0, 100),
+              value: keyword.slice(0, 100),
+            })),
+          )
+      : null;
   const roleSelect = new RoleSelectMenuBuilder()
     .setCustomId("roles")
     .setMaxValues(25)
@@ -46,6 +48,24 @@ module.exports = async function dockFollowModal(
     .setTitle(customId === "dock-home-ping-roles" ? "Home Ping Roles" : "Dock Follow Settings")
     .setCustomId(`${customId}:${dockId}`);
 
+  const follower = await interaction.client.modules.db.getDockFollower(dockId, interaction.guildId);
+  if (follower) {
+    if (follower.level === "admin" || interaction.guildId === dock.guildId) {
+      modal.addLabelComponents(
+        new LabelBuilder()
+          .setLabel("Set Gatekeeper Role")
+          .setDescription("This role will be pinged whenever someone requests to follow this dock")
+          .setRoleSelectMenuComponent(
+            new RoleSelectMenuBuilder()
+              .setCustomId("gatekeeper")
+              .setMaxValues(1)
+              .setRequired(false)
+              .setPlaceholder("Select a role"),
+          ),
+      );
+    }
+  }
+
   if (customId !== "dock-home-ping-roles") {
     modal.addLabelComponents(
       new LabelBuilder()
@@ -56,6 +76,11 @@ module.exports = async function dockFollowModal(
   }
 
   if (keywordSelect) {
+    modal.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        "# Keyword Pings\nConfigure which roles get pinged for each keyword",
+      ),
+    );
     modal
       .addLabelComponents(
         new LabelBuilder()
@@ -69,6 +94,12 @@ module.exports = async function dockFollowModal(
           .setDescription("These roles will be pinged when the selected keyword is used")
           .setRoleSelectMenuComponent(roleSelect),
       );
+  } else {
+    modal.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        "This dock has no keywords. The dock owner should add keywords to configure more ping roles.",
+      ),
+    );
   }
 
   return interaction.showModal(modal);

@@ -178,7 +178,7 @@ async function relayThread(thread, sendingFollower = null) {
         (channelId) => channelId && channelId !== thread.parentId,
       ),
     }))
-    .filter((dockFollower) => dockFollower.channelIds.length > 0);
+    .filter((dockFollower) => dockFollower.channelIds.length > 0 && dockFollower.level !== "no-access");
   if (receivingFollowers.length === 0) return;
 
   await thread.client.modules.db.indexDockThread({
@@ -366,7 +366,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         (channelId) => channelId && channelId !== message.channel.id,
       ),
     }))
-    .filter((dockFollower) => dockFollower.channelIds.length > 0);
+    .filter((dockFollower) => dockFollower.channelIds.length > 0 && dockFollower.level !== "no-access");
   if (receivingFollowers.length === 0) return;
   const isDockPing =
     message.client.dockPingMetadata?.has(message.id) &&
@@ -450,11 +450,16 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
   }
 }
 
-async function relayAlert({ client, dockId, ...payload }) {
+async function relayAlert({ client, dockId, guildIds, ...payload }) {
   const dock = await client.modules.db.getDock(dockId);
   if (!dock) return;
 
-  const followers = await client.modules.db.getDockFollowers(dock._id);
+  const targetGuildIds = guildIds ? new Set(guildIds) : null;
+  const followers = (await client.modules.db.getDockFollowers(dock._id)).filter((follower) =>
+    targetGuildIds
+      ? targetGuildIds.has(follower.guildId)
+      : follower.level !== "no-access",
+  );
   if (followers.length === 0) return;
   if (payload.party && payload.source) {
     await client.modules.db.indexDockMessage({
@@ -512,7 +517,6 @@ async function relayAlert({ client, dockId, ...payload }) {
            ],
          );
          // index the source party card and its relayed copies so relayThread can find each counterpart and attach relayed threads to the each relayed card
-         
          continue;
       }
 

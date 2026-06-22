@@ -70,13 +70,13 @@ module.exports = async function getDockDisplay(
   
   const actionButtons = Array.isArray(buttons) ? buttons.filter(Boolean) : [buttons].filter(Boolean);
   const followerCount = await client.modules.db.countDockFollowers(dock._id, publisherGuildId);
-  const summary = [];
-  if (mode !== "published") summary.push(`**Server:** ${client.modules.escapeMarkdown(dockPublisher)}`);
-  summary.push(`👥 **${followerCount} ${followerCount === 1 ? "Follower" : "Followers"}**`);
+  const tinyText = [];
+  if (mode !== "published") tinyText.push(`**Server:** ${client.modules.escapeMarkdown(dockPublisher)}`);
+  tinyText.push(`👥 **${followerCount} ${followerCount === 1 ? "Follower" : "Followers"}**`);
   if (mode === "following" && follower) {
-    summary.push(`**Level:** ${client.modules.dockLevels.get(follower.level).label}`);
+    tinyText.push(`**Level:** ${client.modules.dockLevels.get(follower.level).label}`);
   }
-  const headerContent = `### ${client.modules.escapeMarkdown(dockName)}\n-# ${summary.join(" • ")}${displayedDescription ? `\n\n${displayedDescription}` : ""}`;
+  const headerContent = `### ${client.modules.escapeMarkdown(dockName)}\n-# ${tinyText.join(" • ")}${displayedDescription ? `\n\n${displayedDescription}` : ""}`;
   const section = new SectionBuilder().addTextDisplayComponents(
     new TextDisplayBuilder().setContent(headerContent),
   );
@@ -93,13 +93,37 @@ module.exports = async function getDockDisplay(
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(headerContent));
   }
 
-  container.addTextDisplayComponents((t) =>
-    t.setContent(
-      mode
-        ? `**${channelLabel}:** ${displayedChannels || "Unknown channel"}\n🛡️ **Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}\n🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`
-        : `🔗 **Channels:** ${client.modules.escapeMarkdown(channelNames || "Unknown channel")}\n🛡️ **Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}\n🔑 **Keywords:** ${browseKeywords || "None"}${hiddenKeywordCount ? ` · +${hiddenKeywordCount} more` : ""}`,
-    ),
+  container.addTextDisplayComponents((text) =>
+    text.setContent(`**${channelLabel}:** ${displayedChannels || "Unknown channel"}`),
   );
+
+  if (mode === "published") {
+    container.addTextDisplayComponents(
+      (text) =>
+        text.setContent(
+          `✅ **Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}\n🔒 **Access:** ${dock.accessMode === "request" ? "Request To Join" : "Open to all"}`,
+        ),
+      (text) =>
+        text.setContent(
+          `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`,
+        ),
+    );
+  } else {
+    const levelLabel = client.modules.dockLevels.get(
+      mode === "following" ? follower?.level : defaultLevel,
+    ).label;
+
+    container.addTextDisplayComponents(
+      (text) =>
+        text.setContent(
+          `✅ **${mode === "following" ? "Current" : "Default"} Level:** ${levelLabel}`,
+        ),
+      (text) =>
+        text.setContent(
+          `🔑 **Keywords:** ${browseKeywords || "None"}${hiddenKeywordCount ? ` · +${hiddenKeywordCount} more` : ""}`,
+        ),
+    );
+  }
 
   if (guildIconURL && actionButtons.length > 0) {
     container.addActionRowComponents(new ActionRowBuilder().addComponents(actionButtons));

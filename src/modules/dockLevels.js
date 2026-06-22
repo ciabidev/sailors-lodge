@@ -1,4 +1,9 @@
 const levels = Object.freeze({
+  "no-access": {
+    label: "No Access",
+    description: "Can't receive or send messages across the Dock.",
+    emoji: "🕜",
+  },
   passive: {
     label: "Passive",
     description: "Can receive Dock messages.",

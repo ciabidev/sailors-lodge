@@ -477,6 +477,10 @@ module.exports = {
             defaultLevel: level,
           },
         });
+        interaction.reply({
+            content: "Default access updated.",
+            flags: MessageFlags.Ephemeral,
+          });
         return interaction.client.modules.dockRelay.relayAlert({
           client: interaction.client,
           dockId,

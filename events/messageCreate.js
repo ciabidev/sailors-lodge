@@ -239,7 +239,9 @@ module.exports = {
                 ({ sendingFollower, keyword }) => sendingFollower.keywordPings?.[keyword] ?? [],
               ).filter(Boolean),
             );
-            const dockNames = dockFollowsToPing.map(({ dock }) => dock.name).join(", ");
+            const dockNames = dockFollowsToPing
+              .map(({ dock }) => message.client.modules.escapeMarkdown(dock.name))
+              .join(", ");
             const shouldPingOwnServer = dockFollowsToPing.some(
               ({ sendingFollower }) => sendingFollower.pingOwnServer !== false,
             ); // By now there are multiple follow objects, so we have to check “Do any of the matched Dock follows enable own-server pings?”

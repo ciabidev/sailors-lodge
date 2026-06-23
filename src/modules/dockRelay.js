@@ -194,9 +194,21 @@ function getRelayContent(message, options = {}) {
   return `> -# ***➡️ Forwarded***\n> ${content.split("\n").join("\n> ")}`;
 }
 
-function getRelayEmbeds(message) {
+
+function isNativeGifPreviewEmbed(embed, content = "") {
+  const data = embed.toJSON?.() ?? embed;
+  const providerName = data.provider?.name ?? "";
+  const embedUrl = data.url ?? "";
+
+  return /giphy|tenor/i.test(`${providerName} ${embedUrl}`) &&
+    Boolean(embedUrl) &&
+    content.includes(embedUrl);
+}
+
+function getRelayEmbeds(message, content = getRelayContent(message) ?? "") {
   const snapshot = getForwardedSnapshot(message);
-  return message.embeds?.length ? message.embeds : (snapshot?.embeds ?? []);
+  const rawEmbeds = message.embeds?.length ? message.embeds : (snapshot?.embeds ?? []);
+  return rawEmbeds.filter((embed) => !isNativeGifPreviewEmbed(embed, content));
 }
 
 function getRelayComponents(message) {
@@ -392,7 +404,7 @@ async function relayThreadMessage(message) {
     const webhook = await getDockWebhook(message.client, channel, thread);
     const components = getRelayComponents(message);
     const content = components.length ? "" : getRelayContent(message);
-    const embeds = getRelayEmbeds(message);
+    const embeds = getRelayEmbeds(message, content);
     const files = getRelayFiles(message);
     if (!content && embeds.length === 0 && files.length === 0 && components.length === 0) {
       continue;
@@ -500,12 +512,13 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           ? Array.from(username).slice(0, 76).join("") + "..."
           : username;
       const components = getRelayComponents(message);
+      const content = components.length ? "" : getRelayContent(message, options);
 
       const messagePayload = {
         username: formattedUsername,
         avatarURL: message.author.displayAvatarURL(),
-        content: components.length ? "" : getRelayContent(message, options),
-        embeds: getRelayEmbeds(message),
+        content,
+        embeds: getRelayEmbeds(message, content),
         files: getRelayFiles(message),
         components,
         allowedMentions: { users: [message.author.id] },
@@ -529,7 +542,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
             (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
           ).filter(Boolean),
         );
-        const pingContent = `${dock.name} ping triggered by ${dockPing.username}!`;
+        const dockName = message.client.modules.escapeMarkdown(dock.name);
+        const pingContent = `${dockName} ping triggered by ${dockPing.username}!`;
         messagePayload.content = pingRoles.length
           ? `${formatRoleMentions(pingRoles)} ${pingContent}`
           : pingContent;

@@ -37,7 +37,10 @@ async function initDb() {
     await migrateDockDefaultLevels()
     console.log("MongoDB connected")
     return db;
-  })();
+  })().catch((error) => {
+    initPromise = null;
+    throw error;
+  });
 
   return initPromise;
 }
@@ -51,7 +54,10 @@ function getCollection(collectionName) {
   return db.collection(collectionName);
 }
 
-const ready = initDb();
+const ready = initDb().catch((error) => {
+  console.error("[db] MongoDB failed to initialize:", error);
+  return null;
+});
 
 
 // get settings
@@ -760,6 +766,7 @@ module.exports = {
   setSettings,
   getParties,
   initDb,
+  ready,
   getCollection,
   createParty,
   getParty,

@@ -1,7 +1,57 @@
 const chrono = require("chrono-node");
 
-const timeOptions = { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true };
-const dateOptionsLong = { weekday: "long", year: "numeric", month: "long", day: "numeric" };
+const scheduleTimeZone = process.env.SCHEDULE_TIME_ZONE || "America/New_York";
+const timeOptions = {
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: true,
+  timeZone: scheduleTimeZone,
+};
+const dateOptionsLong = {
+  weekday: "long",
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  timeZone: scheduleTimeZone,
+};
+
+function getTimeZoneOffsetMinutes(date = new Date(), timeZone = scheduleTimeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  })
+    .formatToParts(date)
+    .reduce((values, part) => {
+      if (part.type !== "literal") values[part.type] = Number(part.value);
+      return values;
+    }, {});
+
+  const zonedTimeAsUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+  );
+
+  return Math.round((zonedTimeAsUtc - date.getTime()) / 60000);
+}
+
+function getParsingReference(now = new Date()) {
+  const instant = now instanceof Date ? now : new Date(now);
+  return {
+    instant,
+    timezone: getTimeZoneOffsetMinutes(instant),
+  };
+}
 
 function getRelativeTimeString(targetDate, now = Date.now()) {
   const msDiff = targetDate.getTime() - now;
@@ -32,7 +82,7 @@ function filterTimeChoices(focusedValue) {
   let targetDate = new Date();
 
   if (search.length > 0) {
-    const parsedDate = chrono.parseDate(search);
+    const parsedDate = parseTimeInput(search, targetDate);
     if (!parsedDate) {
       return [{ name: `Searching/Parsing: "${search}"...`.slice(0, 100), value: "INVALID" }];
     }
@@ -45,6 +95,7 @@ function filterTimeChoices(focusedValue) {
   const formatMedium = targetDate.toLocaleString("en-US", {
     dateStyle: "long",
     timeStyle: "short",
+    timeZone: scheduleTimeZone,
   });
   const longDateStr = targetDate.toLocaleDateString("en-US", dateOptionsLong);
   const formatLongComplete = `${longDateStr} at ${formatTimeOnly}`;
@@ -62,7 +113,7 @@ function filterTimeChoices(focusedValue) {
     .slice(0, 25);
 }
 
-function parseTimeInput(value) {
+function parseTimeInput(value, now = new Date()) {
   const input = String(value ?? "").trim();
   if (!input) return null;
 
@@ -73,11 +124,13 @@ function parseTimeInput(value) {
     }
   }
 
-  return chrono.parseDate(input);
+  return chrono.parseDate(input, getParsingReference(now), { forwardDate: true });
 }
 
 module.exports = {
   filterTimeChoices,
+  getParsingReference,
   getRelativeTimeString,
+  getTimeZoneOffsetMinutes,
   parseTimeInput,
 };

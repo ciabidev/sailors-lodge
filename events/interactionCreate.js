@@ -441,13 +441,11 @@ module.exports = {
               });
               
             }
-            await interaction.followUp({
-              content: "✅",
-              flags: MessageFlags.Ephemeral,
-            });
+
           } else {
             const gatekeeperRoleId = dock.gatekeeperRoleId;
             const requester = `${interaction.user} [${interaction.client.modules.escapeMarkdown(interaction.user.username)}]`;
+            
             container.addTextDisplayComponents((t) =>
               t.setContent(
                 `### 📨 New follow request\n**${escapedGuildName}** wants to follow **${escapedDockName}**.`,
@@ -455,7 +453,7 @@ module.exports = {
             );
             container.addTextDisplayComponents((t) =>
               t.setContent(
-                `**Requested by:** ${requester}\n**Receiving channel:** ${channels.map((channel) => `#${interaction.client.modules.escapeMarkdown(channel.name)}`).join(", ")}${gatekeeperRoleId ? `\n\n-# Gatekeepers: <@&${gatekeeperRoleId}>` : ""}`,
+                `**Requested by:** ${requester}\n**Receiving channel:** ${channel.name}${gatekeeperRoleId ? `\n\n-# Gatekeepers: <@&${gatekeeperRoleId}>` : ""}`,
               ),
             );
             const actionRow =
@@ -669,6 +667,13 @@ module.exports = {
         });
       }
 
+      const guild = await interaction.client.guilds.fetch(follower.guildId).catch(() => null);
+      const dockLevels = interaction.client.modules.dockLevels;
+      const levelDetails = dockLevels.get(newLevel);
+      const followerGuildName = interaction.client.modules.escapeMarkdown(
+        guild?.name ?? follower.guildName ?? follower.guildId,
+      );
+
       await interaction.client.modules.db.setDockFollower(dockId, guildId, { level: newLevel });
       const followers = (await interaction.client.modules.db.getDockFollowers(dockId))
         .filter((dockFollower) => dockFollower.guildId !== dock.guildId)
@@ -693,13 +698,6 @@ module.exports = {
       });
 
       if (newLevel !== follower.level) {
-        const guild = await interaction.client.guilds.fetch(follower.guildId).catch(() => null);
-        const dockLevels = interaction.client.modules.dockLevels;
-        const levelDetails = dockLevels.get(newLevel);
-        const followerGuildName = interaction.client.modules.escapeMarkdown(
-          guild?.name ?? follower.guildName ?? follower.guildId,
-        );
-
         await interaction.client.modules.dockRelay.relayAlert({
           client: interaction.client,
           dockId,
@@ -714,12 +712,8 @@ module.exports = {
         });
       }
 
-      await interaction.reply({
-        content: "✅ Successfully updated.",
-      })
-
-      await interaction.reply({
-        content: "✅ Successfully updated.",
+      await interaction.followUp({
+        content: `**${followerGuildName}** now has **${levelDetails.label}** access to **${interaction.client.modules.escapeMarkdown(dock.name)}**`,
         flags: MessageFlags.Ephemeral,
       });
 
@@ -1043,7 +1037,7 @@ module.exports = {
         await interaction.client.modules.db.removeDockFollower(dockId, interaction.guildId);
         await interaction.client.modules.updateDockManagePage(interaction);
         await interaction.followUp({
-          content: `Unfollowed Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\`.`,
+          content: `Unfollowed Dock **${interaction.client.modules.escapeMarkdown(dock.name)}**.`,
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -1134,8 +1128,8 @@ module.exports = {
           });
         }
         const canApprove =
-            interaction.member.permissions.has(PermissionFlagsBits.ManageChannels) ||
-            interaction.member.roles.cache.has(dock.gatekeeperRoleId);
+            interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+            interaction.member?.roles?.cache?.has(dock.gatekeeperRoleId);
 
         if (!canApprove) {
           return interaction.reply({
@@ -1224,9 +1218,10 @@ module.exports = {
         const isMissingAccess = error.code === 50001;
         const eventId = isMissingAccess
           ? null
-          : Sentry.captureException(error, {
+          : await reportError(error, {
+              notify: false,
+              source: "discord-command",
               tags: {
-                source: "discord-command",
                 command: interaction.commandName,
               },
             });

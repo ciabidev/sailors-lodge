@@ -34,21 +34,54 @@ async function repliedToReference({
 
   const original = await message.fetchReference().catch(() => null); // the original message that is being replied to
   if (!original) return null;
-  const dockMessage = await message.client.modules.db.getDockMessageFromRoot(
-    original.channel.id,
-    original.id,
-  ); // find the dock message of the replied to message
+  // The reply target can be the original Dock message or one of its webhook
+  // copies. Resolve both directions so reply buttons point at the matching
+  // counterpart in the server receiving this relay.
+  const dockMessage =
+    (await message.client.modules.db.getDockMessageFromRoot(
+      original.channel.id,
+      original.id,
+    )) ??
+    (await message.client.modules.db.getDockMessageFromDelivery(
+      original.channel.id,
+      original.id,
+    )); // find the dock message of the replied to message
 
-  let delivery = null;
-  let relayed = null;
+  let linkedMessage = null;
   if (dockMessage) {
-    delivery = dockMessage.deliveries?.find(
-      (d) => d.guildId === receivingFollower.guildId && d.channelId === deliveryChannelId,
-    );
-    if (!delivery) return null;
-    relayed = await channel.messages.fetch(delivery.messageId).catch(() => null);
-    if (!relayed) return null;
+    // If this relay is going back to the publisher, link to the root message
+    // instead of sending them to the follower server's webhook copy.
+    const isReceivingRoot =
+      receivingFollower.guildId === dockMessage.rootGuildId &&
+      [deliveryChannelId, channel.id, receivingFollower.threadId].includes(
+        dockMessage.rootChannelId,
+      );
+
+    if (isReceivingRoot) {
+      const rootChannel = await message.client.channels
+        .fetch(dockMessage.rootChannelId)
+        .catch(() => null);
+      linkedMessage = await rootChannel?.messages
+        ?.fetch(dockMessage.rootMessageId)
+        .catch(() => null);
+    } else {
+      // Otherwise link to the existing delivery in the destination server.
+      const delivery = dockMessage.deliveries?.find(
+        (d) =>
+          d.guildId === receivingFollower.guildId &&
+          (d.channelId === deliveryChannelId || d.threadId === channel.id),
+      );
+      if (!delivery) return null;
+      linkedMessage = await channel.messages.fetch(delivery.messageId).catch(() => null);
+    }
+
+    if (!linkedMessage) return null;
   }
+
+  const jumpUrl = linkedMessage?.url ?? original.url;
+  const jumpLabel = linkedMessage
+    ? "Jump to reply"
+    : "Jump to reply (in original server)";
 
   const embed = new EmbedBuilder()
     .setAuthor({
@@ -56,17 +89,12 @@ async function repliedToReference({
       iconURL: original.author.displayAvatarURL(),
     })
     .setDescription(original.content?.slice(0, 4096) || "*No text content*");
-  let row = new ActionRowBuilder().addComponents(
+  const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setURL(original.url)
-      .setLabel("Jump to reply (in original server)")
+      .setURL(jumpUrl)
+      .setLabel(jumpLabel)
       .setStyle(ButtonStyle.Link),
-  );
-  if (dockMessage) {
-    row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setURL(relayed.url).setLabel("Jump to reply").setStyle(ButtonStyle.Link),
     );
-  }
 
   return { embed, row };
 }
@@ -209,7 +237,8 @@ async function relayThread(thread, sendingFollower = null) {
     .filter(
       (dockFollower) =>
         dockFollower.channelIds.length > 0 &&
-        thread.client.modules.dockLevels.canRead(dockFollower),
+        thread.client.modules.dockLevels.canRead(dockFollower) &&
+        !(dock.guildId === sendingFollower.guildId && dockFollower.guildId === dock.guildId),
     );
   if (receivingFollowers.length === 0) return;
 
@@ -275,6 +304,15 @@ async function relayThread(thread, sendingFollower = null) {
       }
     }
   }
+  // catch the starter message and relay it too
+  const recentMessages = await thread.messages.fetch({ limit: 10 }).catch(() => null);
+  const threadMessages = [...(recentMessages?.values() ?? [])]
+    .filter((message) => message.channel.id === thread.id)
+    .sort((a, b) => Number(BigInt(a.id) - BigInt(b.id)));
+
+  for (const message of threadMessages) {
+    await relayThreadMessage(message);
+  }
 }
 
 async function relayThreadMessage(message) {
@@ -319,6 +357,10 @@ async function relayThreadMessage(message) {
     Array.from(username).length > 80
       ? Array.from(username).slice(0, 76).join("") + "..."
       : username;
+  const existingDockMessage = await message.client.modules.db.getDockMessageFromRoot(
+    message.channel.id,
+    message.id,
+  );
 
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
@@ -330,6 +372,14 @@ async function relayThreadMessage(message) {
 
   for (const thread of threads) {
     if (thread.threadId === message.channel.id) continue;
+    if (
+      existingDockMessage?.deliveries?.some(
+        (delivery) =>
+          delivery.guildId === thread.guildId &&
+          delivery.channelId === thread.channelId &&
+          delivery.threadId === thread.threadId,
+      )
+    ) continue;
 
     const targetThread = await message.client.channels.fetch(thread.threadId).catch(() => null);
     if (!targetThread?.isThread?.()) continue;
@@ -341,12 +391,19 @@ async function relayThreadMessage(message) {
 
     const webhook = await getDockWebhook(message.client, channel, thread);
     const components = getRelayComponents(message);
+    const content = components.length ? "" : getRelayContent(message);
+    const embeds = getRelayEmbeds(message);
+    const files = getRelayFiles(message);
+    if (!content && embeds.length === 0 && files.length === 0 && components.length === 0) {
+      continue;
+    }
+
     const messagePayload = {
       username: formattedUsername,
       avatarURL: message.author.displayAvatarURL(),
-      content: components.length ? "" : getRelayContent(message),
-      embeds: getRelayEmbeds(message),
-      files: getRelayFiles(message),
+      content,
+      embeds,
+      files,
       components,
       allowedMentions: { users: [message.author.id] },
       flags: components.length ? [MessageFlags.IsComponentsV2] : undefined,
@@ -411,7 +468,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     .filter(
       (dockFollower) =>
         dockFollower.channelIds.length > 0 &&
-        message.client.modules.dockLevels.canRead(dockFollower),
+        message.client.modules.dockLevels.canRead(dockFollower) &&
+        !(dock.guildId === sendingFollower.guildId && dockFollower.guildId === dock.guildId),
     );
   if (receivingFollowers.length === 0) return;
   const isDockPing =
@@ -419,6 +477,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     (dock.guildId === sendingFollower.guildId ||
       message.client.modules.dockLevels.canPing(sendingFollower.level));
   const dockPing = message.client.dockPingMetadata?.get(message.id);
+  const { formatRoleMentions } = message.client.modules.mentions;
+  const uniqueItems = message.client.modules.uniqueItems;
 
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
@@ -464,16 +524,14 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
       let pingRoles = [];
 
       if (isDockPing) {
-        pingRoles = [
-          ...new Set(
-            (dockPing.keywords ?? []).flatMap(
-              (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
-            ),
-          ),
-        ];
+        pingRoles = uniqueItems(
+          (dockPing.keywords ?? []).flatMap(
+            (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
+          ).filter(Boolean),
+        );
         const pingContent = `${dock.name} ping triggered by ${dockPing.username}!`;
         messagePayload.content = pingRoles.length
-          ? `${pingRoles.map((roleId) => `<@&${roleId}>`).join(" ")} ${pingContent}`
+          ? `${formatRoleMentions(pingRoles)} ${pingContent}`
           : pingContent;
 
         messagePayload.allowedMentions.roles = pingRoles;

@@ -37,7 +37,10 @@ async function initDb() {
     await migrateDockDefaultLevels()
     console.log("MongoDB connected")
     return db;
-  })();
+  })().catch((error) => {
+    initPromise = null;
+    throw error;
+  });
 
   return initPromise;
 }
@@ -51,7 +54,10 @@ function getCollection(collectionName) {
   return db.collection(collectionName);
 }
 
-const ready = initDb();
+const ready = initDb().catch((error) => {
+  console.error("[db] MongoDB failed to initialize:", error);
+  return null;
+});
 
 
 // get settings
@@ -666,6 +672,18 @@ async function getDockMessageFromRoot(rootChannelId, rootMessageId) {
   return dockMessages.findOne({rootChannelId, rootMessageId});
 }
 
+async function getDockMessageFromDelivery(channelId, messageId) {
+  const dockMessages = getCollection("dockMessages");
+  // Reverse lookup for replies to webhook copies. A relayed message may live
+  // directly in a channel or inside a linked thread, so check both delivery ids.
+  return dockMessages.findOne({
+    $or: [
+      { deliveries: { $elemMatch: { channelId, messageId } } },
+      { deliveries: { $elemMatch: { threadId: channelId, messageId } } },
+    ],
+  });
+}
+
 async function addDockMessageDeliveries(rootChannelId, rootMessageId, deliveries) {
   const dockMessages = getCollection("dockMessages");
   return dockMessages.updateOne(
@@ -748,6 +766,7 @@ module.exports = {
   setSettings,
   getParties,
   initDb,
+  ready,
   getCollection,
   createParty,
   getParty,
@@ -778,6 +797,7 @@ module.exports = {
   getPublishedDocksForGuild,
   indexDockMessage,
   getDockMessageFromRoot,
+  getDockMessageFromDelivery,
   addDockMessageDeliveries,
   setDockMessageDeliveries,
   removeDockMessageFromRoot,

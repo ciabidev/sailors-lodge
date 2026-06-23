@@ -32,7 +32,14 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+    if (!interaction.inGuild()) {
+      return interaction.reply({
+        content: "Dock followers can only be unbanned from a Discord server.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
       return interaction.reply({
         content: "You don't have permission to unban Dock followers (`Manage Channels`).",
         flags: MessageFlags.Ephemeral,

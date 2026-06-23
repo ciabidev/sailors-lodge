@@ -27,7 +27,6 @@ module.exports = async function sendPartyNotification(interaction, type, party, 
       actionText = `Update regarding the party`;
   }
 
-  console.log(options.extra);
   const extraText = typeof options.extra === "string" ? `\n${options.extra}` : "";
   
   const messageContent = `${emoji} ${actionText}${extraText}\n-# <t:${now}:R>`;

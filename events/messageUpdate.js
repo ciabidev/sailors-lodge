@@ -37,6 +37,7 @@ module.exports = {
 
       await webhook.editMessage(delivery.messageId, {
         content,
+        components: message.components || [],
         embeds: message.embeds || [],
         allowedMentions: { users: [message.author.id], roles: keywordPings },
         threadId: delivery.threadId,

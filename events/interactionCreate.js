@@ -441,13 +441,11 @@ module.exports = {
               });
               
             }
-            await interaction.followUp({
-              content: "✅",
-              flags: MessageFlags.Ephemeral,
-            });
+
           } else {
             const gatekeeperRoleId = dock.gatekeeperRoleId;
             const requester = `${interaction.user} [${interaction.client.modules.escapeMarkdown(interaction.user.username)}]`;
+            
             container.addTextDisplayComponents((t) =>
               t.setContent(
                 `### 📨 New follow request\n**${escapedGuildName}** wants to follow **${escapedDockName}**.`,
@@ -455,7 +453,7 @@ module.exports = {
             );
             container.addTextDisplayComponents((t) =>
               t.setContent(
-                `**Requested by:** ${requester}\n**Receiving channel:** ${channels.map((channel) => `#${interaction.client.modules.escapeMarkdown(channel.name)}`).join(", ")}${gatekeeperRoleId ? `\n\n-# Gatekeepers: <@&${gatekeeperRoleId}>` : ""}`,
+                `**Requested by:** ${requester}\n**Receiving channel:** ${channel.name}${gatekeeperRoleId ? `\n\n-# Gatekeepers: <@&${gatekeeperRoleId}>` : ""}`,
               ),
             );
             const actionRow =
@@ -715,11 +713,7 @@ module.exports = {
       }
 
       await interaction.reply({
-        content: "✅ Successfully updated.",
-      })
-
-      await interaction.reply({
-        content: "✅ Successfully updated.",
+        content: `**${followerGuildName}** now has **${levelDetails.label}** access to **${interaction.client.modules.escapeMarkdown(dock.name)}**`,
         flags: MessageFlags.Ephemeral,
       });
 

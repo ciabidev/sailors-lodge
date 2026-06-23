@@ -209,7 +209,8 @@ async function relayThread(thread, sendingFollower = null) {
     .filter(
       (dockFollower) =>
         dockFollower.channelIds.length > 0 &&
-        thread.client.modules.dockLevels.canRead(dockFollower) && dock.guildId !== sendingFollower.guildId,
+        thread.client.modules.dockLevels.canRead(dockFollower) &&
+        !(dock.guildId === sendingFollower.guildId && dockFollower.guildId === dock.guildId),
     );
   if (receivingFollowers.length === 0) return;
 
@@ -439,7 +440,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     .filter(
       (dockFollower) =>
         dockFollower.channelIds.length > 0 &&
-        message.client.modules.dockLevels.canRead(dockFollower) && dock.guildId !== sendingFollower.guildId,
+        message.client.modules.dockLevels.canRead(dockFollower) &&
+        !(dock.guildId === sendingFollower.guildId && dockFollower.guildId === dock.guildId),
     );
   if (receivingFollowers.length === 0) return;
   const isDockPing =

@@ -34,6 +34,7 @@ async function initDb() {
     } 
     await migrateDockFollowsCollection();
     await migrateDockFollowers();
+    await migrateDockServerBans();
     await migrateDockDefaultLevels()
     console.log("MongoDB connected")
     return db;
@@ -473,6 +474,123 @@ async function getDockFollowers(dockId) {
   return dockFollowers.find({ dockId: new ObjectId(dockId) }).toArray();
 }
 
+async function getDockServerBan(ownerGuildId, targetGuildId) {
+  const dockServerBans = getCollection("dockServerBans");
+  return dockServerBans.findOne({ ownerGuildId, targetGuildId });
+}
+
+async function getDockServerBans(ownerGuildId) {
+  const dockServerBans = getCollection("dockServerBans");
+  return dockServerBans.find({ ownerGuildId }).toArray();
+}
+
+async function setDockServerBan(ownerGuildId, targetGuildId, changes = {}) {
+  const dockServerBans = getCollection("dockServerBans");
+  const fields = Object.fromEntries(
+    Object.entries(changes).filter(([, value]) => value !== undefined),
+  );
+  delete fields._id;
+  delete fields.ownerGuildId;
+  delete fields.targetGuildId;
+  delete fields.createdAt;
+
+  return dockServerBans.updateOne(
+    { ownerGuildId, targetGuildId },
+    {
+      $set: {
+        ...fields,
+        updatedAt: new Date(),
+      },
+      $setOnInsert: {
+        ownerGuildId,
+        targetGuildId,
+        createdAt: new Date(),
+      },
+    },
+    { upsert: true },
+  );
+}
+
+async function migrateDockServerBans() {
+  const followers = getCollection("dockFollows");
+  const bannedFollowers = await followers
+    .find({
+      banned: true,
+      serverBanOwnerGuildId: { $exists: false },
+    })
+    .toArray();
+
+  for (const follower of bannedFollowers) {
+    const dock = await getDock(follower.dockId);
+    if (!dock || follower.guildId === dock.guildId) continue;
+
+    const bannedAt = follower.bannedAt ?? new Date();
+    await setDockServerBan(dock.guildId, follower.guildId, {
+      ownerGuildName: dock.guildName,
+      targetGuildName: follower.guildName,
+      reason: follower.banReason ?? "Migrated from Dock ban",
+      bannedAt,
+      bannedByUserId: follower.bannedByUserId,
+    });
+    await banDockFollow(dock.guildId, follower.guildId, {
+      guildName: follower.guildName,
+      banReason: follower.banReason ?? "Migrated from Dock ban",
+      bannedAt,
+      bannedByUserId: follower.bannedByUserId,
+    });
+  }
+}
+
+async function removeDockServerBan(ownerGuildId, targetGuildId) {
+  const dockServerBans = getCollection("dockServerBans");
+  return dockServerBans.deleteOne({ ownerGuildId, targetGuildId });
+}
+
+async function banDockFollow(ownerGuildId, targetGuildId, changes = {}) {
+  const docks = getCollection("docks");
+  const ownerDocks = await docks.find({ guildId: ownerGuildId }, { projection: { _id: 1 } }).toArray();
+  if (!ownerDocks.length) return null;
+
+  const dockFollowers = getCollection("dockFollows");
+  return dockFollowers.updateMany(
+    {
+      dockId: { $in: ownerDocks.map((dock) => dock._id) },
+      guildId: targetGuildId,
+    },
+    {
+      $set: {
+        ...changes,
+        banned: true,
+        serverBanOwnerGuildId: ownerGuildId,
+      },
+    },
+  );
+}
+
+async function unbanDockFollow(ownerGuildId, targetGuildId) {
+  const docks = getCollection("docks");
+  const ownerDocks = await docks.find({ guildId: ownerGuildId }, { projection: { _id: 1 } }).toArray();
+  if (!ownerDocks.length) return null;
+
+  const dockFollowers = getCollection("dockFollows");
+  return dockFollowers.updateMany(
+    {
+      dockId: { $in: ownerDocks.map((dock) => dock._id) },
+      guildId: targetGuildId,
+      serverBanOwnerGuildId: ownerGuildId,
+    },
+    {
+      $set: { banned: false },
+      $unset: {
+        banReason: "",
+        bannedAt: "",
+        bannedByUserId: "",
+        serverBanOwnerGuildId: "",
+      },
+    },
+  );
+}
+
 async function getManyDockFollowers(dockIds) {
   const dockFollowers = getCollection("dockFollows");
   return dockFollowers.find({ dockId: { $in: dockIds } }).toArray();
@@ -780,6 +898,12 @@ module.exports = {
   removePartyCardMessage,
   getDocks,
   getDock,
+  getDockServerBan,
+  getDockServerBans,
+  setDockServerBan,
+  removeDockServerBan,
+  banDockFollow,
+  unbanDockFollow,
   getDockFollowers,
   countDockFollowers,
   createDock,

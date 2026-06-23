@@ -18,33 +18,34 @@ function matchesSearch(value, search) {
   return value?.toLowerCase().includes(search) ?? false;
 }
 
-function getBanCandidates(client, dock, dockFollowers, managingGuildId, search) {
+function getBanCandidates(client, dockFollowers, serverBans, managingGuildId, search) {
   const followerGuildIds = new Set(dockFollowers.map((follower) => follower.guildId));
-  const existingFollowers = dockFollowers
-    .filter(
-      (follower) =>
-        follower.guildId !== dock.guildId &&
-        follower.guildId !== managingGuildId &&
-        follower.banned !== true,
-    )
-    .map((follower) => ({
-      name: follower.guildName ?? follower.guildId,
-      value: follower.guildId,
-    }));
+  const bannedGuildIds = new Set(serverBans.map((ban) => ban.targetGuildId));
+  const existingFollowersByGuildId = new Map();
+
+  for (const follower of dockFollowers) {
+    if (follower.guildId === managingGuildId || bannedGuildIds.has(follower.guildId)) continue;
+    if (!existingFollowersByGuildId.has(follower.guildId)) {
+      existingFollowersByGuildId.set(follower.guildId, {
+        name: follower.guildName ?? follower.guildId,
+        value: follower.guildId,
+      });
+    }
+  }
 
   const visibleGuilds = client.guilds.cache
     .filter(
       (guild) =>
-        guild.id !== dock.guildId &&
         guild.id !== managingGuildId &&
-        !followerGuildIds.has(guild.id),
+        !followerGuildIds.has(guild.id) &&
+        !bannedGuildIds.has(guild.id),
     )
     .map((guild) => ({
       name: `${guild.name} (not following)`,
       value: guild.id,
     }));
 
-  return [...existingFollowers, ...visibleGuilds].filter((candidate) =>
+  return [...existingFollowersByGuildId.values(), ...visibleGuilds].filter((candidate) =>
     matchesSearch(candidate.name, search) || matchesSearch(candidate.value, search),
   );
 }
@@ -67,31 +68,27 @@ async function docks(interaction) {
 }
 
 async function followers(interaction, banned) {
-  const dockId = interaction.options.getString("dock");
-  if (!dockId) return interaction.respond([]);
-
-  const manageableDocks = await getManageableDocks(interaction.client, interaction.guildId);
-  const dock = manageableDocks.find((dock) => dock._id.toString() === dockId);
-  if (!dock) return interaction.respond([]);
-
   const search = interaction.options.getFocused().trim().toLowerCase();
-  const dockFollowers = await interaction.client.modules.db.getDockFollowers(dock._id);
+  const ownerDocks = await interaction.client.modules.db.getPublishedDocksForGuild(
+    interaction.guildId,
+  );
+  const dockFollowers = ownerDocks.length
+    ? await interaction.client.modules.db.getManyDockFollowers(
+        ownerDocks.map((dock) => dock._id),
+      )
+    : [];
+  const serverBans = await interaction.client.modules.db.getDockServerBans(interaction.guildId);
   const candidates = banned
-    ? dockFollowers
-        .filter(
-          (follower) =>
-            follower.guildId !== dock.guildId &&
-            follower.guildId !== interaction.guildId &&
-            follower.banned === true,
-        )
-        .map((follower) => ({
-          name: follower.guildName ?? follower.guildId,
-          value: follower.guildId,
+    ? serverBans
+        .filter((ban) => ban.targetGuildId !== interaction.guildId)
+        .map((ban) => ({
+          name: ban.targetGuildName ?? ban.targetGuildId,
+          value: ban.targetGuildId,
         }))
     : getBanCandidates(
         interaction.client,
-        dock,
         dockFollowers,
+        serverBans,
         interaction.guildId,
         search,
       );

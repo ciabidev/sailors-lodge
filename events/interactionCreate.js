@@ -107,10 +107,9 @@ module.exports = {
         return interaction.client.modules.updateDockManagePage(interaction, { search });
       }
       if (interaction.customId.startsWith("dock-ban-modal:")) {
-        const [, dockId, followerGuildId] = interaction.customId.split(":");
+        const [, followerGuildId] = interaction.customId.split(":");
         return interaction.client.modules.dockBans.banFollower(
           interaction,
-          dockId,
           followerGuildId,
           interaction.fields.getTextInputValue("reason"),
         );
@@ -361,10 +360,21 @@ module.exports = {
           dockId,
           interaction.guildId,
         );
-
-        if (existingFollower?.banned) {
+        const dock = await interaction.client.modules.db.getDock(dockId);
+        if (!dock) {
           return interaction.reply({
-            content: "This server is banned from following that Dock.",
+            content: "I couldn't find that Dock anymore.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        const serverBan = await interaction.client.modules.db.getDockServerBan(
+          dock.guildId,
+          interaction.guildId,
+        );
+
+        if (existingFollower?.banned || serverBan) {
+          return interaction.reply({
+            content: "This server is banned from following Docks from that server.",
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -399,14 +409,6 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-        const dock = await interaction.client.modules.db.getDock(dockId);
-        if (!dock) {
-          return interaction.reply({
-            content: "I couldn't find that Dock anymore.",
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-
         await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
           guildName: interaction.guild.name,
           channelIds: [channelId],
@@ -837,7 +839,22 @@ module.exports = {
         let [, dockId] = buttonId.split(":");
         let dock = await interaction.client.modules.db.getDock(dockId);
         let accessMode = dock?.accessMode ?? "open";
-
+        const serverBan = await interaction.client.modules.db.getDockServerBan(
+          dock.guildId,
+          interaction.guildId,
+        );
+        if (serverBan) {
+          return interaction.reply({
+            components: [new ContainerBuilder().addTextDisplayComponents((text) =>
+              text.setContent(
+                `### 🤣 ur banned\nThis server is currently banned from following Docks published by **${interaction.client.modules.escapeMarkdown(serverBan.ownerGuildName)}**.\n**Reason:** ${interaction.client.modules.escapeMarkdown(serverBan.reason)}\n\n-# Moderator: ${interaction.client.modules.escapeMarkdown(
+                  serverBan.moderatorName ?? interaction.user.username,
+                )}`,
+              ),
+            )],
+            flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
+          });
+        }
         if (interaction.inGuild()) {
           await interaction.client.modules.dockFollowModal(interaction, dockId);
           return;

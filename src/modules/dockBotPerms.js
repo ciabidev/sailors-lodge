@@ -1,4 +1,4 @@
-const { MessageFlags, PermissionsBitField } = require("discord.js");
+const { MessageFlags, PermissionsBitField, ContainerBuilder } = require("discord.js");
 
 const REQUIRED_BOT_PERMISSIONS = [
   { flag: PermissionsBitField.Flags.ViewChannel, label: "View Channel" },
@@ -11,19 +11,48 @@ const REQUIRED_BOT_PERMISSIONS = [
   { flag: PermissionsBitField.Flags.CreatePublicThreads, label: "Create Threads - auto thread creation for pings in docks" },
 ];
 
-const REQUIRED_BOT_PERMISSION_FLAGS = REQUIRED_BOT_PERMISSIONS.map(({ flag }) => flag);
-async function check(interaction, channels) {
+async function missingLabels(channels) {
   const selectedChannels = Array.isArray(channels) ? channels : [channels];
-  const botMember = interaction.guild?.members.me ?? (await interaction.guild?.members.fetchMe());
+  const guild = selectedChannels.find(Boolean)?.guild;
+  const botMember = guild?.members.me ?? (await guild?.members.fetchMe().catch(() => null));
+  if (!botMember) return [];
 
-  const missingPermissions = REQUIRED_BOT_PERMISSIONS.filter(
-    ({ flag }) => selectedChannels.every((channel) => !channel?.permissionsFor(botMember)?.has(flag)),
+  return REQUIRED_BOT_PERMISSIONS.filter(
+    ({ flag }) => selectedChannels.some((channel) => !channel?.permissionsFor(botMember)?.has(flag)),
+  ).map(({ label }) => label);
+}
+
+async function sendMissingPermissionNotice(client, channel, options = {}) {
+  const thread = options.thread ?? null;
+  const missingPermissions = await missingLabels(thread ? [channel, thread] : channel);
+  if (!channel?.send || missingPermissions.length === 0) return false;
+
+  const container = new ContainerBuilder().addTextDisplayComponents((text) =>
+    text.setContent(
+      `### Bot - Missing Permissions\nAn action failed because I am missing permissions\n${missingPermissions.map((label) => `- ${label}`).join("\n")}`,
+    ),
   );
+
+  const payload = {
+    components: [container],
+    allowedMentions: { parse: [] },
+    flags: MessageFlags.IsComponentsV2,
+  };
+
+  const notice =
+    (thread?.send ? await thread.send(payload).catch(() => null) : null) ??
+    await channel.send(payload).catch(() => null);
+
+  return Boolean(notice);
+}
+
+async function check(interaction, channels) {
+  const missingPermissions = await missingLabels(channels);
  
 
   if (missingPermissions.length > 0) {
     const response = {
-      content: `I am missing the following permissions:\n${missingPermissions.map(label => `- ${label.label}`).join("\n")}`,
+      content: `I am missing the following permissions:\n${missingPermissions.map((label) => `- ${label}`).join("\n")}`,
       flags: MessageFlags.Ephemeral,
     };
 
@@ -41,6 +70,6 @@ async function check(interaction, channels) {
 
 module.exports = {
   REQUIRED_BOT_PERMISSIONS,
-  REQUIRED_BOT_PERMISSION_FLAGS,
   check,
+  sendMissingPermissionNotice,
 };

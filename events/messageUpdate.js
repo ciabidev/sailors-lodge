@@ -10,8 +10,6 @@ module.exports = {
       message = await message.fetch().catch(() => null);
       if (!message) return;
     }
-    const { formatRoleMentions } = message.client.modules.mentions;
-    const uniqueItems = message.client.modules.uniqueItems;
 
     const dockMessage = await message.client.modules.db.getDockMessageFromRoot(
       message.channel.id,
@@ -30,18 +28,13 @@ module.exports = {
       const webhook = await message.client
         .fetchWebhook(savedWebhook.webhookId, savedWebhook.webhookToken)
         .catch(() => null);
-      if (!webhook || webhook.channelId !== delivery.channelId) continue;
-
-      const keywordPings = uniqueItems((delivery.keywordPings ?? []).filter(Boolean));
-      const content = keywordPings.length
-        ? `${formatRoleMentions(keywordPings)}\n${message.content || ""}`
-        : message.content || null;
+      if (!webhook || webhook.channelId !== delivery.channelId) continue;     
 
       await webhook.editMessage(delivery.messageId, {
-        content,
+        content: message.content,
         components: message.components || [],
         embeds: message.embeds || [],
-        allowedMentions: { users: [message.author.id], roles: keywordPings },
+        allowedMentions: { users: [message.author.id] },
         threadId: delivery.threadId,
       });
     }

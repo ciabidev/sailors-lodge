@@ -429,7 +429,7 @@ module.exports = {
           if (dock.accessMode === "open") {
             container.addTextDisplayComponents((t) =>
               t.setContent(
-                `### 🌐 New follower\n**${escapedGuildName}** is now following **${escapedDockName}**.\n\n-# Access level: ${interaction.client.modules.dockLevels.get(dock.defaultLevel).label}`,
+                `### 🌐 New follower\n**${escapedGuildName}** is now following **${escapedDockName}** with **${interaction.client.modules.dockLevels.get(dock.defaultLevel).label}** permissions\n-# ${interaction.client.modules.dockLevels.get(dock.defaultLevel).description}`,
               ),
             );
             if (!isManagingDocks) {

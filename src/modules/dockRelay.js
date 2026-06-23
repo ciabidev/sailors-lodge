@@ -305,7 +305,6 @@ async function relayThread(thread, sendingFollower = null) {
         await thread.client.modules.db.addDockThreadDeliveries(thread.id, [
           {
             guildId: receivingFollower.guildId,
-            guildName: receivingFollower.guildName,
             channelId,
             threadId: relayedThread.id,
           },
@@ -346,7 +345,6 @@ async function relayThreadMessage(message) {
   const threads = [
     {
       guildId: dockThread.rootGuildId,
-      guildName: dock.guildName,
       channelId: dockThread.rootChannelId,
       threadId: dockThread.rootThreadId,
     },
@@ -439,11 +437,9 @@ async function relayThreadMessage(message) {
     await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
       {
         guildId: thread.guildId,
-        guildName: thread.guildName,
         channelId: thread.channelId,
         threadId: thread.threadId,
         messageId: relayedMessage.id,
-        keywordPings: [],
       },
     ]);
   }
@@ -552,16 +548,22 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         delete messagePayload.username;
         delete messagePayload.avatarURL;
 
-        await channel.send(messagePayload);
+        const pingMessage =await channel.send(messagePayload);
+        console.log(pingMessage)
+        await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
+          {
+            guildId: receivingFollower.guildId,
+            channelId,
+            messageId: pingMessage.id,
+          },
+        ]);
       }
 
       await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
         {
           guildId: receivingFollower.guildId,
-          guildName: receivingFollower.guildName,
           channelId,
           messageId: relayedMessage.id,
-          keywordPings: pingRoles,
         },
       ]);
     }
@@ -627,10 +629,8 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
            [
              {
                guildId: follower.guildId,
-               guildName: follower.guildName,
                channelId,
                messageId: message.id,
-               keywordPings: [],
              },
            ],
          );

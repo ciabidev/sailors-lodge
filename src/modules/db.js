@@ -666,6 +666,18 @@ async function getDockMessageFromRoot(rootChannelId, rootMessageId) {
   return dockMessages.findOne({rootChannelId, rootMessageId});
 }
 
+async function getDockMessageFromDelivery(channelId, messageId) {
+  const dockMessages = getCollection("dockMessages");
+  // Reverse lookup for replies to webhook copies. A relayed message may live
+  // directly in a channel or inside a linked thread, so check both delivery ids.
+  return dockMessages.findOne({
+    $or: [
+      { deliveries: { $elemMatch: { channelId, messageId } } },
+      { deliveries: { $elemMatch: { threadId: channelId, messageId } } },
+    ],
+  });
+}
+
 async function addDockMessageDeliveries(rootChannelId, rootMessageId, deliveries) {
   const dockMessages = getCollection("dockMessages");
   return dockMessages.updateOne(
@@ -778,6 +790,7 @@ module.exports = {
   getPublishedDocksForGuild,
   indexDockMessage,
   getDockMessageFromRoot,
+  getDockMessageFromDelivery,
   addDockMessageDeliveries,
   setDockMessageDeliveries,
   removeDockMessageFromRoot,

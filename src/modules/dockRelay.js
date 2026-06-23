@@ -34,21 +34,54 @@ async function repliedToReference({
 
   const original = await message.fetchReference().catch(() => null); // the original message that is being replied to
   if (!original) return null;
-  const dockMessage = await message.client.modules.db.getDockMessageFromRoot(
-    original.channel.id,
-    original.id,
-  ); // find the dock message of the replied to message
+  // The reply target can be the original Dock message or one of its webhook
+  // copies. Resolve both directions so reply buttons point at the matching
+  // counterpart in the server receiving this relay.
+  const dockMessage =
+    (await message.client.modules.db.getDockMessageFromRoot(
+      original.channel.id,
+      original.id,
+    )) ??
+    (await message.client.modules.db.getDockMessageFromDelivery(
+      original.channel.id,
+      original.id,
+    )); // find the dock message of the replied to message
 
-  let delivery = null;
-  let relayed = null;
+  let linkedMessage = null;
   if (dockMessage) {
-    delivery = dockMessage.deliveries?.find(
-      (d) => d.guildId === receivingFollower.guildId && d.channelId === deliveryChannelId,
-    );
-    if (!delivery) return null;
-    relayed = await channel.messages.fetch(delivery.messageId).catch(() => null);
-    if (!relayed) return null;
+    // If this relay is going back to the publisher, link to the root message
+    // instead of sending them to the follower server's webhook copy.
+    const isReceivingRoot =
+      receivingFollower.guildId === dockMessage.rootGuildId &&
+      [deliveryChannelId, channel.id, receivingFollower.threadId].includes(
+        dockMessage.rootChannelId,
+      );
+
+    if (isReceivingRoot) {
+      const rootChannel = await message.client.channels
+        .fetch(dockMessage.rootChannelId)
+        .catch(() => null);
+      linkedMessage = await rootChannel?.messages
+        ?.fetch(dockMessage.rootMessageId)
+        .catch(() => null);
+    } else {
+      // Otherwise link to the existing delivery in the destination server.
+      const delivery = dockMessage.deliveries?.find(
+        (d) =>
+          d.guildId === receivingFollower.guildId &&
+          (d.channelId === deliveryChannelId || d.threadId === channel.id),
+      );
+      if (!delivery) return null;
+      linkedMessage = await channel.messages.fetch(delivery.messageId).catch(() => null);
+    }
+
+    if (!linkedMessage) return null;
   }
+
+  const jumpUrl = linkedMessage?.url ?? original.url;
+  const jumpLabel = linkedMessage
+    ? "Jump to reply"
+    : "Jump to reply (in original server)";
 
   const embed = new EmbedBuilder()
     .setAuthor({
@@ -56,17 +89,12 @@ async function repliedToReference({
       iconURL: original.author.displayAvatarURL(),
     })
     .setDescription(original.content?.slice(0, 4096) || "*No text content*");
-  let row = new ActionRowBuilder().addComponents(
+  const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setURL(original.url)
-      .setLabel("Jump to reply (in original server)")
+      .setURL(jumpUrl)
+      .setLabel(jumpLabel)
       .setStyle(ButtonStyle.Link),
-  );
-  if (dockMessage) {
-    row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setURL(relayed.url).setLabel("Jump to reply").setStyle(ButtonStyle.Link),
     );
-  }
 
   return { embed, row };
 }

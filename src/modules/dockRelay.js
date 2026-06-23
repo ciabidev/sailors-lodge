@@ -209,7 +209,7 @@ async function relayThread(thread, sendingFollower = null) {
     .filter(
       (dockFollower) =>
         dockFollower.channelIds.length > 0 &&
-        thread.client.modules.dockLevels.canRead(dockFollower),
+        thread.client.modules.dockLevels.canRead(dockFollower) && dock.guildId !== sendingFollower.guildId,
     );
   if (receivingFollowers.length === 0) return;
 
@@ -275,10 +275,14 @@ async function relayThread(thread, sendingFollower = null) {
       }
     }
   }
+  // catch the starter message and relay it too
+  const recentMessages = await thread.messages.fetch({ limit: 10 }).catch(() => null);
+  const threadMessages = [...(recentMessages?.values() ?? [])]
+    .filter((message) => message.channel.id === thread.id)
+    .sort((a, b) => Number(BigInt(a.id) - BigInt(b.id)));
 
-  const starterMessage = await thread.fetchStarterMessage?.().catch(() => null);
-  if (starterMessage?.channel?.id === thread.id) {
-    await relayThreadMessage(starterMessage);
+  for (const message of threadMessages) {
+    await relayThreadMessage(message);
   }
 }
 
@@ -358,12 +362,19 @@ async function relayThreadMessage(message) {
 
     const webhook = await getDockWebhook(message.client, channel, thread);
     const components = getRelayComponents(message);
+    const content = components.length ? "" : getRelayContent(message);
+    const embeds = getRelayEmbeds(message);
+    const files = getRelayFiles(message);
+    if (!content && embeds.length === 0 && files.length === 0 && components.length === 0) {
+      continue;
+    }
+
     const messagePayload = {
       username: formattedUsername,
       avatarURL: message.author.displayAvatarURL(),
-      content: components.length ? "" : getRelayContent(message),
-      embeds: getRelayEmbeds(message),
-      files: getRelayFiles(message),
+      content,
+      embeds,
+      files,
       components,
       allowedMentions: { users: [message.author.id] },
       flags: components.length ? [MessageFlags.IsComponentsV2] : undefined,
@@ -428,7 +439,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     .filter(
       (dockFollower) =>
         dockFollower.channelIds.length > 0 &&
-        message.client.modules.dockLevels.canRead(dockFollower),
+        message.client.modules.dockLevels.canRead(dockFollower) && dock.guildId !== sendingFollower.guildId,
     );
   if (receivingFollowers.length === 0) return;
   const isDockPing =

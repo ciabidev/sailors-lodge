@@ -667,6 +667,13 @@ module.exports = {
         });
       }
 
+      const guild = await interaction.client.guilds.fetch(follower.guildId).catch(() => null);
+      const dockLevels = interaction.client.modules.dockLevels;
+      const levelDetails = dockLevels.get(newLevel);
+      const followerGuildName = interaction.client.modules.escapeMarkdown(
+        guild?.name ?? follower.guildName ?? follower.guildId,
+      );
+
       await interaction.client.modules.db.setDockFollower(dockId, guildId, { level: newLevel });
       const followers = (await interaction.client.modules.db.getDockFollowers(dockId))
         .filter((dockFollower) => dockFollower.guildId !== dock.guildId)
@@ -691,13 +698,6 @@ module.exports = {
       });
 
       if (newLevel !== follower.level) {
-        const guild = await interaction.client.guilds.fetch(follower.guildId).catch(() => null);
-        const dockLevels = interaction.client.modules.dockLevels;
-        const levelDetails = dockLevels.get(newLevel);
-        const followerGuildName = interaction.client.modules.escapeMarkdown(
-          guild?.name ?? follower.guildName ?? follower.guildId,
-        );
-
         await interaction.client.modules.dockRelay.relayAlert({
           client: interaction.client,
           dockId,
@@ -712,7 +712,7 @@ module.exports = {
         });
       }
 
-      await interaction.reply({
+      await interaction.followUp({
         content: `**${followerGuildName}** now has **${levelDetails.label}** access to **${interaction.client.modules.escapeMarkdown(dock.name)}**`,
         flags: MessageFlags.Ephemeral,
       });

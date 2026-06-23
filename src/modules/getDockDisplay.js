@@ -96,7 +96,6 @@ module.exports = async function getDockDisplay(
   container.addTextDisplayComponents((text) =>
     text.setContent(`**${channelLabel}:** ${displayedChannels || "Unknown channel"}`),
   );
-  console.log(dock)
   if (mode === "published") {
     container.addTextDisplayComponents(
       (text) =>

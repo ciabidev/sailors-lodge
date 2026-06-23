@@ -141,6 +141,9 @@ module.exports = {
       return;
 
     try {
+      const { formatRoleMentions } = message.client.modules.mentions;
+      const uniqueItems = message.client.modules.uniqueItems;
+
       // Threads are connected through their dockThreads record, not as channel followers.
       // Route them before the normal channel lookup or they will have no relay jobs.
       if (message.channel.isThread?.()) {
@@ -231,19 +234,17 @@ module.exports = {
           let pingMessage = null;
 
           if (matchedKeywords.length > 0) {
-            roleIds = [
-              ...new Set(
-                dockFollowsToPing.flatMap(
-                  ({ sendingFollower, keyword }) => sendingFollower.keywordPings?.[keyword] ?? [],
-                ),
-              ),
-            ];
+            roleIds = uniqueItems(
+              dockFollowsToPing.flatMap(
+                ({ sendingFollower, keyword }) => sendingFollower.keywordPings?.[keyword] ?? [],
+              ).filter(Boolean),
+            );
             const dockNames = dockFollowsToPing.map(({ dock }) => dock.name).join(", ");
             const shouldPingOwnServer = dockFollowsToPing.some(
               ({ sendingFollower }) => sendingFollower.pingOwnServer !== false,
             ); // By now there are multiple follow objects, so we have to check “Do any of the matched Dock follows enable own-server pings?”
             let pingText =
-              `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${dockNames} ping triggered by <@${message.author.id}>!`.trim();;
+              `${formatRoleMentions(roleIds)} ${dockNames} ping triggered by <@${message.author.id}>!`.trim();;
             if (!shouldPingOwnServer) {
                 pingText = `Dock ping relayed`.trim();
             } 
@@ -259,12 +260,12 @@ module.exports = {
                 });
             
           } else if (matchedPingGroups.length > 0) {
-            roleIds = matchedPingGroups.map((group) => group.roleId);
+            roleIds = uniqueItems(matchedPingGroups.map((group) => group.roleId).filter(Boolean));
           
             pingMessage = await message
               .reply({
                 content:
-                  `${roleIds.map((roleId) => `<@&${roleId}>`).join(" ")} ${label} ping triggered by <@${message.author.id}>!`.trim(),
+                  `${formatRoleMentions(roleIds)} ${label} ping triggered by <@${message.author.id}>!`.trim(),
                 allowedMentions: { roles: roleIds, repliedUser: false },
               })
               .catch((error) => {

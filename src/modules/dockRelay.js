@@ -419,6 +419,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     (dock.guildId === sendingFollower.guildId ||
       message.client.modules.dockLevels.canPing(sendingFollower.level));
   const dockPing = message.client.dockPingMetadata?.get(message.id);
+  const { formatRoleMentions } = message.client.modules.mentions;
+  const uniqueItems = message.client.modules.uniqueItems;
 
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
@@ -464,16 +466,14 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
       let pingRoles = [];
 
       if (isDockPing) {
-        pingRoles = [
-          ...new Set(
-            (dockPing.keywords ?? []).flatMap(
-              (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
-            ),
-          ),
-        ];
+        pingRoles = uniqueItems(
+          (dockPing.keywords ?? []).flatMap(
+            (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
+          ).filter(Boolean),
+        );
         const pingContent = `${dock.name} ping triggered by ${dockPing.username}!`;
         messagePayload.content = pingRoles.length
-          ? `${pingRoles.map((roleId) => `<@&${roleId}>`).join(" ")} ${pingContent}`
+          ? `${formatRoleMentions(pingRoles)} ${pingContent}`
           : pingContent;
 
         messagePayload.allowedMentions.roles = pingRoles;

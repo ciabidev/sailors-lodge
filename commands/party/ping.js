@@ -42,6 +42,12 @@ module.exports = {
   },
 
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({
+        content: "Ping groups can only be used in a Discord server.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
     const groupName = interaction.options.getString("role");
     const extra = interaction.options.getString("extra") ?? "";
     const party = await interaction.client.modules.db.getCurrentParty(interaction.user.id);

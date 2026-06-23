@@ -22,9 +22,7 @@ async function getValidBanTarget(interaction, dockId, followerGuildId, banned) {
     follower &&
     follower.guildId !== dock.guildId &&
     follower.guildId !== interaction.guildId &&
-    (banned
-      ? follower.banned === true
-      : interaction.client.modules.dockLevels.canRead(follower));
+    (banned ? follower.banned === true : interaction.client.modules.dockLevels.canRead(follower));
 
   if (!isValidFollower) {
     await interaction.reply({
@@ -50,7 +48,25 @@ async function banFollower(interaction, dockId, followerGuildId, reason) {
       flags: MessageFlags.Ephemeral,
     });
   }
-
+    const escapedDockName = interaction.client.modules.escapeMarkdown(target.dock.name);
+    const escapedFollowerName = interaction.client.modules.escapeMarkdown(
+      target.follower.guildName ?? target.follower.guildId,
+    );
+  await interaction.client.modules.dockRelay
+    .relayAlert({
+      client: interaction.client,
+      dockId: target.dock._id,
+      components: [
+        new ContainerBuilder().addTextDisplayComponents((text) =>
+          text.setContent(
+            `### 🔨 Dock follower banned\n**${escapedFollowerName}** was banned from **${escapedDockName}**.\n\n**Reason:** ${interaction.client.modules.escapeMarkdown(cleanReason)}\n**Moderator:** ${interaction.user.username}`,
+          ),
+        ),
+      ],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
+    })
+    .catch((error) => console.error("[dock-ban] Failed to relay ban alert:", error));
   await interaction.client.modules.db.setDockFollower(dockId, followerGuildId, {
     banned: true,
     banReason: cleanReason,
@@ -59,29 +75,10 @@ async function banFollower(interaction, dockId, followerGuildId, reason) {
     level: "no-access",
   });
 
-  const escapedDockName = interaction.client.modules.escapeMarkdown(target.dock.name);
-  const escapedFollowerName = interaction.client.modules.escapeMarkdown(
-    target.follower.guildName ?? target.follower.guildId,
-  );
-
   await interaction.reply({
     content: `Banned **${escapedFollowerName}** from **${escapedDockName}**.`,
     flags: MessageFlags.Ephemeral,
   });
-
-  await interaction.client.modules.dockRelay.relayAlert({
-    client: interaction.client,
-    dockId: target.dock._id,
-    components: [
-      new ContainerBuilder().addTextDisplayComponents((text) =>
-        text.setContent(
-          `### 🔨 Dock follower banned\n**${escapedFollowerName}** was banned from **${escapedDockName}**.\n\n**Reason:** ${interaction.client.modules.escapeMarkdown(cleanReason)}\n**Moderator:** ${interaction.user.username}`,
-        ),
-      ),
-    ],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  }).catch((error) => console.error("[dock-ban] Failed to relay ban alert:", error));
 }
 
 async function unbanFollower(interaction, dockId, followerGuildId) {
@@ -95,20 +92,22 @@ async function unbanFollower(interaction, dockId, followerGuildId) {
     target.follower.guildName ?? target.follower.guildId,
   );
 
-  await interaction.client.modules.dockRelay.relayAlert({
-    client: interaction.client,
-    dockId: target.dock._id,
-    guildIds: [interaction.guildId, target.follower.guildId],
-    components: [
-      new ContainerBuilder().addTextDisplayComponents((text) =>
-        text.setContent(
-          `### ✅ Dock follower unbanned\n**${escapedFollowerName}** was unbanned from **${escapedDockName}**.`,
+  await interaction.client.modules.dockRelay
+    .relayAlert({
+      client: interaction.client,
+      dockId: target.dock._id,
+      guildIds: [interaction.guildId, target.follower.guildId],
+      components: [
+        new ContainerBuilder().addTextDisplayComponents((text) =>
+          text.setContent(
+            `### ✅ Dock follower unbanned\n**${escapedFollowerName}** was unbanned from **${escapedDockName}**.`,
+          ),
         ),
-      ),
-    ],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] },
-  }).catch((error) => console.error("[dock-ban] Failed to relay unban alert:", error));
+      ],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] },
+    })
+    .catch((error) => console.error("[dock-ban] Failed to relay unban alert:", error));
 
   await interaction.client.modules.db.removeDockFollower(dockId, followerGuildId);
   return interaction.editReply(

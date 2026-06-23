@@ -1037,7 +1037,7 @@ module.exports = {
         await interaction.client.modules.db.removeDockFollower(dockId, interaction.guildId);
         await interaction.client.modules.updateDockManagePage(interaction);
         await interaction.followUp({
-          content: `Unfollowed Dock \`${interaction.client.modules.escapeMarkdown(dock.name)}\`.`,
+          content: `Unfollowed Dock **${interaction.client.modules.escapeMarkdown(dock.name)}**.`,
           flags: MessageFlags.Ephemeral,
         });
       }

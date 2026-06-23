@@ -275,6 +275,11 @@ async function relayThread(thread, sendingFollower = null) {
       }
     }
   }
+
+  const starterMessage = await thread.fetchStarterMessage?.().catch(() => null);
+  if (starterMessage?.channel?.id === thread.id) {
+    await relayThreadMessage(starterMessage);
+  }
 }
 
 async function relayThreadMessage(message) {
@@ -319,6 +324,10 @@ async function relayThreadMessage(message) {
     Array.from(username).length > 80
       ? Array.from(username).slice(0, 76).join("") + "..."
       : username;
+  const existingDockMessage = await message.client.modules.db.getDockMessageFromRoot(
+    message.channel.id,
+    message.id,
+  );
 
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
@@ -330,6 +339,14 @@ async function relayThreadMessage(message) {
 
   for (const thread of threads) {
     if (thread.threadId === message.channel.id) continue;
+    if (
+      existingDockMessage?.deliveries?.some(
+        (delivery) =>
+          delivery.guildId === thread.guildId &&
+          delivery.channelId === thread.channelId &&
+          delivery.threadId === thread.threadId,
+      )
+    ) continue;
 
     const targetThread = await message.client.channels.fetch(thread.threadId).catch(() => null);
     if (!targetThread?.isThread?.()) continue;

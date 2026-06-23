@@ -532,7 +532,6 @@ module.exports = {
         }
      
         
-        console.log( interaction.fields.getSelectedRoles("gatekeeper"))
         // set gatekeeper role
         const gatekeeperRole = interaction.fields.getSelectedRoles("gatekeeper")
         const gatekeeperRoleId = gatekeeperRole ? [...gatekeeperRole.keys()][0] : null;

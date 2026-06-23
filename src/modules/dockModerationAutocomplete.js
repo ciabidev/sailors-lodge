@@ -18,6 +18,37 @@ function matchesSearch(value, search) {
   return value?.toLowerCase().includes(search) ?? false;
 }
 
+function getBanCandidates(client, dock, dockFollowers, managingGuildId, search) {
+  const followerGuildIds = new Set(dockFollowers.map((follower) => follower.guildId));
+  const existingFollowers = dockFollowers
+    .filter(
+      (follower) =>
+        follower.guildId !== dock.guildId &&
+        follower.guildId !== managingGuildId &&
+        follower.banned !== true,
+    )
+    .map((follower) => ({
+      name: follower.guildName ?? follower.guildId,
+      value: follower.guildId,
+    }));
+
+  const visibleGuilds = client.guilds.cache
+    .filter(
+      (guild) =>
+        guild.id !== dock.guildId &&
+        guild.id !== managingGuildId &&
+        !followerGuildIds.has(guild.id),
+    )
+    .map((guild) => ({
+      name: `${guild.name} (not following)`,
+      value: guild.id,
+    }));
+
+  return [...existingFollowers, ...visibleGuilds].filter((candidate) =>
+    matchesSearch(candidate.name, search) || matchesSearch(candidate.value, search),
+  );
+}
+
 async function docks(interaction) {
   const search = interaction.options.getFocused().trim().toLowerCase();
   const manageableDocks = await getManageableDocks(interaction.client, interaction.guildId);
@@ -45,24 +76,36 @@ async function followers(interaction, banned) {
 
   const search = interaction.options.getFocused().trim().toLowerCase();
   const dockFollowers = await interaction.client.modules.db.getDockFollowers(dock._id);
+  const candidates = banned
+    ? dockFollowers
+        .filter(
+          (follower) =>
+            follower.guildId !== dock.guildId &&
+            follower.guildId !== interaction.guildId &&
+            follower.banned === true,
+        )
+        .map((follower) => ({
+          name: follower.guildName ?? follower.guildId,
+          value: follower.guildId,
+        }))
+    : getBanCandidates(
+        interaction.client,
+        dock,
+        dockFollowers,
+        interaction.guildId,
+        search,
+      );
 
   return interaction.respond(
-    dockFollowers
-      .filter((follower) =>
-        follower.guildId !== dock.guildId &&
-        follower.guildId !== interaction.guildId &&
-        (banned
-          ? follower.banned === true
-          : interaction.client.modules.dockLevels.canRead(follower)),
+    candidates
+      .filter((candidate) =>
+        matchesSearch(candidate.name, search) || matchesSearch(candidate.value, search),
       )
-      .filter((follower) =>
-        matchesSearch(follower.guildName ?? follower.guildId, search),
-      )
-      .sort((a, b) => (a.guildName ?? "").localeCompare(b.guildName ?? ""))
+      .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, 25)
-      .map((follower) => ({
-        name: (follower.guildName ?? follower.guildId).slice(0, 100),
-        value: follower.guildId,
+      .map((candidate) => ({
+        name: candidate.name.slice(0, 100),
+        value: candidate.value,
       })),
   );
 }

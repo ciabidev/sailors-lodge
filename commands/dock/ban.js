@@ -51,7 +51,13 @@ module.exports = {
     }
 
     const dockId = interaction.options.getString("dock", true);
-    const followerGuildId = interaction.options.getString("follower", true);
+    const followerGuildInput = interaction.options.getString("follower", true);
+    const followerGuild =
+      interaction.client.guilds.cache.get(followerGuildInput) ??
+      interaction.client.guilds.cache.find(
+        (guild) => guild.name.toLowerCase() === followerGuildInput.toLowerCase(),
+      );
+    const followerGuildId = followerGuild?.id ?? followerGuildInput;
 
     return interaction.showModal(
       new ModalBuilder()

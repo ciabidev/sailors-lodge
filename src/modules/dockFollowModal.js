@@ -50,9 +50,12 @@ module.exports = async function dockFollowModal(
     .setCustomId(`${customId}:${dockId}`);
 
   const follower = await interaction.client.modules.db.getDockFollower(dockId, interaction.guildId);
-  if (follower?.banned) {
+  const serverBan = dock
+    ? await interaction.client.modules.db.getDockServerBan(dock.guildId, interaction.guildId)
+    : null;
+  if (follower?.banned || serverBan) {
     return interaction.reply({
-      content: "This server is banned from following that Dock.",
+      content: "This server is banned from following Docks from that server.",
       flags: MessageFlags.Ephemeral,
     });
   }

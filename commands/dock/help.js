@@ -37,7 +37,7 @@ module.exports = {
           ),
         (text) =>
           text.setContent(
-            "### `/dock ban` and `/dock unban`\nBan a follower server with a reason, or allow it to follow the Dock again.",
+            "### `/dock ban` and `/dock unban`\nBan a server from following this server's Docks with a reason, or allow it to follow again.",
           ),
         (text) =>
           text.setContent(

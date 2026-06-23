@@ -64,15 +64,16 @@ module.exports = async function dockBrowsePage({ client, state }) {
 
   for (const dock of pages[state.pageIndex] ?? []) {
     const follower = await client.modules.db.getDockFollower(dock._id, state.guildId);
+    const serverBan = await client.modules.db.getDockServerBan(dock.guildId, state.guildId);
     const publishedHere = dock.guildId === state.guildId;
-    const isBanned = follower?.banned === true;
+    const isBanned = follower?.banned === true || Boolean(serverBan);
     const isPending = follower?.level === "no-access" && !isBanned;
     const isFollowing = client.modules.dockLevels.canRead(follower);
 
     let followLabel = "Follow";
 
     if (publishedHere) followLabel = "Published Here";
-    else if (isBanned) followLabel = "Banned";
+    else if (isBanned) followLabel = "Follow?";
     else if (isPending) followLabel = "Request Pending";
     else if (isFollowing) followLabel = "Following";
     else if (dock.accessMode === "request") followLabel = "Request To Follow";
@@ -81,11 +82,11 @@ module.exports = async function dockBrowsePage({ client, state }) {
       .setCustomId(`dock-follow:${dock._id}`)
       .setLabel(followLabel)
       .setStyle(
-        publishedHere || isBanned || isPending || isFollowing
+        publishedHere || isPending || isFollowing
           ? ButtonStyle.Secondary
           : ButtonStyle.Success,
       )
-      .setDisabled(publishedHere || isBanned || isPending || isFollowing);
+      .setDisabled(publishedHere || isPending || isFollowing);
 
     await client.modules.getDockDisplay(container, dock, [followButton], client);
   }

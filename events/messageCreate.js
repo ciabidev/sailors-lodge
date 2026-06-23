@@ -244,7 +244,7 @@ module.exports = {
               ({ sendingFollower }) => sendingFollower.pingOwnServer !== false,
             ); // By now there are multiple follow objects, so we have to check “Do any of the matched Dock follows enable own-server pings?”
             let pingText =
-              `${formatRoleMentions(roleIds)} ${dockNames} ping triggered by <@${message.author.id}>!`.trim();;
+              `${formatRoleMentions(roleIds)} **${dockNames}** ping triggered by <@${message.author.id}>!`.trim();;
             if (!shouldPingOwnServer) {
                 pingText = `Dock ping relayed`.trim();
             } 
@@ -265,7 +265,7 @@ module.exports = {
             pingMessage = await message
               .reply({
                 content:
-                  `${formatRoleMentions(roleIds)} ${label} ping triggered by <@${message.author.id}>!`.trim(),
+                  `${formatRoleMentions(roleIds)} **${label}** ping triggered by <@${message.author.id}>!`.trim(),
                 allowedMentions: { roles: roleIds, repliedUser: false },
               })
               .catch((error) => {

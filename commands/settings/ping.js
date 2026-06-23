@@ -107,7 +107,12 @@ module.exports = {
     const { guildId } = interaction;
     const settings = await interaction.client.modules.db.getSettings(guildId);
     const pingGroups = settings.pingGroups;
-
+    if (!interaction.guild) {
+      return interaction.reply({
+        content: "Ping groups can only be managed from a Discord server.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
     // check if permissions
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
       return interaction.reply({

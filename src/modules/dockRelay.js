@@ -1,11 +1,11 @@
 const {
   MessageFlags,
-  ContainerBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
 } = require("discord.js");
+const { reportError } = require("../reportError");
 function getPartyIdFromComponents(message) {
   if (!message.components) return null;
   for (const row of message.components ?? []) {
@@ -120,6 +120,32 @@ async function getWritableDockFollows(client, channelId, guildId) {
 const dockWebhookPromises = new Map();
 const DOCK_WEBHOOK_NAME = "Sailors Lodge Dock Webhook";
 
+function isMissingPermissionsError(error) {
+  return error?.code === 50013 || error?.rawError?.code === 50013;
+}
+
+async function reportDockRelayError(error, {
+  client,
+  channel,
+  thread,
+  source = "dock-relay",
+} = {}) {
+  if (isMissingPermissionsError(error)) {
+    const noticeChannel = channel ?? thread?.parent ?? null;
+    await client.modules.dockBotPerms.sendMissingPermissionNotice(client, noticeChannel, { thread });
+    return;
+  } else {
+    await reportError(error, {
+      source,
+      notify: false,
+      tags: {
+        guildId:  channel.guildId ?? "",
+        channelId: channel.id ?? "",
+      },
+    });
+  }
+}
+
 async function resolveDockWebhook(client, channel, dockFollower) {
   const savedWebhook = await client.modules.db.getDockWebhook(
     dockFollower.guildId,
@@ -147,10 +173,23 @@ async function resolveDockWebhook(client, channel, dockFollower) {
   );
 
   if (!webhook) {
-    webhook = await channel.createWebhook({
-      name: DOCK_WEBHOOK_NAME,
-      avatar: client.user.displayAvatarURL(),
-    });
+    webhook = await channel
+      .createWebhook({
+        name: DOCK_WEBHOOK_NAME,
+        avatar: client.user.displayAvatarURL(),
+      })
+      .catch(async (error) => {
+        const dock = dockFollower.dockId
+          ? await client.modules.db.getDock(dockFollower.dockId).catch(() => null)
+          : null;
+        await reportDockRelayError(error, {
+          client,
+          channel,
+          source: "dock-webhook",
+        });
+        return null;
+      });
+    if (!webhook) return null;
   }
 
   await client.modules.db.setDockWebhook(dockFollower.guildId, channel.id, {
@@ -305,7 +344,6 @@ async function relayThread(thread, sendingFollower = null) {
         await thread.client.modules.db.addDockThreadDeliveries(thread.id, [
           {
             guildId: receivingFollower.guildId,
-            guildName: receivingFollower.guildName,
             channelId,
             threadId: relayedThread.id,
           },
@@ -346,7 +384,6 @@ async function relayThreadMessage(message) {
   const threads = [
     {
       guildId: dockThread.rootGuildId,
-      guildName: dock.guildName,
       channelId: dockThread.rootChannelId,
       threadId: dockThread.rootThreadId,
     },
@@ -364,7 +401,8 @@ async function relayThreadMessage(message) {
       !message.client.modules.dockLevels.canSend(sendingFollower?.level)
     ) return;
   }
-  const username = `${message.author.username} [${dock.name}] [${sendingThread.guildName}]`;
+  const guildName = message.client.guilds.cache.get(sendingThread.guildId)?.name;
+  const username = `${message.author.username} [${dock.name}] [${guildName}]`;
   const formattedUsername =
     Array.from(username).length > 80
       ? Array.from(username).slice(0, 76).join("") + "..."
@@ -402,6 +440,7 @@ async function relayThreadMessage(message) {
     if (!channel) continue;
 
     const webhook = await getDockWebhook(message.client, channel, thread);
+    if (!webhook) continue;
     const components = getRelayComponents(message);
     const content = components.length ? "" : getRelayContent(message);
     const embeds = getRelayEmbeds(message, content);
@@ -435,15 +474,22 @@ async function relayThreadMessage(message) {
       }
     }
 
-    const relayedMessage = await webhook.send(messagePayload);
+    const relayedMessage = await webhook.send(messagePayload).catch(async (error) => {
+      await reportDockRelayError(error, {
+        client: message.client,
+        channel,
+        thread: targetThread,
+        source: "dock-relay-thread-message",
+      });
+      return null;
+    });
+    if (!relayedMessage) continue;
     await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
       {
         guildId: thread.guildId,
-        guildName: thread.guildName,
         channelId: thread.channelId,
         threadId: thread.threadId,
         messageId: relayedMessage.id,
-        keywordPings: [],
       },
     ]);
   }
@@ -484,14 +530,14 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         !(dock.guildId === sendingFollower.guildId && dockFollower.guildId === dock.guildId),
     );
   if (receivingFollowers.length === 0) return;
-  const isDockPing =
-    message.client.dockPingMetadata?.has(message.id) &&
+  const dockPing = message.client.dockPingMetadata?.get(message.id);
+  const canRelayDockPing =
+    Boolean(dockPing) &&
     (dock.guildId === sendingFollower.guildId ||
       message.client.modules.dockLevels.canPing(sendingFollower.level));
-  const dockPing = message.client.dockPingMetadata?.get(message.id);
   const { formatRoleMentions } = message.client.modules.mentions;
   const uniqueItems = message.client.modules.uniqueItems;
-
+  
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
     rootGuildId: message.guildId,
@@ -500,12 +546,22 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     deliveries: [],
   });
 
+  if (canRelayDockPing) {
+    await message.client.modules.db.setDockMessageDeliveries(message.channel.id, message.id, [
+      {
+        guildId: sendingFollower.guildId,
+        channelId: sendingFollower.channelId,
+        messageId: message.id,
+      },
+    ]);
+  }
   for (const receivingFollower of receivingFollowers) {
     for (const channelId of receivingFollower.channelIds) {
       const channel = await message.client.channels.fetch(channelId).catch(() => null);
       if (!channel) continue;
 
       const webhook = await getDockWebhook(message.client, channel, receivingFollower);
+      if (!webhook) continue;
       const username = `${message.author.username} [${dock.name}] [${sendingFollower.guildName}]`;
       const formattedUsername =
         Array.from(username).length > 80
@@ -533,10 +589,18 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           messagePayload.components = [reply.row];
         }
       }
-      const relayedMessage = await webhook.send(messagePayload);
+      const relayedMessage = await webhook.send(messagePayload).catch(async (error) => {
+        await reportDockRelayError(error, {
+          client: message.client,
+          channel,
+          source: "dock-relay-message",
+        });
+        return null;
+      });
+      if (!relayedMessage) continue;
       let pingRoles = [];
 
-      if (isDockPing) {
+      if (canRelayDockPing) {
         pingRoles = uniqueItems(
           (dockPing.keywords ?? []).flatMap(
             (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
@@ -552,19 +616,38 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         delete messagePayload.username;
         delete messagePayload.avatarURL;
 
-        await channel.send(messagePayload);
+        await channel.send(messagePayload).catch(async (error) => {
+          await reportDockRelayError(error, {
+            client: message.client,
+            channel,
+            source: "dock-relay-ping",
+          });
+        });
+        
       }
 
       await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
         {
           guildId: receivingFollower.guildId,
-          guildName: receivingFollower.guildName,
           channelId,
           messageId: relayedMessage.id,
-          keywordPings: pingRoles,
         },
       ]);
     }
+  }
+
+  if (canRelayDockPing) {
+    message.startThread({
+      name: Array.from(`${dock.name} ping from ${sendingFollower.guildName}`).slice(0, 100).join(""),
+      autoArchiveDuration: 1440,
+      reason: "Dock thread relay",
+    }).catch(async (error) => {
+      await reportDockRelayError(error, {
+        client: message.client,
+        channel: message.channel,
+        source: "dock-ping-thread",
+      });
+    });
   }
 }
 
@@ -603,10 +686,20 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
           payload.source ?? { client },
           payload.userId,
         );
-        const message = await channel.send({
-          components,
-          flags: [MessageFlags.IsComponentsV2],
-        });
+        const message = await channel
+          .send({
+            components,
+            flags: [MessageFlags.IsComponentsV2],
+          })
+          .catch(async (error) => {
+            await reportDockRelayError(error, {
+              client,
+              channel,
+              source: "dock-party-alert",
+            });
+            return null;
+          });
+        if (!message) continue;
 
         if (!client.dockRelayedPartyCardMessages) {
           client.dockRelayedPartyCardMessages = new Set();
@@ -627,10 +720,8 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
            [
              {
                guildId: follower.guildId,
-               guildName: follower.guildName,
                channelId,
                messageId: message.id,
-               keywordPings: [],
              },
            ],
          );
@@ -640,7 +731,13 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
 
      
 
-      await channel.send(payload);
+      await channel.send(payload).catch(async (error) => {
+        await reportDockRelayError(error, {
+          client,
+          channel,
+          source: "dock-alert",
+        });
+      });
     }
   }
 }
@@ -665,6 +762,7 @@ module.exports = {
   RELAYED_THREAD_MARKER,
   getPartyIdFromComponents,
   getWritableDockFollows,
+  reportDockRelayError,
   relayAlert,
   relayMessage,
   relayThread,

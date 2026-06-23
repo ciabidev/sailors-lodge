@@ -324,11 +324,21 @@ module.exports = {
               userId: party.host.id,
             });
             if (messageToPublish.startThread && !messageToPublish.hasThread) {
-              await messageToPublish.startThread({
-                name: Array.from(`${party.name}`).slice(0, 100).join(""),
-                autoArchiveDuration: 1440,
-                reason: "Party card dock thread",
-              });
+              await messageToPublish
+                .startThread({
+                  name: Array.from(`${party.name}`).slice(0, 100).join(""),
+                  autoArchiveDuration: 1440,
+                  reason: "Party card dock thread",
+                })
+                .catch(async (error) => {
+                  await message.client.modules.dockRelay.reportDockRelayError(error, {
+                    client: message.client,
+                    dock,
+                    follower: sendingFollower,
+                    channel: messageToPublish.channel,
+                    source: "dock-party-thread",
+                  });
+                });
             }
           }
         } else {

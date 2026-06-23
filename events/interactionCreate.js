@@ -891,6 +891,27 @@ module.exports = {
         );
       }
 
+      if (buttonId.startsWith("dock-toggle-own-pings:")) {
+        const [, dockId] = buttonId.split(":");
+        const follower = await interaction.client.modules.db.getDockFollower(
+          dockId,
+          interaction.guildId,
+        );
+
+        if (!follower) {
+          return interaction.reply({
+            content: "This server is not connected to that Dock anymore.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
+          pingOwnServer: follower.pingOwnServer === false,
+        });
+
+        return interaction.client.modules.updateDockManagePage(interaction);
+      }
+
       if (buttonId.startsWith("dock-home-ping-roles")) {
         const [, dockId] = buttonId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);

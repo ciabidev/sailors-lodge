@@ -61,7 +61,7 @@ module.exports = async function dockFollowModal(
       modal.addLabelComponents(
         new LabelBuilder()
           .setLabel("Set Gatekeeper Role")
-          .setDescription("This role will be pinged whenever someone requests to follow this dock")
+          .setDescription("Deny/Approve Follow Requests")
           .setRoleSelectMenuComponent(
             new RoleSelectMenuBuilder()
               .setCustomId("gatekeeper")

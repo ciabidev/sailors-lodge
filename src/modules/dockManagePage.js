@@ -91,8 +91,12 @@ module.exports = async function dockManagePage({ client, state }) {
     const buttons = [
       new ButtonBuilder()
         .setCustomId(`dock-configure-${fromThisGuild ? "owner" : "follower"}:${dock._id}`)
-        .setLabel("Configure")
-        .setStyle(ButtonStyle.Secondary),
+        .setLabel(`${fromThisGuild ? "Edit Dock" : "Edit Pings and Channels"}`)
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`dock-toggle-own-pings:${dock._id}`)
+        .setLabel(`Own-Server Pings: ${follower?.pingOwnServer === false ? "Off" : "On"}`)
+        .setStyle(follower?.pingOwnServer === false ? ButtonStyle.Secondary : ButtonStyle.Success),
     ];
 
     if (fromThisGuild) {

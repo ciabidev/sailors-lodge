@@ -529,7 +529,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
             (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
           ).filter(Boolean),
         );
-        const pingContent = `${dock.name} ping triggered by ${dockPing.username}!`;
+        const dockName = message.client.modules.escapeMarkdown(dock.name);
+        const pingContent = `${dockName} ping triggered by ${dockPing.username}!`;
         messagePayload.content = pingRoles.length
           ? `${formatRoleMentions(pingRoles)} ${pingContent}`
           : pingContent;

@@ -70,9 +70,9 @@ async function repliedToReference({
 
   return { embed, row };
 }
-async function getWritableConnections(client, channelId, guildId) {
-  // one channel can follow multiple docks, so return the docks as dock and its follower settings together
-  // Each follower can have different access, ping roles, and a guild name used in the relay label.
+async function getWritableDockFollows(client, channelId, guildId) {
+  // One channel can follow multiple Docks. Return only the follower records that
+  // are allowed to send from this channel; callers can fetch the Dock when needed.
   const followers = await client.modules.db.getDockFollowsForChannel(channelId);
   const connections = await Promise.all(
     followers.map(async (follower) => ({
@@ -86,7 +86,7 @@ async function getWritableConnections(client, channelId, guildId) {
       dock &&
       client.modules.dockLevels.canRead(follower) &&
       (dock.guildId === guildId || client.modules.dockLevels.canSend(follower.level)),
-  );
+  ).map(({ follower }) => follower);
 }
 
 const dockWebhookPromises = new Map();
@@ -189,12 +189,11 @@ async function relayThread(thread, sendingFollower = null) {
 
   if (!sendingFollower) {
     // threads are indexed under one dock, so dont merge multiple dock thread networks together
-    const [connection] = await getWritableConnections(
+    [sendingFollower] = await getWritableDockFollows(
       thread.client,
       thread.parentId,
       thread.guildId,
     );
-    sendingFollower = connection?.follower;
   }
 
   const dock = await thread.client.modules.db.getDock(sendingFollower?.dockId);
@@ -386,12 +385,11 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
 
   if (!sendingFollower) {
     // Find a Dock this channel has permission to publish to.
-    const [connection] = await getWritableConnections(
+    [sendingFollower] = await getWritableDockFollows(
       message.client,
       message.channel.id,
       message.guildId,
     );
-    sendingFollower = connection?.follower;
   }
 
   const dock = await message.client.modules.db.getDock(sendingFollower?.dockId);
@@ -594,7 +592,7 @@ async function dockRelay(input) {
 module.exports = {
   RELAYED_THREAD_MARKER,
   getPartyIdFromComponents,
-  getWritableConnections,
+  getWritableDockFollows,
   relayAlert,
   relayMessage,
   relayThread,

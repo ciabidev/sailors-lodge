@@ -6,15 +6,15 @@ module.exports = {
   async execute(thread) {
     try {
       // threads stay on one dock network even when the parent channel follows multiple docks
-      const [connection] =
-        await thread.client.modules.dockRelay.getWritableConnections(
+      const [sendingFollower] =
+        await thread.client.modules.dockRelay.getWritableDockFollows(
           thread.client,
           thread.parentId,
           thread.guildId,
         );
-      if (!connection) return;
+      if (!sendingFollower) return;
       
-      await thread.client.modules.dockRelay.relayThread(thread, connection.follower);
+      await thread.client.modules.dockRelay.relayThread(thread, sendingFollower);
     } catch (error) {
       await reportError(error, {
         source: "thread-create",

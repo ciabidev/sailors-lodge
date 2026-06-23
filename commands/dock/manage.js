@@ -18,7 +18,14 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+    if (!interaction.inGuild()) {
+      return interaction.reply({
+        content: "Docks can only be managed from a Discord server.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
       return interaction.reply({
         content: "You don't have permission to manage this server's docks (`Manage Channels`)",
         flags: MessageFlags.Ephemeral,

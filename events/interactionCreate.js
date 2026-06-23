@@ -1128,8 +1128,8 @@ module.exports = {
           });
         }
         const canApprove =
-            interaction.member.permissions.has(PermissionFlagsBits.ManageChannels) ||
-            interaction.member.roles.cache.has(dock.gatekeeperRoleId);
+            interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+            interaction.member?.roles?.cache?.has(dock.gatekeeperRoleId);
 
         if (!canApprove) {
           return interaction.reply({
@@ -1218,9 +1218,10 @@ module.exports = {
         const isMissingAccess = error.code === 50001;
         const eventId = isMissingAccess
           ? null
-          : Sentry.captureException(error, {
+          : await reportError(error, {
+              notify: false,
+              source: "discord-command",
               tags: {
-                source: "discord-command",
                 command: interaction.commandName,
               },
             });

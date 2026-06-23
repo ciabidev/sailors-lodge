@@ -72,7 +72,9 @@ async function reportError(error, options = {}) {
   console.error(`[${options.source ?? "application"}]`, error);
 
   const eventId = captureError(error, options);
-  await notifyUser(options.context, eventId);
+  if (options.notify !== false) {
+    await notifyUser(options.context, eventId);
+  }
   return eventId;
 }
 

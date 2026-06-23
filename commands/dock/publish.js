@@ -6,16 +6,16 @@ module.exports = {
     .setDescription("Publish a Dock for servers to follow."),
 
   async execute(interaction) {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+    if (!interaction.inGuild()) {
       return interaction.reply({
-        content: "You don't have permission to publish docks from this server (`Manage Channels`)",
+        content: "Docks can only be published from a Discord server.",
         flags: MessageFlags.Ephemeral,
       });
     }
 
-    if (!interaction.guildId) {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
       return interaction.reply({
-        content: "Docks can only be published from a Discord server.",
+        content: "You don't have permission to publish docks from this server (`Manage Channels`)",
         flags: MessageFlags.Ephemeral,
       });
     }

@@ -6,6 +6,9 @@ const {
   EmbedBuilder,
 } = require("discord.js");
 const { reportError } = require("../reportError");
+const RELAY_CONCURRENCY = 4;
+const WEBHOOK_CACHE_TTL_MS = 10 * 60 * 1000;
+
 function getPartyIdFromComponents(message) {
   if (!message.components) return null;
   for (const row of message.components ?? []) {
@@ -118,7 +121,15 @@ async function getWritableDockFollows(client, channelId, guildId) {
 }
 
 const dockWebhookPromises = new Map();
+const dockWebhookCache = new Map();
 const DOCK_WEBHOOK_NAME = "Sailors Lodge Dock Webhook";
+
+// Forgets a cached webhook after it fails so the next send resolves a fresh one.
+function invalidateDockWebhook(guildId, channelId) {
+  const cacheKey = `${guildId}:${channelId}`;
+  dockWebhookCache.delete(cacheKey);
+  dockWebhookPromises.delete(cacheKey);
+}
 
 function isMissingPermissionsError(error) {
   return error?.code === 50013 || error?.rawError?.code === 50013;
@@ -147,14 +158,14 @@ async function reportDockRelayError(error, {
 }
 
 async function resolveDockWebhook(client, channel, dockFollower) {
-  const savedWebhook = await client.modules.db.getDockWebhook(
+  const savedWebhook = await client.modules.db.getDockWebhook( // get the webhook from mongodb
     dockFollower.guildId,
     channel.id,
   );
 
   let webhook = null;
 
-  if (savedWebhook?.webhookId) {
+  if (savedWebhook?.webhookId) {  // if the webhook is saved in mongo fetch it from discord
     webhook = await client
       .fetchWebhook(savedWebhook.webhookId, savedWebhook.webhookToken)
       .catch(() => null);
@@ -164,7 +175,7 @@ async function resolveDockWebhook(client, channel, dockFollower) {
     }
   }
 
-  // Recover webhooks created before webhooks were stored per channel. This also
+  // recover webhooks created before webhooks were stored per channel. This also
   // avoids creating another webhook after a database reset or failed write.
   const channelWebhooks = await channel.fetchWebhooks().catch(() => null);
   webhook = channelWebhooks?.find(
@@ -172,16 +183,13 @@ async function resolveDockWebhook(client, channel, dockFollower) {
       candidate.name === DOCK_WEBHOOK_NAME && candidate.owner?.id === client.user.id,
   );
 
-  if (!webhook) {
+  if (!webhook) { // if webhook still cannot be found then create a new webhook
     webhook = await channel
       .createWebhook({
         name: DOCK_WEBHOOK_NAME,
         avatar: client.user.displayAvatarURL(),
       })
       .catch(async (error) => {
-        const dock = dockFollower.dockId
-          ? await client.modules.db.getDock(dockFollower.dockId).catch(() => null)
-          : null;
         await reportDockRelayError(error, {
           client,
           channel,
@@ -196,19 +204,35 @@ async function resolveDockWebhook(client, channel, dockFollower) {
     guildName: dockFollower.guildName,
     webhookId: webhook.id,
     webhookToken: webhook.token,
-  });
+  }); // update mongo item
 
   return webhook;
 }
 
-async function getDockWebhook(client, channel, dockFollower) {
+async function getDockWebhook(client, channel, dockFollower) { // does the same thing as resolveDockWebhook but checks the cache and also caches the result
   const cacheKey = `${dockFollower.guildId}:${channel.id}`;
+  const cached = dockWebhookCache.get(cacheKey);
+  if (cached?.expiresAt > Date.now() && cached.webhook?.channelId === channel.id) {
+    return cached.webhook;
+  }
+  if (cached) dockWebhookCache.delete(cacheKey);
+
   let pending = dockWebhookPromises.get(cacheKey);
 
   if (!pending) {
-    pending = resolveDockWebhook(client, channel, dockFollower).finally(() => {
-      dockWebhookPromises.delete(cacheKey);
-    });
+    pending = resolveDockWebhook(client, channel, dockFollower)
+      .then((webhook) => {
+        if (webhook?.channelId === channel.id) {
+          dockWebhookCache.set(cacheKey, {
+            webhook,
+            expiresAt: Date.now() + WEBHOOK_CACHE_TTL_MS,
+          });
+        }
+        return webhook;
+      })
+      .finally(() => {
+        dockWebhookPromises.delete(cacheKey);
+      });
     dockWebhookPromises.set(cacheKey, pending);
   }
 
@@ -307,10 +331,13 @@ async function relayThread(thread, sendingFollower = null) {
     thread.id,
   );
 
-  for (const receivingFollower of receivingFollowers) {
-    for (const channelId of receivingFollower.channelIds) {
-      const channel = await thread.client.channels.fetch(channelId).catch(() => null);
-      if (!channel?.threads) continue;
+  const threadTargets = receivingFollowers.flatMap((receivingFollower) =>
+    receivingFollower.channelIds.map((channelId) => ({ receivingFollower, channelId })),
+  );
+
+  await thread.client.modules.mapWithConcurrency(threadTargets, RELAY_CONCURRENCY, async ({ receivingFollower, channelId }) => {
+      const channel = await thread.client.modules.fetchChannel(thread.client, channelId);
+      if (!channel?.threads) return;
       const name = Array.from(`${RELAYED_THREAD_MARKER} ${thread.name}`).slice(0, 100).join("");
 
       const messageDelivery = dockMessage?.deliveries?.find(
@@ -350,10 +377,8 @@ async function relayThread(thread, sendingFollower = null) {
         ]);
       } catch (error) {
         console.error("[dock-thread] Failed to create linked Dock thread:", error);
-        continue;
       }
-    }
-  }
+  });
   // catch the starter message and relay it too
   const recentMessages = await thread.messages.fetch({ limit: 10 }).catch(() => null);
   const threadMessages = [...(recentMessages?.values() ?? [])]
@@ -420,8 +445,8 @@ async function relayThreadMessage(message) {
     deliveries: [],
   });
 
-  for (const thread of threads) {
-    if (thread.threadId === message.channel.id) continue;
+  await message.client.modules.mapWithConcurrency(threads, RELAY_CONCURRENCY, async (thread) => {
+    if (thread.threadId === message.channel.id) return;
     if (
       existingDockMessage?.deliveries?.some(
         (delivery) =>
@@ -429,24 +454,24 @@ async function relayThreadMessage(message) {
           delivery.channelId === thread.channelId &&
           delivery.threadId === thread.threadId,
       )
-    ) continue;
+    ) return;
 
-    const targetThread = await message.client.channels.fetch(thread.threadId).catch(() => null);
-    if (!targetThread?.isThread?.()) continue;
+    const targetThread = await message.client.modules.fetchChannel(message.client, thread.threadId);
+    if (!targetThread?.isThread?.()) return;
 
     const channel =
       targetThread.parent ??
-      (await message.client.channels.fetch(thread.channelId).catch(() => null));
-    if (!channel) continue;
+      (await message.client.modules.fetchChannel(message.client, thread.channelId));
+    if (!channel) return;
 
     const webhook = await getDockWebhook(message.client, channel, thread);
-    if (!webhook) continue;
+    if (!webhook) return;
     const components = getRelayComponents(message);
     const content = components.length ? "" : getRelayContent(message);
     const embeds = getRelayEmbeds(message, content);
     const files = getRelayFiles(message);
     if (!content && embeds.length === 0 && files.length === 0 && components.length === 0) {
-      continue;
+      return;
     }
 
     const messagePayload = {
@@ -475,6 +500,7 @@ async function relayThreadMessage(message) {
     }
 
     const relayedMessage = await webhook.send(messagePayload).catch(async (error) => {
+      invalidateDockWebhook(thread.guildId, channel.id);
       await reportDockRelayError(error, {
         client: message.client,
         channel,
@@ -483,7 +509,7 @@ async function relayThreadMessage(message) {
       });
       return null;
     });
-    if (!relayedMessage) continue;
+    if (!relayedMessage) return;
     await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
       {
         guildId: thread.guildId,
@@ -492,7 +518,7 @@ async function relayThreadMessage(message) {
         messageId: relayedMessage.id,
       },
     ]);
-  }
+  });
 }
 
 async function relayMessage(message, options = {}, sendingFollower = null) {
@@ -555,13 +581,16 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
       },
     ]);
   }
-  for (const receivingFollower of receivingFollowers) {
-    for (const channelId of receivingFollower.channelIds) {
-      const channel = await message.client.channels.fetch(channelId).catch(() => null);
-      if (!channel) continue;
+  const deliveryTargets = receivingFollowers.flatMap((receivingFollower) =>
+    receivingFollower.channelIds.map((channelId) => ({ receivingFollower, channelId })),
+  );
+
+  await message.client.modules.mapWithConcurrency(deliveryTargets, RELAY_CONCURRENCY, async ({ receivingFollower, channelId }) => {
+      const channel = await message.client.modules.fetchChannel(message.client, channelId);
+      if (!channel) return;
 
       const webhook = await getDockWebhook(message.client, channel, receivingFollower);
-      if (!webhook) continue;
+      if (!webhook) return;
       const username = `${message.author.username} [${dock.name}] [${sendingFollower.guildName}]`;
       const formattedUsername =
         Array.from(username).length > 80
@@ -590,6 +619,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         }
       }
       const relayedMessage = await webhook.send(messagePayload).catch(async (error) => {
+        invalidateDockWebhook(receivingFollower.guildId, channel.id);
         await reportDockRelayError(error, {
           client: message.client,
           channel,
@@ -597,7 +627,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         });
         return null;
       });
-      if (!relayedMessage) continue;
+      if (!relayedMessage) return;
       let pingRoles = [];
 
       if (canRelayDockPing) {
@@ -633,8 +663,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           messageId: relayedMessage.id,
         },
       ]);
-    }
-  }
+  });
 
   if (canRelayDockPing) {
     message.startThread({
@@ -671,15 +700,18 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
       deliveries: [],
     });
   } // index the source party card and its relayed copies so relayThread can find each counterpart and attach relayed threads to the each relayed card
-  for (const follower of followers) {
-    for (const channelId of follower.channelIds ?? []) {
-      const channel = await client.channels.fetch(channelId).catch(() => null);
-      if (!channel) continue;
+  const alertTargets = followers.flatMap((follower) =>
+    (follower.channelIds ?? []).map((channelId) => ({ follower, channelId })),
+  );
+
+  await client.modules.mapWithConcurrency(alertTargets, RELAY_CONCURRENCY, async ({ follower, channelId }) => {
+      const channel = await client.modules.fetchChannel(client, channelId);
+      if (!channel) return;
 
       if (payload.party) {
         // all party cards in docks get relayed as alerts so we need to detect party cards and rebuild them here
         // we cant rebuild them in messageCreate cause thats not where the party card gets relayed obv
-        if (channelId === payload.sourceChannelId) continue;
+        if (channelId === payload.sourceChannelId) return;
 
         const components = await client.modules.renderPartyCard(
           payload.party,
@@ -699,7 +731,7 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
             });
             return null;
           });
-        if (!message) continue;
+        if (!message) return;
 
         if (!client.dockRelayedPartyCardMessages) {
           client.dockRelayedPartyCardMessages = new Set();
@@ -726,7 +758,7 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
            ],
          );
          // index the source party card and its relayed copies so relayThread can find each counterpart and attach relayed threads to the each relayed card
-         continue;
+         return;
       }
 
      
@@ -738,8 +770,7 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
           source: "dock-alert",
         });
       });
-    }
-  }
+  });
 }
 
 async function dockRelay(input) {

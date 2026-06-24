@@ -36,6 +36,7 @@ async function initDb() {
     await migrateDockFollowers();
     await migrateDockServerBans();
     await migrateDockDefaultLevels()
+    await ensureIndexes();
     console.log("MongoDB connected")
     return db;
   })().catch((error) => {
@@ -203,6 +204,28 @@ async function migrateDockDefaultLevels() {
     { defaultLevel: { $nin: dockLevels.order } },
     { $set: { defaultLevel: dockLevels.DEFAULT_LEVEL } },
   );
+}
+
+// Creates indexes used by frequent Dock lookups so relays do not slow down as data grows.
+async function ensureIndexes() {
+  await Promise.all([
+    getCollection("serverSettings").createIndex({ guildId: 1 }),
+    getCollection("parties").createIndex({ "members.id": 1 }),
+    getCollection("parties").createIndex({ deleted: 1, createdAt: 1 }),
+    getCollection("docks").createIndex({ guildId: 1 }),
+    getCollection("docks").createIndex({ channelIds: 1 }),
+    getCollection("dockFollows").createIndex({ dockId: 1, banned: 1 }),
+    getCollection("dockFollows").createIndex({ guildId: 1, banned: 1 }),
+    getCollection("dockFollows").createIndex({ channelIds: 1, banned: 1 }),
+    getCollection("dockFollows").createIndex({ dockId: 1, guildId: 1 }),
+    getCollection("dockWebhooks").createIndex({ guildId: 1, channelId: 1 }),
+    getCollection("dockMessages").createIndex({ rootChannelId: 1, rootMessageId: 1 }),
+    getCollection("dockMessages").createIndex({ "deliveries.channelId": 1, "deliveries.messageId": 1 }),
+    getCollection("dockMessages").createIndex({ "deliveries.threadId": 1, "deliveries.messageId": 1 }),
+    getCollection("dockThreads").createIndex({ rootThreadId: 1 }),
+    getCollection("dockThreads").createIndex({ "deliveries.threadId": 1 }),
+    getCollection("dockServerBans").createIndex({ ownerGuildId: 1, targetGuildId: 1 }),
+  ]);
 }
 // set settings
 async function setSettings(guildId, settings) {

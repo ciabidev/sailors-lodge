@@ -199,13 +199,10 @@ module.exports = {
 
         const dockFollowsToPing = [];
 
-        for (const sendingFollower of dockFollows) {
-          const dock = await message.client.modules.db.getDock(sendingFollower.dockId);
-          if (!dock) continue;
-
-          const dockMessageText =
-            dock.publishMode === "manual"
-              ? getMessageText(manualSelection)
+          for (const { dock, sendingFollower } of relayJobs) {
+            const dockMessageText =
+              dock.publishMode === "manual"
+                ? getMessageText(manualSelection)
               : getMessageText(message);
           const keyword = findMatchingKeyword(dockMessageText, dock.keywords);
 

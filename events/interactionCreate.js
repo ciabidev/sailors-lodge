@@ -444,7 +444,7 @@ module.exports = {
               
             }
 
-          } else {
+          } else if (!isManagingDocks && dock.accessMode === "request") {
             const gatekeeperRoleId = dock.gatekeeperRoleId;
             const requester = `${interaction.user} [${interaction.client.modules.escapeMarkdown(interaction.user.username)}]`;
             

@@ -128,6 +128,7 @@ module.exports = {
 
     if (!message.guildId || !message.channel?.id) return;
     if (message.webhookId && !partyCardId) return;
+    if (message.author.bot && message.author.id !== message.client.user.id) return;
     // Party cards created by interactions have a webhook ID. Copies created by
     // relayAlert use channel.send(), so ignore them before they can relay again.
     if (partyCardId && message.author.id === message.client.user.id && !message.webhookId) return;

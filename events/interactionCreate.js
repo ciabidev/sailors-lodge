@@ -301,7 +301,6 @@ module.exports = {
           await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
             guildName: interaction.guild.name,
             channelIds,
-            keywordPings: {},
           });
 
           return interaction.client.modules.updateDockManagePage(interaction);
@@ -347,9 +346,9 @@ module.exports = {
         const [channelId] = channels.keys();
         const [channel] = channels.values();
         const hasKeywordField = interaction.fields.fields.has("keyword");
-        const keyword = hasKeywordField
-          ? interaction.fields.getStringSelectValues("keyword")[0]
-          : null;
+        const keywords = hasKeywordField
+          ? interaction.fields.getStringSelectValues("keyword")
+          : [];
         const selectedRoles = hasKeywordField ? interaction.fields.getSelectedRoles("roles", false) : null;
         const roleIds = selectedRoles ? Array.from(selectedRoles.keys()) : [];
 
@@ -382,7 +381,9 @@ module.exports = {
         const currentKeywordPings = Array.isArray(existingFollower?.keywordPings)
           ? {}
           : { ...(existingFollower?.keywordPings ?? {}) };
-        if (keyword) currentKeywordPings[keyword] = roleIds;
+        for (const keyword of keywords) {
+          currentKeywordPings[keyword] = roleIds;
+        }
 
         if (
           !isManagingDocks &&

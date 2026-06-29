@@ -222,7 +222,9 @@ async function ensureIndexes() {
     getCollection("dockMessages").createIndex({ rootChannelId: 1, rootMessageId: 1 }),
     getCollection("dockMessages").createIndex({ "deliveries.channelId": 1, "deliveries.messageId": 1 }),
     getCollection("dockMessages").createIndex({ "deliveries.threadId": 1, "deliveries.messageId": 1 }),
-    getCollection("dockThreads").createIndex({ rootThreadId: 1 }),
+    // One Discord thread can be routed to multiple Docks, so rootThreadId is
+    // only unique within a Dock network.
+    getCollection("dockThreads").createIndex({ dockId: 1, rootThreadId: 1 }),
     getCollection("dockThreads").createIndex({ "deliveries.threadId": 1 }),
     getCollection("dockServerBans").createIndex({ ownerGuildId: 1, targetGuildId: 1 }),
   ]);
@@ -836,19 +838,6 @@ async function addDockMessageDeliveries(rootChannelId, rootMessageId, deliveries
   );
 }
 
-async function setDockMessageDeliveries(rootChannelId, rootMessageId, deliveries) {
-  const dockMessages = getCollection("dockMessages");
-  return dockMessages.updateOne(
-    {rootChannelId, rootMessageId},
-    {
-      $set: {
-        deliveries,
-        updatedAt: new Date(),
-      },
-    },
-  );
-}
-
 async function removeDockMessageFromRoot(rootChannelId, rootMessageId) {
   const dockMessages = getCollection("dockMessages");
   return dockMessages.deleteOne({rootChannelId, rootMessageId});
@@ -863,11 +852,14 @@ async function indexDockThread({
   deliveries = [],
 }) {
   const dockThreads = getCollection("dockThreads");
+  const dockObjectId = new ObjectId(dockId);
+  // Store one dockThreads document per Dock/root-thread pair. This allows the
+  // same Discord thread to be mirrored into multiple independent Dock networks.
   return dockThreads.updateOne(
-    { rootThreadId },
+    { dockId: dockObjectId, rootThreadId },
     {
       $setOnInsert: {
-        dockId: new ObjectId(dockId),
+        dockId: dockObjectId,
         rootGuildId,
         rootChannelId,
         rootThreadId,
@@ -881,6 +873,20 @@ async function indexDockThread({
   );
 }
 
+async function getDockThreadForDock(dockId, threadId) {
+  const dockThreads = getCollection("dockThreads");
+  const dockObjectId = new ObjectId(dockId);
+  // Used while creating thread relays: skip duplicates for this Dock, but do
+  // not block other Docks that also selected the same root thread.
+  return dockThreads.findOne({
+    dockId: dockObjectId,
+    $or: [
+      { rootThreadId: threadId },
+      { "deliveries.threadId": threadId },
+    ],
+  });
+}
+
 async function getDockThread(threadId) {
   const dockThreads = getCollection("dockThreads");
   return dockThreads.findOne({
@@ -891,10 +897,24 @@ async function getDockThread(threadId) {
   });
 }
 
-async function addDockThreadDeliveries(rootThreadId, deliveries) {
+async function getDockThreads(threadId) {
   const dockThreads = getCollection("dockThreads");
+  // Used for messages inside a thread. Return every Dock network that contains
+  // this root or relayed thread so the message can fan out through all of them.
+  return dockThreads.find({
+    $or: [
+      { rootThreadId: threadId },
+      { "deliveries.threadId": threadId },
+    ],
+  }).toArray();
+}
+
+async function addDockThreadDeliveries(dockId, rootThreadId, deliveries) {
+  const dockThreads = getCollection("dockThreads");
+  // rootThreadId is shared across selected Docks, so include dockId to append
+  // deliveries to the correct Dock network.
   return dockThreads.updateOne(
-    { rootThreadId },
+    { dockId: new ObjectId(dockId), rootThreadId },
     {
       $push: { deliveries: { $each: deliveries } },
       $set: { updatedAt: new Date() },
@@ -946,9 +966,10 @@ module.exports = {
   getDockMessageFromRoot,
   getDockMessageFromDelivery,
   addDockMessageDeliveries,
-  setDockMessageDeliveries,
   removeDockMessageFromRoot,
   indexDockThread,
+  getDockThreadForDock,
   getDockThread,
+  getDockThreads,
   addDockThreadDeliveries,
 };

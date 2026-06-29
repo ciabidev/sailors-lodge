@@ -640,6 +640,19 @@ module.exports = {
 
     if (
       interaction.isStringSelectMenu() &&
+      interaction.customId.startsWith("dock-target:")
+    ) {
+      return interaction.client.modules.dockTargetPicker.handleSelect(interaction);
+    }
+    if (
+      interaction.isStringSelectMenu() &&
+      interaction.customId.startsWith("dock-target-memory:")
+    ) {
+      return interaction.client.modules.dockTargetPicker.handleMemorySelect(interaction);
+    }
+
+    if (
+      interaction.isStringSelectMenu() &&
       interaction.customId.startsWith("dock-set-follower-level")
     ) {
       const [, dockId, guildId] = interaction.customId.split(":");
@@ -728,6 +741,10 @@ module.exports = {
       if (buttonId.startsWith("report-error:")) {
         const [, eventId] = buttonId.split(":");
         return interaction.showModal(buildBugReportModal(eventId));
+      }
+
+      if (buttonId.startsWith("dock-target-stop:")) {
+        return interaction.client.modules.dockTargetPicker.handleStop(interaction);
       }
 
       if (buttonId === "docks-browse-search") {

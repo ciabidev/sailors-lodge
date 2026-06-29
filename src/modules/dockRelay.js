@@ -26,6 +26,16 @@ function isPartyCard(message) {
   return Boolean(getPartyIdFromComponents(message));
 }
 
+function isDockTargetPrompt(message) {
+  // If a thread picker prompt ever lands inside a thread, do not relay the bot's
+  // own routing UI as user content.
+  return message.components?.some((row) =>
+    row.components?.some((component) =>
+      component.customId?.startsWith("dock-target"),
+    ),
+  );
+}
+
 async function repliedToReference({
   message,
   receivingFollower,
@@ -287,11 +297,8 @@ function getRelayFiles(message) {
 async function relayThread(thread, sendingFollower = null) {
   if (thread.name?.startsWith(RELAYED_THREAD_MARKER)) return;
 
-  const existingDockThread = await thread.client.modules.db.getDockThread(thread.id);
-  if (existingDockThread) return;
-
   if (!sendingFollower) {
-    // threads are indexed under one dock, so dont merge multiple dock thread networks together
+    // (DEPRECATED) legacy/default path where sendingFollower is inferred by thread.
     [sendingFollower] = await getWritableDockFollows(
       thread.client,
       thread.parentId,
@@ -301,6 +308,14 @@ async function relayThread(thread, sendingFollower = null) {
 
   const dock = await thread.client.modules.db.getDock(sendingFollower?.dockId);
   if (!dock) return;
+
+  // One Discord thread can now belong to multiple Dock networks. Only skip when
+  // this specific Dock has already indexed this root thread.
+  const existingDockThread = await thread.client.modules.db.getDockThreadForDock(
+    dock._id,
+    thread.id,
+  );
+  if (existingDockThread) return;
 
   const receivingFollowers = (await thread.client.modules.db.getDockFollowers(dock._id))
     .map((dockFollower) => ({
@@ -347,11 +362,12 @@ async function relayThread(thread, sendingFollower = null) {
       let relayedThread;
 
       try {
-        if (messageDelivery?.messageId) {
+        if (messageDelivery?.messageId) { // if the thread came with a message
           const relayedMessage = await channel.messages
             .fetch(messageDelivery.messageId)
             .catch(() => null);
           if (relayedMessage?.startThread && !relayedMessage.hasThread) {
+            // checks that the relayed message can have a thread, and does not already have one.
             relayedThread = await relayedMessage.startThread({
               name,
               autoArchiveDuration: thread.autoArchiveDuration ?? 1440,
@@ -360,7 +376,7 @@ async function relayThread(thread, sendingFollower = null) {
           }
         }
 
-        if (!relayedThread && channel.threads) {
+        if (!relayedThread && channel.threads) { // if the thread didnt come with a message just create one
           relayedThread = await channel.threads.create({
             name: Array.from(`${RELAYED_THREAD_MARKER} ${thread.name}`).slice(0, 100).join(""),
             autoArchiveDuration: thread.autoArchiveDuration ?? 1440,
@@ -368,7 +384,7 @@ async function relayThread(thread, sendingFollower = null) {
           });
         }
 
-        await thread.client.modules.db.addDockThreadDeliveries(thread.id, [
+        await thread.client.modules.db.addDockThreadDeliveries(dock._id, thread.id, [
           {
             guildId: receivingFollower.guildId,
             channelId,
@@ -392,42 +408,82 @@ async function relayThread(thread, sendingFollower = null) {
 
 async function relayThreadMessage(message) {
   if (isPartyCard(message)) return;
+  if (isDockTargetPrompt(message)) return;
 
-  const dockThread = await message.client.modules.db.getDockThread(message.channel.id);
-  if (!dockThread) return;
+  const initialDockThreads = await message.client.modules.db.getDockThreads(message.channel.id);
+  if (!initialDockThreads.length) return;
 
-  const dock = await message.client.modules.db.getDock(dockThread.dockId);
-  if (!dock) return;
-
-  const activeGuildIds = new Set(
-    (await message.client.modules.db.getDockFollowers(dock._id))
-      .filter((follower) => message.client.modules.dockLevels.canRead(follower))
-      .map((follower) => follower.guildId),
-  );
-  activeGuildIds.add(dock.guildId);
-
-  const threads = [
-    {
-      guildId: dockThread.rootGuildId,
-      channelId: dockThread.rootChannelId,
-      threadId: dockThread.rootThreadId,
-    },
-    ...(dockThread.deliveries ?? []),
-  ].filter((delivery) => delivery.threadId && activeGuildIds.has(delivery.guildId));
-  const sendingThread = threads.find((delivery) => delivery.threadId === message.channel.id);
-  if (!sendingThread) return;
-  if (dock.guildId !== sendingThread.guildId) {
-    const sendingFollower = await message.client.modules.db.getDockFollower(
-      dock._id,
-      sendingThread.guildId,
-    );
-    if (
-      !message.client.modules.dockLevels.canRead(sendingFollower) ||
-      !message.client.modules.dockLevels.canSend(sendingFollower?.level)
-    ) return;
+  // A relayed thread may belong to only one dockThreads record, while the root thread may belong to several. This happens when a thread is forwarded to multiple docks. We should Expand through the shared rootThreadId so sibling relayed threads in other Dock networks can hear each other.
+  const dockThreadMap = new Map();
+  for (const dockThread of initialDockThreads) {
+    dockThreadMap.set(dockThread._id.toString(), dockThread);
   }
+  for (const rootThreadId of new Set(initialDockThreads.map((dockThread) => dockThread.rootThreadId))) {
+    const linkedDockThreads = await message.client.modules.db.getDockThreads(rootThreadId);
+    for (const dockThread of linkedDockThreads) {
+      dockThreadMap.set(dockThread._id.toString(), dockThread);
+    }
+  }
+
+  const threadEndpoints = new Map();
+  let sendingThread = null;
+
+  for (const dockThread of dockThreadMap.values()) {
+    const dock = await message.client.modules.db.getDock(dockThread.dockId);
+    if (!dock) continue;
+
+    const activeGuildIds = new Set(
+      (await message.client.modules.db.getDockFollowers(dock._id))
+        .filter((follower) => message.client.modules.dockLevels.canRead(follower))
+        .map((follower) => follower.guildId),
+    );
+    activeGuildIds.add(dock.guildId);
+
+    const threads = [
+      {
+        guildId: dockThread.rootGuildId,
+        channelId: dockThread.rootChannelId,
+        threadId: dockThread.rootThreadId,
+      },
+      ...(dockThread.deliveries ?? []),
+    ].filter((delivery) => delivery.threadId && activeGuildIds.has(delivery.guildId));
+
+    // The sender must be allowed to send through at least one Dock record that
+    // contains this Discord thread. That Dock also labels the webhook username.
+    const dockSendingThread = threads.find((delivery) => delivery.threadId === message.channel.id);
+    if (dockSendingThread && !sendingThread) {
+      let canSend = dock.guildId === dockSendingThread.guildId;
+
+      if (!canSend) {
+        const sendingFollower = await message.client.modules.db.getDockFollower(
+          dock._id,
+          dockSendingThread.guildId,
+        );
+        canSend =
+          message.client.modules.dockLevels.canRead(sendingFollower) &&
+          message.client.modules.dockLevels.canSend(sendingFollower?.level);
+      }
+
+      if (canSend) {
+        sendingThread = { ...dockSendingThread, dock };
+      }
+    }
+
+    // Merge all visible thread endpoints into one bridge and dedupe them so a
+    // shared root thread or overlapping delivery is not messaged twice.
+    for (const thread of threads) {
+      const key = `${thread.guildId}:${thread.channelId}:${thread.threadId}`;
+      if (!threadEndpoints.has(key)) {
+        threadEndpoints.set(key, { ...thread, dock });
+      }
+    }
+  }
+
+  if (!sendingThread) return;
+
+  const threads = [...threadEndpoints.values()];
   const guildName = message.client.guilds.cache.get(sendingThread.guildId)?.name;
-  const username = `${message.author.username} [${dock.name}] [${guildName}]`;
+  const username = `${message.author.username} [${sendingThread.dock.name}] [${guildName}]`;
   const formattedUsername =
     Array.from(username).length > 80
       ? Array.from(username).slice(0, 76).join("") + "..."
@@ -438,7 +494,7 @@ async function relayThreadMessage(message) {
   );
 
   await message.client.modules.db.indexDockMessage({
-    dockId: dock._id,
+    dockId: sendingThread.dock._id,
     rootGuildId: message.guildId,
     rootChannelId: message.channel.id,
     rootMessageId: message.id,
@@ -454,7 +510,8 @@ async function relayThreadMessage(message) {
           delivery.channelId === thread.channelId &&
           delivery.threadId === thread.threadId,
       )
-    ) return;
+    )
+      return;
 
     const targetThread = await message.client.modules.fetchChannel(message.client, thread.threadId);
     if (!targetThread?.isThread?.()) return;
@@ -521,6 +578,7 @@ async function relayThreadMessage(message) {
   });
 }
 
+
 async function relayMessage(message, options = {}, sendingFollower = null) {
   if (isPartyCard(message)) return;
 
@@ -557,7 +615,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     );
   if (receivingFollowers.length === 0) return;
   const dockPing = message.client.dockPingMetadata?.get(message.id);
-  const canRelayDockPing =
+  const relayDockPing =
     Boolean(dockPing) &&
     (dock.guildId === sendingFollower.guildId ||
       message.client.modules.dockLevels.canPing(sendingFollower.level));
@@ -572,15 +630,6 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     deliveries: [],
   });
 
-  if (canRelayDockPing) {
-    await message.client.modules.db.setDockMessageDeliveries(message.channel.id, message.id, [
-      {
-        guildId: sendingFollower.guildId,
-        channelId: sendingFollower.channelId,
-        messageId: message.id,
-      },
-    ]);
-  }
   const deliveryTargets = receivingFollowers.flatMap((receivingFollower) =>
     receivingFollower.channelIds.map((channelId) => ({ receivingFollower, channelId })),
   );
@@ -630,7 +679,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
       if (!relayedMessage) return;
       let pingRoles = [];
 
-      if (canRelayDockPing) {
+      if (relayDockPing) {
         pingRoles = uniqueItems(
           (dockPing.keywords ?? []).flatMap(
             (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
@@ -665,19 +714,6 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
       ]);
   });
 
-  if (canRelayDockPing) {
-    message.startThread({
-      name: Array.from(`${dock.name} ping from ${sendingFollower.guildName}`).slice(0, 100).join(""),
-      autoArchiveDuration: 1440,
-      reason: "Dock thread relay",
-    }).catch(async (error) => {
-      await reportDockRelayError(error, {
-        client: message.client,
-        channel: message.channel,
-        source: "dock-ping-thread",
-      });
-    });
-  }
 }
 
 async function relayAlert({ client, dockId, guildIds, ...payload }) {

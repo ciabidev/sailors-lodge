@@ -15,7 +15,13 @@ function getMessageText(message) {
 function findMatchingKeyword(text, keywords = []) {
   const normalizedText = text.toLowerCase();
 
-  return keywords.find((keyword) => normalizedText.includes(keyword.toLowerCase().trim()));
+  return keywords.find((keyword) => {
+    const normalizedKeyword = keyword.toLowerCase().trim();
+    if (!normalizedKeyword) return false;
+
+    const escapedKeyword = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|\\s)${escapedKeyword}(?=\\s|$)`).test(normalizedText);
+  });
 }
 
 module.exports = {

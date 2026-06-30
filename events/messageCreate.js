@@ -286,6 +286,7 @@ module.exports = {
                   await message.client.modules.dockRelay.reportDockRelayError(error, {
                     client: message.client,
                     channelId: message.channel.id,
+                    userId: message.author.id,
                     source: "keyword-ping",
                   });
                   return null;
@@ -304,6 +305,7 @@ module.exports = {
                   await message.client.modules.dockRelay.reportDockRelayError(error, {
                     client: message.client,
                     channelId: message.channel.id,
+                    userId: message.author.id,
                     source: "keyword-ping",
                   });
                   return null;
@@ -381,6 +383,7 @@ module.exports = {
                       client: message.client,
                       channelId: messageToPublish.channel.id,
                       threadId: messageToPublish.thread?.id,
+                      userId: message.author.id,
                       source: "dock-party-thread",
                     });
                   });
@@ -409,6 +412,7 @@ module.exports = {
                 client: message.client,
                 channelId: dockPingThreadMessage.channel.id,
                 threadId: dockPingThreadMessage.thread?.id,
+                userId: message.author.id,
                 source: "dock-ping-thread",
               });
             });

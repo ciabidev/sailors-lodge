@@ -132,7 +132,7 @@ function invalidateDockWebhook(guildId, channelId) {
 
 async function reportDockRelayError(
   error,
-  { client, channelId, threadId, source = "dock-relay" } = {},
+  { client, channelId, threadId, userId, source = "dock-relay" } = {},
 ) {
   const missingPermissions = error?.code === 50013 || error?.rawError?.code === 50013;
   // Discord returns Missing Access when the bot cannot see the target channel,
@@ -147,6 +147,7 @@ async function reportDockRelayError(
 
     await client.modules.dockBotPerms.sendMissingPermissionNotice(client, channel, {
       thread,
+      userId,
       fallbackPermissions: missingAccess ? ["Access to this channel or thread"] : [],
     });
     return;

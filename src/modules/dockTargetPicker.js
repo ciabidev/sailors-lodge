@@ -121,7 +121,15 @@ async function prompt(source, dockFollows, onSelect, options = {}) {
       "This channel can send to multiple Docks. Choose where this message should go.",
     components: [new ActionRowBuilder().addComponents(select)],
     allowedMentions: { repliedUser: false },
-  }).catch(() => {});
+  }).catch(async (error) => {
+    selections.delete(selectionId);
+    await client.modules.dockRelay.reportDockRelayError(error, {
+      client,
+      channelId,
+      userId: authorId,
+      source: "dock-target-picker",
+    });
+  });
 }
 
 function getRemembered(source, dockFollows) {

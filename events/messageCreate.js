@@ -295,9 +295,18 @@ module.exports = {
               const messageIdToRelay = publishEntries[0]?.messageToPublish.id;
 
               if (messageIdToRelay) {
+                const keywordsByDockId = {};
+                for (const { dock, keyword } of dockFollowsToPing) {
+                  const dockId = dock._id.toString();
+                  keywordsByDockId[dockId] = uniqueItems([
+                    ...(keywordsByDockId[dockId] ?? []),
+                    keyword,
+                  ]);
+                }
+
                 message.client.dockPingMetadata.set(messageIdToRelay, {
                   username: message.author.username,
-                  keywords: matchedKeywords,
+                  keywordsByDockId,
                 });
                 dockPingThreadMessage = publishEntries[0]?.messageToPublish ?? null;
                 dockPingThreadName =

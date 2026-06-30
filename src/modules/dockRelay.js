@@ -30,9 +30,7 @@ function isDockTargetPrompt(message) {
   // If a thread picker prompt ever lands inside a thread, do not relay the bot's
   // own routing UI as user content.
   return message.components?.some((row) =>
-    row.components?.some((component) =>
-      component.customId?.startsWith("dock-target"),
-    ),
+    row.components?.some((component) => component.customId?.startsWith("dock-target")),
   );
 }
 
@@ -51,14 +49,8 @@ async function repliedToReference({
   // copies. Resolve both directions so reply buttons point at the matching
   // counterpart in the server receiving this relay.
   const dockMessage =
-    (await message.client.modules.db.getDockMessageFromRoot(
-      original.channel.id,
-      original.id,
-    )) ??
-    (await message.client.modules.db.getDockMessageFromDelivery(
-      original.channel.id,
-      original.id,
-    )); // find the dock message of the replied to message
+    (await message.client.modules.db.getDockMessageFromRoot(original.channel.id, original.id)) ??
+    (await message.client.modules.db.getDockMessageFromDelivery(original.channel.id, original.id)); // find the dock message of the replied to message
 
   let linkedMessage = null;
   if (dockMessage) {
@@ -92,9 +84,7 @@ async function repliedToReference({
   }
 
   const jumpUrl = linkedMessage?.url ?? original.url;
-  const jumpLabel = linkedMessage
-    ? "Jump to reply"
-    : "Jump to reply (in original server)";
+  const jumpLabel = linkedMessage ? "Jump to reply" : "Jump to reply (in original server)";
 
   const embed = new EmbedBuilder()
     .setAuthor({
@@ -103,11 +93,8 @@ async function repliedToReference({
     })
     .setDescription(original.content?.slice(0, 4096) || "*No text content*");
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setURL(jumpUrl)
-      .setLabel(jumpLabel)
-      .setStyle(ButtonStyle.Link),
-    );
+    new ButtonBuilder().setURL(jumpUrl).setLabel(jumpLabel).setStyle(ButtonStyle.Link),
+  );
 
   return { embed, row };
 }
@@ -122,12 +109,14 @@ async function getWritableDockFollows(client, channelId, guildId) {
     })),
   );
 
-  return connections.filter(
-    ({ dock, follower }) =>
-      dock &&
-      client.modules.dockLevels.canRead(follower) &&
-      (dock.guildId === guildId || client.modules.dockLevels.canSend(follower.level)),
-  ).map(({ follower }) => follower);
+  return connections
+    .filter(
+      ({ dock, follower }) =>
+        dock &&
+        client.modules.dockLevels.canRead(follower) &&
+        (dock.guildId === guildId || client.modules.dockLevels.canSend(follower.level)),
+    )
+    .map(({ follower }) => follower);
 }
 
 const dockWebhookPromises = new Map();
@@ -145,22 +134,22 @@ function isMissingPermissionsError(error) {
   return error?.code === 50013 || error?.rawError?.code === 50013;
 }
 
-async function reportDockRelayError(error, {
-  client,
-  channel,
-  thread,
-  source = "dock-relay",
-} = {}) {
+async function reportDockRelayError(
+  error,
+  { client, channel, thread, source = "dock-relay" } = {},
+) {
   if (isMissingPermissionsError(error)) {
     const noticeChannel = channel ?? thread?.parent ?? null;
-    await client.modules.dockBotPerms.sendMissingPermissionNotice(client, noticeChannel, { thread });
+    await client.modules.dockBotPerms.sendMissingPermissionNotice(client, noticeChannel, {
+      thread,
+    });
     return;
   } else {
     await reportError(error, {
       source,
       notify: false,
       tags: {
-        guildId:  channel.guildId ?? "",
+        guildId: channel.guildId ?? "",
         channelId: channel.id ?? "",
       },
     });
@@ -168,14 +157,16 @@ async function reportDockRelayError(error, {
 }
 
 async function resolveDockWebhook(client, channel, dockFollower) {
-  const savedWebhook = await client.modules.db.getDockWebhook( // get the webhook from mongodb
+  const savedWebhook = await client.modules.db.getDockWebhook(
+    // get the webhook from mongodb
     dockFollower.guildId,
     channel.id,
   );
 
   let webhook = null;
 
-  if (savedWebhook?.webhookId) {  // if the webhook is saved in mongo fetch it from discord
+  if (savedWebhook?.webhookId) {
+    // if the webhook is saved in mongo fetch it from discord
     webhook = await client
       .fetchWebhook(savedWebhook.webhookId, savedWebhook.webhookToken)
       .catch(() => null);
@@ -189,11 +180,11 @@ async function resolveDockWebhook(client, channel, dockFollower) {
   // avoids creating another webhook after a database reset or failed write.
   const channelWebhooks = await channel.fetchWebhooks().catch(() => null);
   webhook = channelWebhooks?.find(
-    (candidate) =>
-      candidate.name === DOCK_WEBHOOK_NAME && candidate.owner?.id === client.user.id,
+    (candidate) => candidate.name === DOCK_WEBHOOK_NAME && candidate.owner?.id === client.user.id,
   );
 
-  if (!webhook) { // if webhook still cannot be found then create a new webhook
+  if (!webhook) {
+    // if webhook still cannot be found then create a new webhook
     webhook = await channel
       .createWebhook({
         name: DOCK_WEBHOOK_NAME,
@@ -219,7 +210,8 @@ async function resolveDockWebhook(client, channel, dockFollower) {
   return webhook;
 }
 
-async function getDockWebhook(client, channel, dockFollower) { // does the same thing as resolveDockWebhook but checks the cache and also caches the result
+async function getDockWebhook(client, channel, dockFollower) {
+  // does the same thing as resolveDockWebhook but checks the cache and also caches the result
   const cacheKey = `${dockFollower.guildId}:${channel.id}`;
   const cached = dockWebhookCache.get(cacheKey);
   if (cached?.expiresAt > Date.now() && cached.webhook?.channelId === channel.id) {
@@ -267,15 +259,16 @@ function getRelayContent(message, options = {}) {
   return `> -# ***➡️ Forwarded***\n> ${content.split("\n").join("\n> ")}`;
 }
 
-
 function isNativeGifPreviewEmbed(embed, content = "") {
   const data = embed.toJSON?.() ?? embed;
   const providerName = data.provider?.name ?? "";
   const embedUrl = data.url ?? "";
 
-  return /giphy|tenor/i.test(`${providerName} ${embedUrl}`) &&
+  return (
+    /giphy|tenor/i.test(`${providerName} ${embedUrl}`) &&
     Boolean(embedUrl) &&
-    content.includes(embedUrl);
+    content.includes(embedUrl)
+  );
 }
 
 function getRelayEmbeds(message, content = getRelayContent(message) ?? "") {
@@ -346,43 +339,66 @@ async function relayThread(thread, sendingFollower = null) {
     thread.id,
   );
 
-  const threadTargets = receivingFollowers.flatMap((receivingFollower) =>
-    receivingFollower.channelIds.map((channelId) => ({ receivingFollower, channelId })),
-  );
+  const threadTargets = [
+    ...new Map(
+      receivingFollowers
+        .flatMap((receivingFollower) =>
+          receivingFollower.channelIds.map((channelId) => ({ receivingFollower, channelId })),
+        )
+        .map((target) => [target.channelId, target]),
+    ).values(),
+  ];
 
-  await thread.client.modules.mapWithConcurrency(threadTargets, RELAY_CONCURRENCY, async ({ receivingFollower, channelId }) => {
+  await thread.client.modules.mapWithConcurrency(
+    threadTargets,
+    RELAY_CONCURRENCY,
+    async ({ receivingFollower, channelId }) => {
       const channel = await thread.client.modules.fetchChannel(thread.client, channelId);
       if (!channel?.threads) return;
       const name = Array.from(`${RELAYED_THREAD_MARKER} ${thread.name}`).slice(0, 100).join("");
+      const existingLinkedThreads = await thread.client.modules.db.getDockThreads(thread.id);
+      const alreadyDeliveredToChannel = existingLinkedThreads.some((dockThread) =>
+        (dockThread.deliveries ?? []).some((delivery) => delivery.channelId === channelId),
+      );
+      if (alreadyDeliveredToChannel) return;
 
       const messageDelivery = dockMessage?.deliveries?.find(
         (delivery) => delivery.channelId === channelId,
       );
 
       let relayedThread;
-
+      let relayedMessage = null;
       try {
-        if (messageDelivery?.messageId) { // if the thread came with a message
-          const relayedMessage = await channel.messages
+        if (messageDelivery?.messageId) {
+          // if the thread came with a message
+          relayedMessage = await channel.messages
             .fetch(messageDelivery.messageId)
             .catch(() => null);
-          if (relayedMessage?.startThread && !relayedMessage.hasThread) {
-            // checks that the relayed message can have a thread, and does not already have one.
-            relayedThread = await relayedMessage.startThread({
-              name,
-              autoArchiveDuration: thread.autoArchiveDuration ?? 1440,
-              reason: "Dock thread relay",
-            });
+          if (relayedMessage?.startThread) {
+            if (relayedMessage.hasThread) {
+              relayedMessageAlreadyHasThread = true;
+              relayedThread = relayedMessage.thread ?? null;
+            } else {
+              relayedThread = await relayedMessage.startThread({
+                name,
+                autoArchiveDuration: thread.autoArchiveDuration ?? 1440,
+                reason: "Dock thread relay",
+              });
+            }
           }
         }
 
-        if (!relayedThread && channel.threads) { // if the thread didnt come with a message just create one
+        if (relayedMessage?.hasThread && relayedMessage?.startThread && !relayedThread) return;
+
+        if (!relayedThread && channel.threads) {
+          // if the thread didnt come with a message just create one
           relayedThread = await channel.threads.create({
-            name: Array.from(`${RELAYED_THREAD_MARKER} ${thread.name}`).slice(0, 100).join(""),
+            name,
             autoArchiveDuration: thread.autoArchiveDuration ?? 1440,
             reason: "Dock thread relay",
           });
         }
+        if (!relayedThread) return;
 
         await thread.client.modules.db.addDockThreadDeliveries(dock._id, thread.id, [
           {
@@ -394,7 +410,8 @@ async function relayThread(thread, sendingFollower = null) {
       } catch (error) {
         console.error("[dock-thread] Failed to create linked Dock thread:", error);
       }
-  });
+    },
+  );
   // catch the starter message and relay it too
   const recentMessages = await thread.messages.fetch({ limit: 10 }).catch(() => null);
   const threadMessages = [...(recentMessages?.values() ?? [])]
@@ -418,7 +435,9 @@ async function relayThreadMessage(message) {
   for (const dockThread of initialDockThreads) {
     dockThreadMap.set(dockThread._id.toString(), dockThread);
   }
-  for (const rootThreadId of new Set(initialDockThreads.map((dockThread) => dockThread.rootThreadId))) {
+  for (const rootThreadId of new Set(
+    initialDockThreads.map((dockThread) => dockThread.rootThreadId),
+  )) {
     const linkedDockThreads = await message.client.modules.db.getDockThreads(rootThreadId);
     for (const dockThread of linkedDockThreads) {
       dockThreadMap.set(dockThread._id.toString(), dockThread);
@@ -578,7 +597,6 @@ async function relayThreadMessage(message) {
   });
 }
 
-
 async function relayMessage(message, options = {}, sendingFollower = null) {
   if (isPartyCard(message)) return;
 
@@ -615,13 +633,14 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     );
   if (receivingFollowers.length === 0) return;
   const dockPing = message.client.dockPingMetadata?.get(message.id);
+  const dockPingKeywords = dockPing?.keywordsByDockId?.[dock._id.toString()] ?? [];
   const relayDockPing =
-    Boolean(dockPing) &&
+    dockPingKeywords.length > 0 &&
     (dock.guildId === sendingFollower.guildId ||
       message.client.modules.dockLevels.canPing(sendingFollower.level));
   const { formatRoleMentions } = message.client.modules.mentions;
   const uniqueItems = message.client.modules.uniqueItems;
-  
+
   await message.client.modules.db.indexDockMessage({
     dockId: dock._id,
     rootGuildId: message.guildId,
@@ -634,8 +653,18 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     receivingFollower.channelIds.map((channelId) => ({ receivingFollower, channelId })),
   );
 
-  await message.client.modules.mapWithConcurrency(deliveryTargets, RELAY_CONCURRENCY, async ({ receivingFollower, channelId }) => {
-      const channel = await message.client.modules.fetchChannel(message.client, channelId);
+  await message.client.modules.mapWithConcurrency(
+    deliveryTargets,
+    RELAY_CONCURRENCY,
+    async ({ receivingFollower, channelId }) => {
+      const dockMessage = await message.client.modules.db.getDockMessageFromRoot(
+        message.channel.id,
+        message.id,
+      );
+      const existingDeliveries = dockMessage?.deliveries ?? [];
+
+      if (existingDeliveries.some((delivery) => delivery.channelId === channelId)) return;
+      const channel = await message.client.modules.fetchChannel(message.client, channelId); // this is the channel the message is being relayed to
       if (!channel) return;
 
       const webhook = await getDockWebhook(message.client, channel, receivingFollower);
@@ -681,9 +710,9 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
 
       if (relayDockPing) {
         pingRoles = uniqueItems(
-          (dockPing.keywords ?? []).flatMap(
-            (keyword) => receivingFollower.keywordPings?.[keyword] ?? [],
-          ).filter(Boolean),
+          dockPingKeywords
+            .flatMap((keyword) => receivingFollower.keywordPings?.[keyword] ?? [])
+            .filter(Boolean),
         );
         const dockName = message.client.modules.escapeMarkdown(dock.name);
         const pingContent = `${dockName} ping triggered by ${dockPing.username}!`;
@@ -702,7 +731,6 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
             source: "dock-relay-ping",
           });
         });
-        
       }
 
       await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
@@ -712,8 +740,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           messageId: relayedMessage.id,
         },
       ]);
-  });
-
+    },
+  );
 }
 
 async function relayAlert({ client, dockId, guildIds, ...payload }) {
@@ -740,7 +768,10 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
     (follower.channelIds ?? []).map((channelId) => ({ follower, channelId })),
   );
 
-  await client.modules.mapWithConcurrency(alertTargets, RELAY_CONCURRENCY, async ({ follower, channelId }) => {
+  await client.modules.mapWithConcurrency(
+    alertTargets,
+    RELAY_CONCURRENCY,
+    async ({ follower, channelId }) => {
       const channel = await client.modules.fetchChannel(client, channelId);
       if (!channel) return;
 
@@ -782,22 +813,20 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
           guildId: follower.guildId,
         });
 
-         await client.modules.db.addDockMessageDeliveries(
-           payload.source.channel.id,
-           payload.source.id,
-           [
-             {
-               guildId: follower.guildId,
-               channelId,
-               messageId: message.id,
-             },
-           ],
-         );
-         // index the source party card and its relayed copies so relayThread can find each counterpart and attach relayed threads to the each relayed card
-         return;
+        await client.modules.db.addDockMessageDeliveries(
+          payload.source.channel.id,
+          payload.source.id,
+          [
+            {
+              guildId: follower.guildId,
+              channelId,
+              messageId: message.id,
+            },
+          ],
+        );
+        // index the source party card and its relayed copies so relayThread can find each counterpart and attach relayed threads to the each relayed card
+        return;
       }
-
-     
 
       await channel.send(payload).catch(async (error) => {
         await reportDockRelayError(error, {
@@ -806,7 +835,8 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
           source: "dock-alert",
         });
       });
-  });
+    },
+  );
 }
 
 async function dockRelay(input) {

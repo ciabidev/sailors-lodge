@@ -5,6 +5,8 @@ module.exports = {
   name: Events.ThreadCreate,
   async execute(thread) {
     try {
+      if (thread.name?.startsWith(thread.client.modules.dockRelay.RELAYED_THREAD_MARKER)) return;
+
       const dockFollows = await thread.client.modules.dockRelay.getWritableDockFollows(
         thread.client,
         thread.parentId,
@@ -28,7 +30,6 @@ module.exports = {
           thread,
           dockFollows,
         ); // with a thread, rememberedDockFollows can either be in the memory, or the dockFollows of the message it was attached to (aka starter message). this will make sense later below
-        const parentChannel = thread.parent;
         const starterMessage = await thread.fetchStarterMessage().catch(() => null);
         if (starterMessage) {
           const dockMessage =

@@ -83,7 +83,8 @@ module.exports = async function dockManagePage({ client, state }) {
     ),
   );
 
-  for (const dock of currentPages[state.pageIndex] ?? []) {
+  const page = currentPages[state.pageIndex] ?? [];
+  for (const [index, dock] of page.entries()) {
     const fromThisGuild = dock.guildId === state.guildId;
     const follower = await client.modules.db.getDockFollower(dock._id, state.guildId);
     const canManageFollowers =
@@ -93,10 +94,6 @@ module.exports = async function dockManagePage({ client, state }) {
         .setCustomId(`dock-configure-${fromThisGuild ? "owner" : "follower"}:${dock._id}`)
         .setLabel(`${fromThisGuild ? "Edit Dock" : "Edit Pings and Channels"}`)
         .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId(`dock-toggle-own-pings:${dock._id}`)
-        .setLabel(`Own-Server Pings: ${follower?.pingOwnServer === false ? "Off" : "On"}`)
-        .setStyle(follower?.pingOwnServer === false ? ButtonStyle.Secondary : ButtonStyle.Success),
     ];
 
     if (fromThisGuild) {
@@ -139,7 +136,7 @@ module.exports = async function dockManagePage({ client, state }) {
       dock,
       buttons,
       client,
-      { guildId: state.guildId, mode: state.mode },
+      { guildId: state.guildId, mode: state.mode, hideSeparator: index === page.length - 1 },
     );
   }
 

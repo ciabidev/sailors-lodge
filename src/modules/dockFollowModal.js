@@ -83,6 +83,29 @@ module.exports = async function dockFollowModal(
         .setDescription("A channel can receive messages from multiple Docks")
         .setChannelSelectMenuComponent(channelSelect),
     );
+  } else {
+    modal.addLabelComponents(
+      new LabelBuilder()
+        .setLabel("Toggle Own-Server Pings")
+        .setDescription("If this is enabled, keywords sent from your server will also ping your server")
+        .setStringSelectMenuComponent(
+          new StringSelectMenuBuilder()
+            .setCustomId("ping-own-server")
+            .setPlaceholder("Toggle")
+            .addOptions(
+              {
+                label: "On",
+                value: "on",
+                default: defaults.pingOwnServer !== false,
+              },
+              {
+                label: "Off",
+                value: "off",
+                default: defaults.pingOwnServer === false,
+              },
+            ),
+        ),
+    );
   }
 
   if (keywordSelect) {

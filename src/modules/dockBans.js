@@ -154,7 +154,7 @@ async function banFollower(interaction, followerGuildId, reason) {
   const components = [
     new ContainerBuilder().addTextDisplayComponents((text) =>
       text.setContent(
-        `### 🔨 Server banned\n**${escapedFollowerName}** was banned from following Docks published by **${escapedPublisherName}**.\n\n**Reason:** ${interaction.client.modules.escapeMarkdown(cleanReason)}\n**Moderator:** ${interaction.user.username}`,
+        `**${escapedFollowerName}** was banned from following Docks published by **${escapedPublisherName}**.\n\n**Reason:** ${interaction.client.modules.escapeMarkdown(cleanReason)}\n**Moderator:** ${interaction.user.username}`,
       ),
     ),
   ];
@@ -204,7 +204,7 @@ async function unbanFollower(interaction, followerGuildId) {
   const components = [
     new ContainerBuilder().addTextDisplayComponents((text) =>
       text.setContent(
-        `### ✅ Server unbanned\n**${escapedFollowerName}** was unbanned from following Docks published by **${escapedPublisherName}**.`,
+        `**${escapedFollowerName}** was unbanned from following Docks published by **${escapedPublisherName}**.`,
       ),
     ),
   ];

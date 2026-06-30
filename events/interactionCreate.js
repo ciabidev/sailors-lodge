@@ -431,17 +431,27 @@ module.exports = {
         const escapedGuildName = interaction.client.modules.escapeMarkdown(interaction.guild.name);
         try {
           if (dock.accessMode === "open") {
+            const defaultLevel = interaction.client.modules.dockLevels.get(dock.defaultLevel);
             container.addTextDisplayComponents((t) =>
               t.setContent(
-                `### 🌐 New follower\n**${escapedGuildName}** is now following **${escapedDockName}** with **${interaction.client.modules.dockLevels.get(dock.defaultLevel).label}** permissions\n-# ${interaction.client.modules.dockLevels.get(dock.defaultLevel).description}`,
+                `**${escapedGuildName}** is now following **${escapedDockName}**.\n-# Access level: ${defaultLevel.label}. ${interaction.client.modules.dockLevels.explain(dock.defaultLevel)}`,
               ),
             );
             if (!isManagingDocks) {
+              const adminGuildIds = (await interaction.client.modules.db.getDockFollowers(dockId))
+                .filter(
+                  (follower) =>
+                    interaction.client.modules.dockLevels.canRead(follower) &&
+                    interaction.client.modules.dockLevels.canManage(follower.level),
+                )
+                .map((follower) => follower.guildId);
+
               interaction.client.modules.dockRelay.relayAlert({
                 client: interaction.client,
                 dockId,
                 components: [container],
                 flags: MessageFlags.IsComponentsV2,
+                guildIds: [...new Set([dock.guildId, interaction.guildId, ...adminGuildIds])],
               });
               
             }
@@ -452,12 +462,12 @@ module.exports = {
             
             container.addTextDisplayComponents((t) =>
               t.setContent(
-                `### 📨 New follow request\n**${escapedGuildName}** wants to follow **${escapedDockName}**.`,
+                `**${escapedGuildName}** wants to follow **${escapedDockName}**.`,
               ),
             );
             container.addTextDisplayComponents((t) =>
               t.setContent(
-                `**Requested by:** ${requester}\n**Receiving channel:** ${channel.name}${gatekeeperRoleId ? `\n\n-# Gatekeepers: <@&${gatekeeperRoleId}>` : ""}`,
+                `**Requested by:** ${requester}\n**Receiving channel:** ${channel.name}${gatekeeperRoleId ? `\n-# Gatekeepers: <@&${gatekeeperRoleId}>` : ""}`,
               ),
             );
             const actionRow =
@@ -471,13 +481,20 @@ module.exports = {
                   .setLabel("Deny")
                   .setStyle(ButtonStyle.Danger),
               );
+            const adminGuildIds = (await interaction.client.modules.db.getDockFollowers(dockId))
+              .filter(
+                (follower) =>
+                  interaction.client.modules.dockLevels.canRead(follower) &&
+                  interaction.client.modules.dockLevels.canManage(follower.level),
+              )
+              .map((follower) => follower.guildId);
 
             await interaction.client.modules.dockRelay.relayAlert({
               client: interaction.client,
               dockId,
               components: [container, actionRow],
               flags: MessageFlags.IsComponentsV2,
-              guildIds: [dock.guildId],
+              guildIds: [...new Set([dock.guildId, ...adminGuildIds])],
             });
             
             await interaction.followUp({
@@ -594,7 +611,7 @@ module.exports = {
           components: [
             new ContainerBuilder().addTextDisplayComponents((t) =>
               t.setContent(
-                `### ⚙️ Default access updated\nThe default access level for **${interaction.client.modules.escapeMarkdown(dock.name)}** is now **${levelDetails.label}**.\n\n-# Updated by ${interaction.client.modules.escapeMarkdown(interaction.guild.name)}`,
+                `The default access level for **${interaction.client.modules.escapeMarkdown(dock.name)}** is now **${levelDetails.label}**.\n-# Updated by ${interaction.client.modules.escapeMarkdown(interaction.guild.name)}`,
               ),
             ),
           ],
@@ -730,11 +747,12 @@ module.exports = {
           components: [
             new ContainerBuilder().addTextDisplayComponents((text) =>
               text.setContent(
-                `### 🛡️ Follower access updated\n**${followerGuildName}** now has **${levelDetails.label}** access to **${interaction.client.modules.escapeMarkdown(dock.name)}**.\n\n-# ${levelDetails.description} • Updated by ${interaction.client.modules.escapeMarkdown(interaction.guild.name)}`,
+                `**${followerGuildName}** now has **${levelDetails.label}** access to **${interaction.client.modules.escapeMarkdown(dock.name)}**.\n-# ${interaction.client.modules.dockLevels.explain(newLevel)} Updated by ${interaction.client.modules.escapeMarkdown(interaction.guild.name)}`,
               ),
             ),
           ],
           flags: MessageFlags.IsComponentsV2,
+          guildIds: [dock.guildId, follower.guildId],
         });
       }
 
@@ -876,7 +894,7 @@ module.exports = {
           return interaction.reply({
             components: [new ContainerBuilder().addTextDisplayComponents((text) =>
               text.setContent(
-                `### 🤣 ur banned\nThis server is currently banned from following Docks published by **${interaction.client.modules.escapeMarkdown(serverBan.ownerGuildName)}**.\n**Reason:** ${interaction.client.modules.escapeMarkdown(serverBan.reason)}\n\n-# Moderator: ${interaction.client.modules.escapeMarkdown(
+                `### 🤣 ur banned\nThis server is currently banned from following Docks published by **${interaction.client.modules.escapeMarkdown(serverBan.ownerGuildName)}**.\n**Reason:** ${interaction.client.modules.escapeMarkdown(serverBan.reason)}\n-# Moderator: ${interaction.client.modules.escapeMarkdown(
                   serverBan.moderatorName ?? interaction.user.username,
                 )}`,
               ),
@@ -1051,11 +1069,12 @@ module.exports = {
           components: [
             new ContainerBuilder().addTextDisplayComponents((t) =>
               t.setContent(
-                `### 🚪 Follower left\n**${interaction.client.modules.escapeMarkdown(interaction.guild.name)}** stopped following **${interaction.client.modules.escapeMarkdown(dock.name)}**.`,
+                `**${interaction.client.modules.escapeMarkdown(interaction.guild.name)}** stopped following **${interaction.client.modules.escapeMarkdown(dock.name)}**.`,
               ),
             ),
           ],
           flags: MessageFlags.IsComponentsV2,
+          guildIds: [dock.guildId, interaction.guildId],
         });
 
         await interaction.client.modules.db.removeDockFollower(dockId, interaction.guildId);
@@ -1168,7 +1187,21 @@ module.exports = {
       if (buttonId.startsWith("dock-follow-request")) {
         const [, action, dockId, followerGuildId] = buttonId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
-        if (!dock || dock.guildId !== interaction.guildId || !followerGuildId) {
+        if (!dock || !followerGuildId) {
+          return interaction.reply({
+            content: "I couldn't find that Dock request in this Discord server.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        const managingFollower =
+          dock.guildId === interaction.guildId
+            ? null
+            : await interaction.client.modules.db.getDockFollower(dockId, interaction.guildId);
+        const isSourceGuild = dock.guildId === interaction.guildId;
+        const isAdminFollower =
+          interaction.client.modules.dockLevels.canRead(managingFollower) &&
+          interaction.client.modules.dockLevels.canManage(managingFollower?.level);
+        if (!isSourceGuild && !isAdminFollower) {
           return interaction.reply({
             content: "I couldn't find that Dock request in this Discord server.",
             flags: MessageFlags.Ephemeral,
@@ -1184,9 +1217,10 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-        const canApprove =
-            interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
-            interaction.member?.roles?.cache?.has(dock.gatekeeperRoleId);
+        const canApprove = isSourceGuild
+          ? interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+            interaction.member?.roles?.cache?.has(dock.gatekeeperRoleId)
+          : interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels);
 
         if (!canApprove) {
           return interaction.reply({
@@ -1200,9 +1234,18 @@ module.exports = {
         const escapedFollowerName = interaction.client.modules.escapeMarkdown(
           follower.guildName ?? follower.guildId,
         );
-        const escapedPublisherName = interaction.client.modules.escapeMarkdown(
+        const escapedManagingGuildName = interaction.client.modules.escapeMarkdown(
           interaction.guild.name,
         );
+        const getAdminGuildIds = async () =>
+          (await interaction.client.modules.db.getDockFollowers(dockId))
+            .filter(
+              (dockFollower) =>
+                dockFollower.guildId !== follower.guildId &&
+                interaction.client.modules.dockLevels.canRead(dockFollower) &&
+                interaction.client.modules.dockLevels.canManage(dockFollower.level),
+            )
+            .map((dockFollower) => dockFollower.guildId);
         if (action === "deny") {
           await interaction.reply({
             content: `Denied **${escapedFollowerName}**'s request to follow this Dock.`,
@@ -1214,26 +1257,38 @@ module.exports = {
             components: [
               new ContainerBuilder().addTextDisplayComponents((t) =>
                 t.setContent(
-                  `### ❌ Follow request denied\n**${escapedPublisherName}** denied your server’s request to follow **${escapedDockName}**.`,
+                  `**${escapedManagingGuildName}** denied **${escapedFollowerName}**'s request to follow **${escapedDockName}**.`,
                 ),
               ),
             ],
             flags: MessageFlags.IsComponentsV2,
-            guildIds: [follower.guildId],
+            guildIds: [dock.guildId, follower.guildId],
           });
           await interaction.client.modules.db.removeDockFollower(dockId, follower.guildId);
         } else {
-          await interaction.reply({
-            content: `Approved **${escapedFollowerName}**'s request to follow this Dock.`,
-            flags: MessageFlags.Ephemeral,
-          });
           await interaction.client.modules.db.setDockFollower(dockId, follower.guildId, {
             level: dock.defaultLevel,
+          });
+          await interaction.update({
+            components: [
+              ...interaction.message.components.slice(0, -1),
+              new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`dock-follow-request:approved:${dockId}:${follower.guildId}`)
+                  .setLabel("Approved")
+                  .setStyle(ButtonStyle.Success)
+                  .setDisabled(true),
+              ),
+            ],
+          });
+          await interaction.followUp({
+            content: `Approved **${escapedFollowerName}**'s request to follow this Dock.`,
+            flags: MessageFlags.Ephemeral,
           });
           const levelDetails = interaction.client.modules.dockLevels.get(dock.defaultLevel);
           container.addTextDisplayComponents((t) =>
             t.setContent(
-              `### ✅ Follow request approved\n**${escapedFollowerName}** is now following **${escapedDockName}**.\n\n-# Access level: ${levelDetails.label} • Approved by ${escapedPublisherName}`,
+              `**${escapedFollowerName}** is now following **${escapedDockName}**.\n-# Access level: ${levelDetails.label}. ${interaction.client.modules.dockLevels.explain(dock.defaultLevel)} Approved by ${escapedManagingGuildName}`,
             ),
           );
 
@@ -1242,6 +1297,7 @@ module.exports = {
             dockId,
             components: [container],
             flags: MessageFlags.IsComponentsV2,
+            guildIds: [...new Set([dock.guildId, follower.guildId, ...(await getAdminGuildIds())])],
           });
         }
 

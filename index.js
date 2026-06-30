@@ -7,6 +7,7 @@ const Sentry = require("@sentry/node");
 const { reportError } = require("./src/reportError");
 const app = express();
 
+
 // This route just confirms the bot is online
 app.get("/", (req, res) => {
   res.send("✅ Sailors Lodge is alive!");
@@ -38,7 +39,15 @@ app.listen(process.env.PORT || 8000, () => {
 require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Collection, Events, GatewayIntentBits, MessageFlags, Partials } = require('discord.js');
+const {
+  Client,
+  Collection,
+  Events,
+  GatewayIntentBits,
+  MessageFlags,
+  Partials,
+  DefaultWebSocketManagerOptions,
+} = require("discord.js");
 const devMode = process.env.DEV_MODE === 'true';
 const token = devMode === true ? process.env.DEV_TOKEN : process.env.PRODUCTION_TOKEN;
 
@@ -51,10 +60,12 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.DirectMessageTyping,
-    GatewayIntentBits.DirectMessagePolls
+    GatewayIntentBits.DirectMessagePolls,
   ],
   partials: [Partials.Channel, Partials.Message],
+  ws: { properties: { browser: "Discord iOS" } },
 });
+DefaultWebSocketManagerOptions.identifyProperties.browser = 'Discord iOS'; // Sets it for EVERY new Client(...)
 
 // Log in to Discord with your client's token
 client.commands = new Collection(); 

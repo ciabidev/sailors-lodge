@@ -72,6 +72,23 @@ function get(level) {
   return { id: normalized, ...levels[normalized] };
 }
 
+function explain(level) {
+  switch (normalize(level)) {
+    case "no-access":
+      return "No Access means this server cannot read or send Dock messages yet.";
+    case "passive":
+      return "Passive servers can read Dock messages.";
+    case "sender":
+      return "Sender servers can read and send Dock messages.";
+    case "contributor":
+      return "Contributor servers can read, send, and trigger Dock pings.";
+    case "admin":
+      return "Admin-level servers can manage follower access and approve follow requests.";
+    default:
+      return "";
+  }
+}
+
 function previous(level) {
   return order[Math.max(order.indexOf(normalize(level)) - 1, 0)];
 }
@@ -87,6 +104,7 @@ module.exports = {
   isValid,
   normalize,
   get,
+  explain,
   previous,
   next,
   canRead,

@@ -71,21 +71,37 @@ module.exports = {
         );
 
       const docks = await message.client.modules.db.getDocks();
+      const announcedChannelIds = new Set();
       let sent = 0;
       let failed = 0;
 
       for (const dock of docks) {
         try {
-          await message.client.modules.dockRelay.relayAlert({
-            client: message.client,
-            dockId: dock._id,
+          const targetChannelIds = (await message.client.modules.db.getDockFollowers(dock._id))
+            .filter((follower) => message.client.modules.dockLevels.canRead(follower))
+            .flatMap((follower) => follower.channelIds ?? [])
+            .filter((channelId) => !announcedChannelIds.has(channelId));
+          if (targetChannelIds.length === 0) continue;
+
+          const payload = {
             content: broadcastContent || undefined,
             embeds: [announcement, ...sourceMessage.embeds.slice(0, 9)],
             files: Array.from(sourceMessage.attachments.values())
               .slice(0, 10)
               .map((attachment) => attachment.url),
             allowedMentions: { parse: [] },
-          });
+          };
+
+          for (const channelId of targetChannelIds) {
+            if (announcedChannelIds.has(channelId)) continue;
+
+            const channel = await message.client.modules.fetchChannel(message.client, channelId);
+            if (!channel) continue;
+
+            await channel.send(payload);
+            announcedChannelIds.add(channelId);
+          }
+
           sent += 1;
         } catch (error) {
           failed += 1;

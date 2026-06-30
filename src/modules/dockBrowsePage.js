@@ -61,6 +61,7 @@ module.exports = async function dockBrowsePage({ client, state }) {
       `## Browse Docks${state.search ? `\n-# Results for **${client.modules.escapeMarkdown(state.search)}**` : ""}`,
     ),
   );
+  const DEV_IDS = (process.env.DEV_IDS ?? "").split(",").map((id) => id.trim());
 
   for (const dock of pages[state.pageIndex] ?? []) {
     const follower = await client.modules.db.getDockFollower(dock._id, state.guildId);
@@ -87,8 +88,20 @@ module.exports = async function dockBrowsePage({ client, state }) {
           : ButtonStyle.Success,
       )
       .setDisabled(publishedHere || isPending || isFollowing);
-
-    await client.modules.getDockDisplay(container, dock, [followButton], client);
+    let devButtons = []
+    if (DEV_IDS.includes(state.userId)) {
+      devButtons = [
+        new ButtonBuilder()
+          .setCustomId(`dock-official:${dock._id}`)
+          .setLabel("Make Official")
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`dock-delete:${dock._id}`)
+          .setLabel("Delete")
+          .setStyle(ButtonStyle.Danger),
+      ]
+    }
+    await client.modules.getDockDisplay(container, dock, [followButton, ...devButtons], client);
   }
 
   if (!docks.length) {

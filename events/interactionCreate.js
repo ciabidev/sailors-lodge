@@ -21,6 +21,7 @@ const {
   reportError,
 } = require("../src/reportError");
 const { buildBugReportModal } = require("../commands/utility/bugreport");
+        const DEV_IDS = (process.env.DEV_IDS ?? "").split(",").map((id) => id.trim());
 
 const issues = process.env.ISSUES_URL ?? process.env.ISSUES;
 const { browsePages: dockBrowsePages } = require("../commands/dock/browse");
@@ -1089,6 +1090,7 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
+        
 
         const confirmation = new ContainerBuilder().addTextDisplayComponents((text) =>
           text.setContent(
@@ -1112,15 +1114,20 @@ module.exports = {
       if (buttonId.startsWith("dock-delete-confirm")) {
         const [, dockId] = interaction.customId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
-        if (!dock || dock.guildId !== interaction.guildId) {
-          return interaction.reply({
-            content: "I couldn't find that Dock in this Discord server.",
-            flags: MessageFlags.Ephemeral,
-          });
+        if (!DEV_IDS.includes(interaction.user.id)) {
+          if (!dock || dock.guildId !== interaction.guildId) {
+            return interaction.reply({
+              content: "I couldn't find that Dock in this Discord server.",
+              flags: MessageFlags.Ephemeral,
+            });
+          }
         }
         const guild = await interaction.client.guilds.fetch(dock.guildId).catch(() => null);
         const guildName = guild?.name ?? dock.guildName ?? interaction.guild.name;
-
+        let deletedMessage = `**${interaction.client.modules.escapeMarkdown(dock.name)}** was deleted by **${interaction.client.modules.escapeMarkdown(guildName)}**.`;
+        if (DEV_IDS.includes(interaction.user.id)) {
+          deletedMessage = `\n**${interaction.client.modules.escapeMarkdown(dock.name)}** was officially deleted by the Sailor's Lodge developers.`;
+        }
         await interaction.client.modules.dockRelay
           .relayAlert({
             client: interaction.client,
@@ -1128,7 +1135,7 @@ module.exports = {
             components: [
               new ContainerBuilder().addTextDisplayComponents((t) =>
                 t.setContent(
-                  `### 🗑️ Dock deleted\n**${interaction.client.modules.escapeMarkdown(dock.name)}** was deleted by **${interaction.client.modules.escapeMarkdown(guildName)}**.`,
+                  deletedMessage,
                 ),
               ),
             ],
@@ -1136,12 +1143,39 @@ module.exports = {
           })
           .then(async () => {
             await interaction.client.modules.db.removeDock(dock._id);
-            await interaction.client.modules.updateDockManagePage(interaction);
+            if (!DEV_IDS.includes(interaction.user.id)) {
+              await interaction.client.modules.updateDockManagePage(interaction);
+            }
           });
 
         return;
       }
 
+      if (buttonId.startsWith("dock-official")) {
+        const [, dockId] = buttonId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
+        await interaction.client.modules.db.updateDock(dockId, {
+          $set: {
+            official: true,
+          },
+        });
+        await interaction.reply({
+          content: `Dock **${interaction.client.modules.escapeMarkdown(dock.name)}** was made official.`,
+          flags: MessageFlags.Ephemeral,
+        });
+        await interaction.client.modules.dockRelay.relayAlert({
+          client: interaction.client,
+          dockId,
+          components: [
+            new ContainerBuilder().addTextDisplayComponents((t) =>
+              t.setContent(
+                `\n**${interaction.client.modules.escapeMarkdown(dock.name)}** was made official by the bot developers!`,
+              ),
+            ),
+          ],
+          flags: MessageFlags.IsComponentsV2,
+      });
+    }
       if (buttonId.startsWith("dock-follow-request")) {
         const [, action, dockId, followerGuildId] = buttonId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);

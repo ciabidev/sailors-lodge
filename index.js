@@ -88,6 +88,7 @@ for (const file of eventFiles) {
 	const event = require(filePath);
 	const executeEvent = async (...args) => {
     try {
+      await client.modules?.db?.ready;
       await event.execute(...args);
     } catch (error) {
       const eventId = await reportError(error, {

@@ -282,8 +282,13 @@ module.exports = {
                     `${pingText}`,
                   allowedMentions: { roles: roleIds, repliedUser: false },
                 })
-                .catch((error) => {
-                  console.error("[keyword-ping] Failed to reply:", error);
+                .catch(async (error) => {
+                  await message.client.modules.dockRelay.reportDockRelayError(error, {
+                    client: message.client,
+                    channelId: message.channel.id,
+                    userId: message.author.id,
+                    source: "keyword-ping",
+                  });
                   return null;
                 });
             
@@ -296,8 +301,13 @@ module.exports = {
                     `${formatRoleMentions(roleIds)} **${label}** ping triggered by <@${message.author.id}>!`.trim(),
                   allowedMentions: { roles: roleIds, repliedUser: false },
                 })
-                .catch((error) => {
-                  console.error("[keyword-ping] Failed to reply:", error);
+                .catch(async (error) => {
+                  await message.client.modules.dockRelay.reportDockRelayError(error, {
+                    client: message.client,
+                    channelId: message.channel.id,
+                    userId: message.author.id,
+                    source: "keyword-ping",
+                  });
                   return null;
                 });
             }
@@ -371,9 +381,9 @@ module.exports = {
                   .catch(async (error) => {
                     await message.client.modules.dockRelay.reportDockRelayError(error, {
                       client: message.client,
-                      dock,
-                      follower: sendingFollower,
-                      channel: messageToPublish.channel,
+                      channelId: messageToPublish.channel.id,
+                      threadId: messageToPublish.thread?.id,
+                      userId: message.author.id,
                       source: "dock-party-thread",
                     });
                   });
@@ -400,7 +410,9 @@ module.exports = {
 
               await message.client.modules.dockRelay.reportDockRelayError(error, {
                 client: message.client,
-                channel: dockPingThreadMessage.channel,
+                channelId: dockPingThreadMessage.channel.id,
+                threadId: dockPingThreadMessage.thread?.id,
+                userId: message.author.id,
                 source: "dock-ping-thread",
               });
             });

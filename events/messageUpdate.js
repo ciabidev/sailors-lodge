@@ -17,8 +17,6 @@ module.exports = {
     );
     if (!dockMessage) return;
 
-    const dock = await message.client.modules.db.getDock(dockMessage.dockId);
-
     for (const delivery of dockMessage.deliveries ?? []) {
       const savedWebhook = await message.client.modules.db.getDockWebhook(
         delivery.guildId,
@@ -42,9 +40,8 @@ module.exports = {
         .catch(async (error) => {
           await message.client.modules.dockRelay.reportDockRelayError(error, {
             client: message.client,
-            dock,
-            follower: { guildId: delivery.guildId },
             channelId: delivery.channelId,
+            threadId: delivery.threadId,
             source: "dock-relay-edit",
           });
         });

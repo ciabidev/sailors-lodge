@@ -130,18 +130,25 @@ function invalidateDockWebhook(guildId, channelId) {
   dockWebhookPromises.delete(cacheKey);
 }
 
-function isMissingPermissionsError(error) {
-  return error?.code === 50013 || error?.rawError?.code === 50013;
-}
-
 async function reportDockRelayError(
   error,
-  { client, channel, thread, source = "dock-relay" } = {},
+  { client, channelId, threadId, userId, source = "dock-relay" } = {},
 ) {
-  if (isMissingPermissionsError(error)) {
-    const noticeChannel = channel ?? thread?.parent ?? null;
-    await client.modules.dockBotPerms.sendMissingPermissionNotice(client, noticeChannel, {
+  const missingPermissions = error?.code === 50013 || error?.rawError?.code === 50013;
+  // Discord returns Missing Access when the bot cannot see the target channel,
+  // message, or thread even if permissionsFor() cannot name the exact missing bit.
+  const missingAccess = error?.code === 50001 || error?.rawError?.code === 50001;
+
+  if (missingPermissions || missingAccess) {
+    const thread = threadId ? await client.modules.fetchChannel(client, threadId) : null;
+    const channel = channelId
+      ? await client.modules.fetchChannel(client, channelId)
+      : thread?.parent ?? null;
+
+    await client.modules.dockBotPerms.sendMissingPermissionNotice(client, channel, {
       thread,
+      userId,
+      fallbackPermissions: missingAccess ? ["Access to this channel or thread"] : [],
     });
     return;
   } else {
@@ -149,11 +156,55 @@ async function reportDockRelayError(
       source,
       notify: false,
       tags: {
-        guildId: channel.guildId ?? "",
-        channelId: channel.id ?? "",
+        channelId: channelId ?? "",
+        threadId: threadId ?? "",
       },
     });
   }
+}
+
+async function sendWithDockWebhook({
+  client,
+  channel,
+  dockFollower,
+  payload,
+  threadId = null,
+  source = "dock-relay-message",
+}) {
+  let webhook = await getDockWebhook(client, channel, dockFollower);
+  if (!webhook) return null;
+
+  const relayedMessage = await webhook.send(payload).catch(async (error) => {
+    // Unknown Webhook means the saved/cached webhook was deleted; resolve a new
+    // one once, then let the normal permission reporter handle any retry failure.
+    const unknownWebhook = error?.code === 10015 || error?.rawError?.code === 10015;
+    if (!unknownWebhook) {
+      await reportDockRelayError(error, {
+        client,
+        channelId: channel.id,
+        threadId,
+        source,
+      });
+      return null;
+    }
+
+    invalidateDockWebhook(dockFollower.guildId, channel.id);
+    webhook = await getDockWebhook(client, channel, dockFollower);
+    if (!webhook) return null;
+
+    return webhook.send(payload).catch(async (retryError) => {
+      invalidateDockWebhook(dockFollower.guildId, channel.id);
+      await reportDockRelayError(retryError, {
+        client,
+        channelId: channel.id,
+        threadId,
+        source,
+      });
+      return null;
+    });
+  });
+
+  return relayedMessage;
 }
 
 async function resolveDockWebhook(client, channel, dockFollower) {
@@ -193,7 +244,7 @@ async function resolveDockWebhook(client, channel, dockFollower) {
       .catch(async (error) => {
         await reportDockRelayError(error, {
           client,
-          channel,
+          channelId: channel.id,
           source: "dock-webhook",
         });
         return null;
@@ -408,7 +459,11 @@ async function relayThread(thread, sendingFollower = null) {
           },
         ]);
       } catch (error) {
-        console.error("[dock-thread] Failed to create linked Dock thread:", error);
+        await reportDockRelayError(error, {
+          client: thread.client,
+          channelId: channel.id,
+          source: "dock-thread",
+        });
       }
     },
   );
@@ -540,8 +595,6 @@ async function relayThreadMessage(message) {
       (await message.client.modules.fetchChannel(message.client, thread.channelId));
     if (!channel) return;
 
-    const webhook = await getDockWebhook(message.client, channel, thread);
-    if (!webhook) return;
     const components = getRelayComponents(message);
     const content = components.length ? "" : getRelayContent(message);
     const embeds = getRelayEmbeds(message, content);
@@ -575,15 +628,13 @@ async function relayThreadMessage(message) {
       }
     }
 
-    const relayedMessage = await webhook.send(messagePayload).catch(async (error) => {
-      invalidateDockWebhook(thread.guildId, channel.id);
-      await reportDockRelayError(error, {
-        client: message.client,
-        channel,
-        thread: targetThread,
-        source: "dock-relay-thread-message",
-      });
-      return null;
+    const relayedMessage = await sendWithDockWebhook({
+      client: message.client,
+      channel,
+      dockFollower: thread,
+      payload: messagePayload,
+      threadId: targetThread.id,
+      source: "dock-relay-thread-message",
     });
     if (!relayedMessage) return;
     await message.client.modules.db.addDockMessageDeliveries(message.channel.id, message.id, [
@@ -667,8 +718,6 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
       const channel = await message.client.modules.fetchChannel(message.client, channelId); // this is the channel the message is being relayed to
       if (!channel) return;
 
-      const webhook = await getDockWebhook(message.client, channel, receivingFollower);
-      if (!webhook) return;
       const username = `${message.author.username} [${dock.name}] [${sendingFollower.guildName}]`;
       const formattedUsername =
         Array.from(username).length > 80
@@ -696,14 +745,12 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           messagePayload.components = [reply.row];
         }
       }
-      const relayedMessage = await webhook.send(messagePayload).catch(async (error) => {
-        invalidateDockWebhook(receivingFollower.guildId, channel.id);
-        await reportDockRelayError(error, {
-          client: message.client,
-          channel,
-          source: "dock-relay-message",
-        });
-        return null;
+      const relayedMessage = await sendWithDockWebhook({
+        client: message.client,
+        channel,
+        dockFollower: receivingFollower,
+        payload: messagePayload,
+        source: "dock-relay-message",
       });
       if (!relayedMessage) return;
       let pingRoles = [];
@@ -727,7 +774,7 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
         await channel.send(messagePayload).catch(async (error) => {
           await reportDockRelayError(error, {
             client: message.client,
-            channel,
+            channelId: channel.id,
             source: "dock-relay-ping",
           });
         });
@@ -793,7 +840,7 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
           .catch(async (error) => {
             await reportDockRelayError(error, {
               client,
-              channel,
+              channelId: channel.id,
               source: "dock-party-alert",
             });
             return null;
@@ -831,7 +878,7 @@ async function relayAlert({ client, dockId, guildIds, ...payload }) {
       await channel.send(payload).catch(async (error) => {
         await reportDockRelayError(error, {
           client,
-          channel,
+          channelId: channel.id,
           source: "dock-alert",
         });
       });

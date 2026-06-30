@@ -513,10 +513,18 @@ module.exports = {
         );
         if (!selfFollow) return;
 
+        const pingOwnServer =
+          interaction.fields.getStringSelectValues("ping-own-server")[0] !== "off";
+
         // set keyword pings
         const channelIds = selfFollow?.channelIds?.length ? selfFollow.channelIds : dock.channelIds;
         let keywords
         let roles
+        const followerUpdate = {
+          guildName: interaction.guild.name,
+          channelIds,
+          pingOwnServer,
+        };
         if (dock.keywords?.length > 0) {
           keywords = interaction.fields.getStringSelectValues("keyword", false);
           roles = interaction.fields.getSelectedRoles("roles", false);
@@ -528,12 +536,14 @@ module.exports = {
             keywordPings[keyword] = roleIds;
           });
 
-          await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
-            guildName: interaction.guild.name,
-            channelIds,
-            keywordPings,
-          });
+          followerUpdate.keywordPings = keywordPings;
         }
+
+        await interaction.client.modules.db.setDockFollower(
+          dockId,
+          interaction.guildId,
+          followerUpdate,
+        );
      
         
         // set gatekeeper role
@@ -918,27 +928,6 @@ module.exports = {
           "dock-configure-follower",
           follower,
         );
-      }
-
-      if (buttonId.startsWith("dock-toggle-own-pings:")) {
-        const [, dockId] = buttonId.split(":");
-        const follower = await interaction.client.modules.db.getDockFollower(
-          dockId,
-          interaction.guildId,
-        );
-
-        if (!follower) {
-          return interaction.reply({
-            content: "This server is not connected to that Dock anymore.",
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-
-        await interaction.client.modules.db.setDockFollower(dockId, interaction.guildId, {
-          pingOwnServer: follower.pingOwnServer === false,
-        });
-
-        return interaction.client.modules.updateDockManagePage(interaction);
       }
 
       if (buttonId.startsWith("dock-home-ping-roles")) {

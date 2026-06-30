@@ -13,7 +13,7 @@ module.exports = async function getDockDisplay(
   client,
   context = {},
 ) {
-  const { guildId: viewingGuildId, mode } = context;
+  const { guildId: viewingGuildId, mode, hideSeparator } = context;
   const {
     name,
     description,
@@ -94,37 +94,26 @@ module.exports = async function getDockDisplay(
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(headerContent));
   }
 
-  container.addTextDisplayComponents((text) =>
-    text.setContent(`**${channelLabel}:** ${displayedChannels || "Unknown channel"}`),
-  );
+  const details = [`**${channelLabel}:** ${displayedChannels || "Unknown channel"}`];
   if (mode === "published") {
-    container.addTextDisplayComponents(
-      (text) =>
-        text.setContent(
-          `✅ **Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}\n🔒 **Access:** ${dock.accessMode === "request" ? "Request To Join" : "Open to all"}`,
-        ),
-      (text) =>
-        text.setContent(
-          `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}\n**Gatekeeper Role:** ${dock.gatekeeperRoleId ? `<@&${dock.gatekeeperRoleId}>` : "None"}`,
-        ),
-      
+    details.push(
+      `✅ **Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}`,
+      `🔒 **Access:** ${dock.accessMode === "request" ? "Request To Join" : "Open to all"}`,
+      `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`,
+      `**Gatekeeper Role:** ${dock.gatekeeperRoleId ? `<@&${dock.gatekeeperRoleId}>` : "None"}`,
     );
   } else {
     const levelLabel = client.modules.dockLevels.get(
       mode === "following" ? follower?.level : defaultLevel,
     ).label;
 
-    container.addTextDisplayComponents(
-      (text) =>
-        text.setContent(
-          `✅ **${mode === "following" ? "Current" : "Default"} Level:** ${levelLabel}`,
-        ),
-      (text) =>
-        text.setContent(
-          `🔑 ${mode !== "following" ? `**Keywords:** ${browseKeywords || "None"}${hiddenKeywordCount ? ` · +${hiddenKeywordCount} more` : ""}` : `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`}`,
-        ),
+    details.push(
+      `✅ **${mode === "following" ? "Current" : "Default"} Level:** ${levelLabel}`,
+      `🔑 ${mode !== "following" ? `**Keywords:** ${browseKeywords || "None"}${hiddenKeywordCount ? ` · +${hiddenKeywordCount} more` : ""}` : `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`}`,
     );
   }
+
+  container.addTextDisplayComponents((text) => text.setContent(details.join("\n")));
 
   if (guildIconURL && actionButtons.length > 0) {
     container.addActionRowComponents(new ActionRowBuilder().addComponents(actionButtons));
@@ -132,9 +121,11 @@ module.exports = async function getDockDisplay(
     container.addActionRowComponents(new ActionRowBuilder().addComponents(actionButtons));
   }
 
-  container.addSeparatorComponents((s) =>
-    s.setDivider(true).setSpacing(SeparatorSpacingSize.Large),
-  );
+  if (!hideSeparator) {
+    container.addSeparatorComponents((s) =>
+      s.setDivider(true).setSpacing(SeparatorSpacingSize.Large),
+    );
+  }
 
   return container;
 };

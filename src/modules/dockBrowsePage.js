@@ -63,7 +63,8 @@ module.exports = async function dockBrowsePage({ client, state }) {
   );
   const DEV_IDS = (process.env.DEV_IDS ?? "").split(",").map((id) => id.trim());
 
-  for (const dock of pages[state.pageIndex] ?? []) {
+  const page = pages[state.pageIndex] ?? [];
+  for (const [index, dock] of page.entries()) {
     const follower = await client.modules.db.getDockFollower(dock._id, state.guildId);
     const serverBan = await client.modules.db.getDockServerBan(dock.guildId, state.guildId);
     const publishedHere = dock.guildId === state.guildId;
@@ -101,7 +102,9 @@ module.exports = async function dockBrowsePage({ client, state }) {
           .setStyle(ButtonStyle.Danger),
       ]
     }
-    await client.modules.getDockDisplay(container, dock, [followButton, ...devButtons], client);
+    await client.modules.getDockDisplay(container, dock, [followButton, ...devButtons], client, {
+      hideSeparator: index === page.length - 1,
+    });
   }
 
   if (!docks.length) {

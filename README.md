@@ -12,6 +12,16 @@
 
 Sailor's Lodge gives Arcane Odyssey communities a port to manage parties and player-hosted events. Players can create a customizable Party Card with buttons, share a join code, and keep party members updated through announcements. Server owners can connect their community to a larger network of party activity while keeping control of which channels and roles are used.
 
+## Get started
+
+**[Add Sailor's Lodge to your Discord server](https://discord.com/oauth2/authorize?client_id=1460833970748002404)**
+
+After adding the bot:
+
+- Run `/help` for the player and party guide.
+- Run `/dock help` to set up cross-server party feeds.
+- Run `/settings help` to configure this server's ping groups, keyword pings, and LFG role.
+
 ## Why add Sailor's Lodge?
 
 - Create parties with a name, description, status, member limit, visibility, and join code.
@@ -47,12 +57,3 @@ A server manager can:
 **Note:** Dock settings and Dock ping roles are *separate* from the regular ping groups. Regular ping groups only belong only to the Discord server where they were created, while Dock pings are across servers
 - Dock management requires the **Manage Channels** permission so server owners remain in control.
 
-## Get started
-
-**[Add Sailor's Lodge to your Discord server](https://discord.com/oauth2/authorize?client_id=1460833970748002404)**
-
-After adding the bot:
-
-- Run `/help` for the player and party guide.
-- Run `/dock help` to set up cross-server party feeds.
-- Run `/settings help` to configure this server's ping groups, keyword pings, and LFG role.

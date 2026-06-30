@@ -33,6 +33,7 @@ module.exports = {
     }
 
     const state = {
+      userId: interaction.user.id,
       pageIndex: 0,
       mode: null,
       guildId: interaction.guildId,

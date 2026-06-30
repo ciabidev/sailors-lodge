@@ -76,6 +76,7 @@ module.exports = async function getDockDisplay(
   if (mode === "following" && follower) {
     tinyText.push(`**Level:** ${client.modules.dockLevels.get(follower.level).label}`);
   }
+  if (dock.official) tinyText.unshift("🌟 Official Dock");
   const headerContent = `### ${client.modules.escapeMarkdown(dockName)}\n-# ${tinyText.join(" • ")}${displayedDescription ? `\n\n${displayedDescription}` : ""}`;
   const section = new SectionBuilder().addTextDisplayComponents(
     new TextDisplayBuilder().setContent(headerContent),

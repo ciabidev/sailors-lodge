@@ -95,13 +95,13 @@ module.exports = async function dockFollowModal(
       .addLabelComponents(
         new LabelBuilder()
           .setLabel("Select keywords")
-          .setDescription("Select keywords to assign ping roles to. More pings be added later")
+          .setDescription("When any of these keywords appear:")
           .setStringSelectMenuComponent(keywordSelect),
       )
       .addLabelComponents(
         new LabelBuilder()
           .setLabel("Set ping roles")
-          .setDescription("These roles will be pinged when the selected keyword is used")
+          .setDescription("Ping these roles")
           .setRoleSelectMenuComponent(roleSelect),
       );
   } else {

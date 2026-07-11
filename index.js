@@ -1,37 +1,7 @@
 require("./instrument");
-
-// express health check
-
-const express = require("express");
 const Sentry = require("@sentry/node");
 const { reportError } = require("./src/reportError");
-const app = express();
-
-
-// This route just confirms the bot is online
-app.get("/", (req, res) => {
-  res.send("✅ Sailors Lodge is alive!");
-});
-
-Sentry.setupExpressErrorHandler(app);
-
-app.use((error, _req, res, next) => {
-  if (res.headersSent) return next(error);
-
-  const eventId = res.sentry ?? Sentry.captureException(error, {
-    tags: { source: "express" },
-  });
-
-  return res.status(500).json({
-    error: "Something went wrong.",
-    eventId,
-  });
-});
-
-// Render automatically assigns a port in process.env.PORT
-app.listen(process.env.PORT || 8000, () => {
-  console.log(`🌐 Express keep-alive server running on port ${process.env.PORT || 8000}`);
-});
+const { startServer } = require("./src/server/app");
 
 // INDEX.JS COPY PASTE TEMPLATE
 
@@ -145,9 +115,11 @@ for (const file of moduleFiles) {
   }
 }
 
+const server = startServer({ client, db: client.modules.db });
 client.login(token);
 
 const shutdown = async () => {
+  server.close();
   await Sentry.close(2000);
   process.exit(0);
 };

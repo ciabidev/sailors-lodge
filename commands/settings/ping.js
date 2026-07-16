@@ -6,6 +6,10 @@ const {
   TextDisplayBuilder,
 } = require("discord.js");
 
+function parseKeywords(value) {
+  return [...new Set((value ?? "").split(",").map((keyword) => keyword.trim()).filter(Boolean))];
+}
+
 module.exports = {
   data: new SlashCommandSubcommandGroupBuilder()
     .setName("ping")
@@ -15,7 +19,7 @@ module.exports = {
         .setName("add")
         .setDescription("Add a ping group to this server.")
         .addStringOption((option) =>
-          option.setName("name").setDescription("The name of the ping group.").setRequired(true),
+          option.setName("name").setDescription("The name of the ping group.").setMaxLength(100).setRequired(true),
         )
         .addRoleOption((option) =>
           option
@@ -33,6 +37,7 @@ module.exports = {
           option
             .setName("keywords")
             .setDescription("Comma-separated keywords for keyword pings (optional).")
+            .setMaxLength(500)
             .setRequired(false),
         ),
     )
@@ -63,6 +68,7 @@ module.exports = {
           option
             .setName("newname")
             .setDescription("New name for the ping group.")
+            .setMaxLength(100)
             .setRequired(false),
         )
         .addRoleOption((option) =>
@@ -81,6 +87,7 @@ module.exports = {
           option
             .setName("keywords")
             .setDescription("Comma-separated keywords for keyword pings (optional).")
+            .setMaxLength(500)
             .setRequired(false),
         ),
     )
@@ -90,11 +97,17 @@ module.exports = {
 
   async autocomplete(interaction) {
     if (
+      !interaction.inGuild() ||
+      !interaction.memberPermissions?.has(PermissionsBitField.Flags.ManageGuild)
+    ) {
+      return interaction.respond([]);
+    }
+    if (
       interaction.options.getSubcommand() === "remove" ||
       interaction.options.getSubcommand() === "edit"
     ) {
       // algorithm for autocomplete
-      const name = interaction.options.getString("name");
+      const name = interaction.options.getString("name") ?? "";
       const settings = await interaction.client.modules.db.getSettings(interaction.guildId);
       const pingGroups = settings.pingGroups ?? [];
       const filtered = pingGroups.filter((group) => group.name.includes(name));
@@ -122,7 +135,7 @@ module.exports = {
     }
 
     if (interaction.options.getSubcommand() === "add") {
-      const name = interaction.options.getString("name");
+      const name = interaction.options.getString("name")?.trim();
       const role = interaction.options.getRole("pingrole");
       const allowedRole = interaction.options.getRole("allowedroles");
       const keywordsRaw = interaction.options.getString("keywords");
@@ -134,23 +147,25 @@ module.exports = {
         });
       }
 
-      if (pingGroups.some((group) => group.name === name)) {
+      if (pingGroups.some((group) => group.name.toLowerCase() === name.toLowerCase())) {
         return interaction.reply({
           content: "A ping group with that name already exists.",
           flags: MessageFlags.Ephemeral,
         });
       }
 
+      const keywords = parseKeywords(keywordsRaw);
+      if (keywords.length > 25 || keywords.some((keyword) => keyword.length > 100)) {
+        return interaction.reply({
+          content: "Use up to 25 unique keywords, each no longer than 100 characters.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
       const pingGroup = {
         name,
         roleId: role.id,
         allowedRoles: allowedRole ? [allowedRole.id] : [],
-        keywords: keywordsRaw
-          ? keywordsRaw
-              .split(",")
-              .map((keyword) => keyword.trim())
-              .filter((keyword) => keyword.length > 0)
-          : [],
+        keywords,
       };
 
       pingGroups.push(pingGroup);
@@ -193,7 +208,7 @@ module.exports = {
 
     if (interaction.options.getSubcommand() === "edit") {
       const name = interaction.options.getString("name");
-      const newname = interaction.options.getString("newname");
+      const newname = interaction.options.getString("newname")?.trim();
       const role = interaction.options.getRole("pingrole");
       const allowedRole = interaction.options.getRole("allowedroles");
       const keywordsRaw = interaction.options.getString("keywords");
@@ -212,19 +227,33 @@ module.exports = {
           flags: MessageFlags.Ephemeral,
         });
       }
+      if (
+        newname &&
+        pingGroups.some(
+          (group, groupIndex) =>
+            groupIndex !== index && group.name.toLowerCase() === newname.toLowerCase(),
+        )
+      ) {
+        return interaction.reply({
+          content: "A ping group with that name already exists.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+      const keywords = typeof keywordsRaw === "string" ? parseKeywords(keywordsRaw) : null;
+      if (keywords && (keywords.length > 25 || keywords.some((keyword) => keyword.length > 100))) {
+        return interaction.reply({
+          content: "Use up to 25 unique keywords, each no longer than 100 characters.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
       const updatedGroup = {
         ...pingGroups[index],
         ...(role && { roleId: role.id }),
         ...(newname && { name: newname }),
         ...(allowedRole && {
-          allowedRoles: [...(pingGroups[index].allowedRoles ?? []), allowedRole.id],
+          allowedRoles: [...new Set([...(pingGroups[index].allowedRoles ?? []), allowedRole.id])],
         }),
-        ...(typeof keywordsRaw === "string" && {
-          keywords: keywordsRaw
-            .split(",")
-            .map((keyword) => keyword.trim())
-            .filter((keyword) => keyword.length > 0),
-        }),
+        ...(keywords && { keywords }),
       };
 
       function buildDiff(oldGroup, updatedGroup) {
@@ -290,7 +319,7 @@ module.exports = {
 
         container.addTextDisplayComponents((t) =>
           t.setContent(
-            `## ${group.name}\nPing role: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nKeywords: ${keywords}`,
+            `## ${interaction.client.modules.escapeMarkdown(group.name)}\nPing role: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nKeywords: ${interaction.client.modules.escapeMarkdown(keywords)}`,
           ),
         );
       }

@@ -201,7 +201,7 @@ async function migrateDockDefaultLevels() {
   const docks = getCollection("docks");
 
   await docks.updateMany(
-    { defaultLevel: { $nin: dockLevels.order } },
+    { defaultLevel: { $nin: dockLevels.order.slice(1) } },
     { $set: { defaultLevel: dockLevels.DEFAULT_LEVEL } },
   );
 }
@@ -714,11 +714,40 @@ async function getDockFollower(dockId, guildId) {
   return dockFollowers.findOne({ dockId: new ObjectId(dockId), guildId });
 }
 
+async function pruneDockKeywordPings(dockId, keywords = []) {
+  const dockFollowers = getCollection("dockFollows");
+  const dockObjectId = new ObjectId(dockId);
+  const allowed = new Set(keywords);
+  const followers = await dockFollowers.find({ dockId: dockObjectId }).toArray();
+
+  await Promise.all(followers.map((follower) => {
+    const current = follower.keywordPings && !Array.isArray(follower.keywordPings)
+      ? follower.keywordPings
+      : {};
+    const keywordPings = Object.fromEntries(
+      Object.entries(current).filter(([keyword]) => allowed.has(keyword)),
+    );
+    if (JSON.stringify(current) === JSON.stringify(keywordPings)) return null;
+    return dockFollowers.updateOne({ _id: follower._id }, { $set: { keywordPings } });
+  }));
+}
+
 async function countDockFollowers(dockId, publisherGuildId) {
   const dockFollowers = getCollection("dockFollows");
   return dockFollowers.countDocuments({
     dockId: new ObjectId(dockId),
     banned: { $ne: true },
+    level: { $in: dockLevels.order.slice(1) },
+    ...(publisherGuildId ? { guildId: { $ne: publisherGuildId } } : {}),
+  });
+}
+
+async function countPendingDockFollowers(dockId, publisherGuildId) {
+  const dockFollowers = getCollection("dockFollows");
+  return dockFollowers.countDocuments({
+    dockId: new ObjectId(dockId),
+    banned: { $ne: true },
+    level: "no-access",
     ...(publisherGuildId ? { guildId: { $ne: publisherGuildId } } : {}),
   });
 }
@@ -949,12 +978,14 @@ module.exports = {
   unbanDockFollow,
   getDockFollowers,
   countDockFollowers,
+  countPendingDockFollowers,
   createDock,
   updateDock,
   removeDock,
   setDockFollower,
   removeDockFollower,
   getDockFollower,
+  pruneDockKeywordPings,
   getFollowedDocksForGuild,
   getDockWebhook,
   setDockWebhook,

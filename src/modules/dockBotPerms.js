@@ -106,5 +106,6 @@ async function check(interaction, channels) {
 module.exports = {
   REQUIRED_BOT_PERMISSIONS,
   check,
+  missingLabels,
   sendMissingPermissionNotice,
 };

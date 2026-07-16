@@ -10,7 +10,7 @@ module.exports = async function dockDefaultLevelModal(interaction, dockId, curre
   const levelSelect = new StringSelectMenuBuilder()
     .setCustomId("level")
     .addOptions(
-      dockLevels.order.map((level) => {
+      dockLevels.order.slice(1).map((level) => {
         const details = dockLevels.get(level);
         return {
           label: details.label,

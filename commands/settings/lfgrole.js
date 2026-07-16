@@ -1,4 +1,4 @@
-const { MessageFlags, SlashCommandSubcommandBuilder } = require("discord.js");
+const { MessageFlags, PermissionsBitField, SlashCommandSubcommandBuilder } = require("discord.js");
 
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
@@ -8,6 +8,18 @@ module.exports = {
       option.setName("role").setDescription("The LFG role to use.").setRequired(true),
     ),
   async execute(interaction) {
+    if (!interaction.inGuild()) {
+      return interaction.reply({
+        content: "The LFG role can only be configured from a Discord server.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+    if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.ManageGuild)) {
+      return interaction.reply({
+        content: "You need Manage Server to configure the LFG role.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
     const guildId = interaction.guildId;
     const settings = await interaction.client.modules.db.getSettings(guildId);
     const lfgRole = interaction.options.getRole("role");

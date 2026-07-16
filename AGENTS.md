@@ -1,0 +1,11 @@
+- This is a discord.js discord bot using mongodb
+- UI should be simple and accessible to the user and all
+- Please think step by step about whether there exists a less over-engineered and yet simpler, more elegant, and more robust solution to the problem that accords with KISS and DRY principles. 
+- Please search the web when unsure about something new
+- Variable names shouldnt be overly verbose, and if a function isnt doing much more than something that can be done in a line or 2, dont make it a function
+- Do not read or see .env under any circumstances. You should read the .env.example file, but NOT the .env file.
+- Use libraries and packages for complex algoirthms/components if it would be cleaner and more efficient than writing the same thing yourself (for example complex timestamp calculators)
+- If a function in a file becomes unrelated to the file/too general, make it its own module.
+- Dashboard: Express backend + React/Vite frontend
+- Dashboard and bot must read/write the same MongoDB collections and functions, do not create a second config source
+- Dashboard UI: React + Tailwind + shadcn/ui components. Be sure to use SHADCN UI component libary, dont make up your own

@@ -1,19 +1,22 @@
 import path from 'node:path';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   root: __dirname,
-  plugins: [react()],
+  publicDir: path.resolve(__dirname, '../static'),
+  plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
   build: { outDir: path.resolve(__dirname, '../dist/dashboard'), emptyOutDir: true },
   server: {
-    port: 5173,
+    port: 3002,
+    strictPort: true,
     proxy: {
-      '/api': 'http://localhost:8000',
-      '/auth': 'http://localhost:8000',
-      '/invite': 'http://localhost:8000',
-      '/brand': 'http://localhost:8000',
+      '/api': 'http://localhost:7999',
+      '/auth': 'http://localhost:7999',
+      '/invite': 'http://localhost:7999',
+      '/brand': 'http://localhost:7999',
     },
   },
   test: {

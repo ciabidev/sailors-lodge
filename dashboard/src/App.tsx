@@ -1,8 +1,9 @@
+import { lazy, Suspense } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import { Landing } from '@/pages/Landing';
-import { Dashboard } from '@/pages/Dashboard';
-import { usePath } from '@/lib/router';
+
+const Dashboard = lazy(() => import('@/pages/Dashboard').then((module) => ({ default: module.Dashboard })));
 
 export function App() {
-  const path = usePath();
-  return path.startsWith('/dashboard') ? <Dashboard /> : <Landing />;
+  return <Routes><Route path="/" element={<Landing />} /><Route path="/dashboard/:guildId?/:section?" element={<Suspense fallback={<div className="min-h-screen bg-[#303446]" />}><Dashboard /></Suspense>} /><Route path="*" element={<Landing />} /></Routes>;
 }

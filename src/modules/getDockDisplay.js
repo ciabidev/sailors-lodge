@@ -23,6 +23,7 @@ module.exports = async function getDockDisplay(
     guildIconURL,
     defaultLevel,
     keywords,
+    publishMode,
   } = dock;
 
   const dockName = name ?? "Untitled Dock";
@@ -70,9 +71,13 @@ module.exports = async function getDockDisplay(
   
   const actionButtons = Array.isArray(buttons) ? buttons.filter(Boolean) : [buttons].filter(Boolean);
   const followerCount = await client.modules.db.countDockFollowers(dock._id, publisherGuildId);
+  const pendingFollowerCount = mode === "published"
+    ? await client.modules.db.countPendingDockFollowers(dock._id, publisherGuildId)
+    : 0;
   const tinyText = [];
   if (mode !== "published") tinyText.push(`**Server:** ${client.modules.escapeMarkdown(dockPublisher)}`);
   tinyText.push(`👥 **${followerCount} ${followerCount === 1 ? "Follower" : "Followers"}**`);
+  if (pendingFollowerCount) tinyText.push(`🕜 **${pendingFollowerCount} Pending**`);
   if (mode === "following" && follower) {
     tinyText.push(`**Level:** ${client.modules.dockLevels.get(follower.level).label}`);
   }
@@ -94,7 +99,10 @@ module.exports = async function getDockDisplay(
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(headerContent));
   }
 
-  const details = [`**${channelLabel}:** ${displayedChannels || "Unknown channel"}`];
+  const details = [
+    `**${channelLabel}:** ${displayedChannels || "Unknown channel"}`,
+    `📨 **Forwarding:** ${publishMode === "all" ? "Every message will be forwarded" : "Only messages published with `!p` will be forwarded"}`,
+  ];
   if (mode === "published") {
     details.push(
       `✅ **Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}`,

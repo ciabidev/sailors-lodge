@@ -58,6 +58,23 @@ module.exports = {
       let partyId;
       let dmFlag;
 
+      if (
+        [
+          "dock-ban-modal:",
+          "dock-publish-modal",
+          "dock-follow-modal:",
+          "dock-configure-follower:",
+          "dock-home-ping-roles:",
+          "dock-default-level:",
+        ].some((prefix) => interaction.customId.startsWith(prefix)) &&
+        !interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)
+      ) {
+        return interaction.reply({
+          content: "You need Manage Channels to manage Docks.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       if (interaction.customId.startsWith("bug-report-modal")) {
         const [, linkedEventId = ""] = interaction.customId.split(":");
         const goal = interaction.fields.getTextInputValue("goal").trim();
@@ -222,21 +239,29 @@ module.exports = {
           .split("-");
         const publishMode = ["all", "manual"].includes(publishModeRaw) ? publishModeRaw : "all";
         const accessMode = ["open", "request"].includes(accessModeRaw) ? accessModeRaw : "open";
-        const name = interaction.fields.getTextInputValue("name");
-        const description = interaction.fields.getTextInputValue("description") || "";
+        const name = interaction.fields.getTextInputValue("name").trim();
+        const description = (interaction.fields.getTextInputValue("description") || "").trim();
         const keywordsRaw = interaction.fields.getTextInputValue("keywords") || "";
-        const keywords = keywordsRaw
-          .split(/[\n,]/)
-          .map((keyword) => keyword.trim())
-          .filter((keyword) => keyword.length > 0);
+        const keywords = [...new Set(
+          keywordsRaw
+            .split(/[\n,]/)
+            .map((keyword) => keyword.trim())
+            .filter((keyword) => keyword.length > 0),
+        )];
         const channels = interaction.fields.getSelectedChannels("channels", true, [
           ChannelType.GuildText,
           ChannelType.GuildAnnouncement,
         ]);
 
-        if (keywords.length > 25) {
+        if (!name) {
           return interaction.reply({
-            content: "You can only have up to 25 keywords.",
+            content: "Dock names cannot be blank.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        if (keywords.length > 25 || keywords.some((keyword) => keyword.length > 100)) {
+          return interaction.reply({
+            content: "Use up to 25 unique keywords, each no longer than 100 characters.",
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -303,6 +328,7 @@ module.exports = {
             guildName: interaction.guild.name,
             channelIds,
           });
+          await interaction.client.modules.db.pruneDockKeywordPings(dockId, keywords);
 
           return interaction.client.modules.updateDockManagePage(interaction);
         }
@@ -379,9 +405,12 @@ module.exports = {
           });
         }
 
-        const currentKeywordPings = Array.isArray(existingFollower?.keywordPings)
-          ? {}
-          : { ...(existingFollower?.keywordPings ?? {}) };
+        const currentKeywordPings = Object.assign(
+          Object.create(null),
+          Array.isArray(existingFollower?.keywordPings)
+            ? {}
+            : existingFollower?.keywordPings ?? {},
+        );
         for (const keyword of keywords) {
           currentKeywordPings[keyword] = roleIds;
         }
@@ -546,9 +575,10 @@ module.exports = {
           keywords = interaction.fields.getStringSelectValues("keyword", false);
           roles = interaction.fields.getSelectedRoles("roles", false);
           const roleIds = roles ? [...roles.keys()] : [];
-          const keywordPings = Array.isArray(selfFollow.keywordPings)
-            ? {}
-            : { ...(selfFollow.keywordPings ?? {}) };
+          const keywordPings = Object.assign(
+            Object.create(null),
+            Array.isArray(selfFollow.keywordPings) ? {} : selfFollow.keywordPings ?? {},
+          );
           keywords.forEach((keyword) => {
             keywordPings[keyword] = roleIds;
           });
@@ -684,6 +714,12 @@ module.exports = {
       interaction.isStringSelectMenu() &&
       interaction.customId.startsWith("dock-set-follower-level")
     ) {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+        return interaction.reply({
+          content: "You need Manage Channels to manage Dock followers.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
       const [, dockId, guildId] = interaction.customId.split(":");
       const newLevel = interaction.values[0];
       const dock = await interaction.client.modules.db.getDock(dockId);
@@ -767,6 +803,18 @@ module.exports = {
     if (interaction.isButton()) {
       const buttonId = interaction.customId;
       let [action] = buttonId.split(":");
+
+      if (
+        (buttonId.startsWith("dock-") || buttonId.startsWith("docks-")) &&
+        !buttonId.startsWith("dock-follow-request") &&
+        !DEV_IDS.includes(interaction.user.id) &&
+        !interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)
+      ) {
+        return interaction.reply({
+          content: "You need Manage Channels to manage Docks.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
 
       if (buttonId.startsWith("report-error:")) {
         const [, eventId] = buttonId.split(":");
@@ -885,7 +933,12 @@ module.exports = {
       if (buttonId.startsWith("dock-follow:")) {
         let [, dockId] = buttonId.split(":");
         let dock = await interaction.client.modules.db.getDock(dockId);
-        let accessMode = dock?.accessMode ?? "open";
+        if (!dock) {
+          return interaction.reply({
+            content: "I couldn't find that Dock anymore.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
         const serverBan = await interaction.client.modules.db.getDockServerBan(
           dock.guildId,
           interaction.guildId,
@@ -1160,8 +1213,20 @@ module.exports = {
       }
 
       if (buttonId.startsWith("dock-official")) {
+        if (!DEV_IDS.includes(interaction.user.id)) {
+          return interaction.reply({
+            content: "You don't have permission to mark Docks as official.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
         const [, dockId] = buttonId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
+        if (!dock) {
+          return interaction.reply({
+            content: "I couldn't find that Dock.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
         await interaction.client.modules.db.updateDock(dockId, {
           $set: {
             official: true,

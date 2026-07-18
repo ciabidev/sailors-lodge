@@ -52,11 +52,6 @@ const dockBenefits = [
     copy: "everything works as it would in a normal channel, you can send, delete, edit messages, and everything will be replicated on other Discord servers.",
   },
   {
-    icon: Radio,
-    title: "build your feed",
-    copy: "choose the party docks youre interested in and control the channels",
-  },
-  {
     icon: Anchor,
     title: "you're in control",
     copy: "you decide what roles get pinged, who can follow your docks, and what messages get forwarded.",
@@ -310,16 +305,16 @@ export function Landing() {
             >
               <Brand />
 
-              <a href="" className="hover:text-[#c6d0f5]">
+              <Link to="/status" className="hover:text-[#c6d0f5]">
                 Status
-              </a>
+              </Link>
               <a href="" className="hover:text-[#c6d0f5]">
                 Privacy Policy
               </a>
               <a href="" className="hover:text-[#c6d0f5]">
                 TOS
               </a>
-              <a href="" className="hover:text-[#c6d0f5]">
+              <a href="https://discord.gg/C6XGxP4gjs" className="hover:text-[#c6d0f5]">
                 Help
               </a>
             </nav>
@@ -346,6 +341,13 @@ export function Landing() {
           {menu && (
             <div className="border-t border-[#626880]/50 bg-[#292c3c] p-5 md:hidden">
               <nav className="grid gap-2">
+                <Link
+                  to="/status"
+                  onClick={() => setMenu(false)}
+                  className="rounded-lg p-3 text-[#b5bfe2]"
+                >
+                  Status
+                </Link>
                 <a
                   href="#features"
                   onClick={() => setMenu(false)}

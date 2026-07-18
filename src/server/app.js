@@ -162,6 +162,27 @@ function cleanStrings(values, max = 25, maxLength = 100) {
   return cleaned.length <= max ? cleaned : null;
 }
 
+function shardStatus(client) {
+  const guilds = [...client.guilds.cache.values()];
+  const shards = client.ws?.shards?.size
+    ? [...client.ws.shards.values()]
+    : [{ id: client.shard?.ids?.[0] ?? 0, ping: client.ws?.ping, status: client.ws?.status }];
+  const uptime = Math.max(0, Math.round(client.uptime || 0));
+
+  return shards.map((shard) => {
+    const id = Number(shard.id) || 0;
+    const shardGuilds = guilds.filter((guild) => (Number(guild.shardId) || 0) === id);
+    return {
+      id,
+      operational: Boolean(client.isReady?.()) && shard.status === 0,
+      uptime,
+      latency: Number.isFinite(shard.ping) ? Math.max(0, Math.round(shard.ping)) : null,
+      servers: shardGuilds.length,
+      users: shardGuilds.reduce((count, guild) => count + (Number(guild.memberCount) || 0), 0),
+    };
+  }).sort((a, b) => a.id - b.id);
+}
+
 function followerJson(follow, client = null) {
   const guild = client?.guilds.cache.get(follow.guildId);
   return {
@@ -321,6 +342,12 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
       discord: Boolean(client.isReady?.()),
       database: Boolean(database),
     });
+  });
+
+  app.get('/api/status', (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const shards = shardStatus(client);
+    res.json({ operational: shards.length > 0 && shards.every((shard) => shard.operational), shards });
   });
 
   app.get('/invite', (req, res) => {

@@ -23,6 +23,8 @@ function guild({ permissions = [] } = {}) {
     id: 'guild-1',
     name: 'Test Harbor',
     ownerId: 'owner',
+    shardId: 0,
+    memberCount: 12,
     iconURL: () => 'https://cdn.discordapp.com/icons/guild-1/icon.png',
     channels: { cache: channels },
     roles: { cache: roles },
@@ -55,6 +57,8 @@ function app({ ready = true, staticDir = 'missing-test-static-dir', server = nul
   if (server) cache.set(server.id, server);
   const client = {
     isReady: () => ready,
+    uptime: 90_000,
+    ws: { status: ready ? 0 : 5, ping: 42 },
     guilds: { cache, ...(guildFetch ? { fetch: guildFetch } : {}) },
     modules: {
       dockBotPerms: { missingLabels: async () => [] },
@@ -85,6 +89,16 @@ test('health returns 503 while Discord is starting', async () => {
   const response = await request(app({ ready: false })).get('/api/health');
   assert.equal(response.status, 503);
   assert.equal(response.body.status, 'starting');
+});
+
+test('public status reports shard usage and connection health', async () => {
+  const response = await request(app({ server: guild() })).get('/api/status');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['cache-control'], 'no-store');
+  assert.deepEqual(response.body, {
+    operational: true,
+    shards: [{ id: 0, operational: true, uptime: 90000, latency: 42, servers: 1, users: 12 }],
+  });
 });
 
 test('protected API routes reject anonymous requests', async () => {

@@ -23,6 +23,7 @@ const token = devMode === true ? process.env.DEV_TOKEN : process.env.PRODUCTION_
 
 // Create a new client instance
 const client = new Client({
+  shards: "auto",
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,

@@ -1,11 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Clock3, Radio, Server, Users } from "lucide-react";
-import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getStatus, type ShardStatus } from "@/lib/api";
-import { Brand } from "@/pages/Landing";
+import { PublicHeader } from "@/pages/Landing";
 
 const number = new Intl.NumberFormat();
 
@@ -57,14 +55,9 @@ export function Status() {
 
   return (
     <div className="min-h-screen bg-[#303446] text-[#c6d0f5]">
-      <header className="border-b border-[#626880]/50 bg-[#292c3c]">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8">
-          <Brand />
-          <Button asChild variant="ghost"><Link to="/">Back home</Link></Button>
-        </div>
-      </header>
+      <PublicHeader />
 
-      <main className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
+      <main className="mx-auto max-w-7xl px-5 pb-16 pt-32 sm:px-8 sm:pb-24 sm:pt-40">
         <div className="max-w-2xl">
           <p className="eyebrow">Live service health</p>
           <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">System status</h1>

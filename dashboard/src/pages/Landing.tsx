@@ -292,89 +292,55 @@ function DockChat() {
   );
 }
 
-export function Landing() {
+export function PublicHeader() {
   const [menu, setMenu] = useState(false);
   return (
-    <div className="min-h-screen overflow-hidden bg-[#303446] text-[#c6d0f5]">
-      <header className="fixed inset-x-0 top-4 z-40 px-4 sm:px-6">
-        <div className="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-[#626880]/60 bg-[#303446]/90 shadow-[0_18px_50px_-24px_rgba(0,0,0,.9)] backdrop-blur-xl">
-          <div className="flex h-16 items-center justify-between px-4 sm:px-6">
-            <nav
-              className="hidden items-center gap-8 text-sm text-[#b5bfe2] md:flex"
-              aria-label="Main navigation"
-            >
-              <Brand />
+    <header className="fixed inset-x-0 top-4 z-40 px-4 sm:px-6">
+      <div className="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-[#626880]/60 bg-[#303446]/90 shadow-[0_18px_50px_-24px_rgba(0,0,0,.9)] backdrop-blur-xl">
+        <div className="flex h-16 items-center justify-between px-4 sm:px-6">
+          <nav
+            className="hidden items-center gap-8 text-sm text-[#b5bfe2] md:flex"
+            aria-label="Main navigation"
+          >
+            <Brand />
 
-              <Link to="/status" className="hover:text-[#c6d0f5]">
-                Status
-              </Link>
-              <a href="" className="hover:text-[#c6d0f5]">
-                Privacy Policy
-              </a>
-              <a href="" className="hover:text-[#c6d0f5]">
-                TOS
-              </a>
-              <a href="https://discord.gg/C6XGxP4gjs" className="hover:text-[#c6d0f5]">
-                Help
-              </a>
-            </nav>
-            <div className="hidden items-center gap-2 md:flex">
-              <Button asChild variant="ghost">
-                <Link to="/dashboard">Manage Servers</Link>
-              </Button>
-              <Button asChild className="bg-[#a6d189] text-[#303446] hover:bg-[#b4dda0]">
-                <a href="/invite">
-                  Add to Discord <ArrowRight className="size-4" />
-                </a>
-              </Button>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              aria-label="Toggle navigation"
-              onClick={() => setMenu(!menu)}
-            >
-              {menu ? <X /> : <Menu />}
+            <Link to="/status" className="hover:text-[#c6d0f5]">Status</Link>
+            <a href="" className="hover:text-[#c6d0f5]">Privacy Policy</a>
+            <a href="" className="hover:text-[#c6d0f5]">TOS</a>
+            <a href="https://discord.gg/C6XGxP4gjs" className="hover:text-[#c6d0f5]">Help</a>
+          </nav>
+          <div className="hidden items-center gap-2 md:flex">
+            <Button asChild variant="ghost"><Link to="/dashboard">Manage Servers</Link></Button>
+            <Button asChild className="bg-[#a6d189] text-[#303446] hover:bg-[#b4dda0]">
+              <a href="/invite">Add to Discord <ArrowRight className="size-4" /></a>
             </Button>
           </div>
-          {menu && (
-            <div className="border-t border-[#626880]/50 bg-[#292c3c] p-5 md:hidden">
-              <nav className="grid gap-2">
-                <Link
-                  to="/status"
-                  onClick={() => setMenu(false)}
-                  className="rounded-lg p-3 text-[#b5bfe2]"
-                >
-                  Status
-                </Link>
-                <a
-                  href="#features"
-                  onClick={() => setMenu(false)}
-                  className="rounded-lg p-3 text-[#b5bfe2]"
-                >
-                  For AO crews
-                </a>
-                <a
-                  href="#docks"
-                  onClick={() => setMenu(false)}
-                  className="rounded-lg p-3 text-[#b5bfe2]"
-                >
-                  How Docks work
-                </a>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Button asChild variant="secondary">
-                    <Link to="/dashboard">Manage Servers</Link>
-                  </Button>
-                  <Button asChild className="bg-[#a6d189] text-[#303446] hover:bg-[#b4dda0]">
-                    <a href="/invite">Add to Discord</a>
-                  </Button>
-                </div>
-              </nav>
-            </div>
-          )}
+          <Button variant="ghost" size="icon" className="md:hidden" aria-label="Toggle navigation" onClick={() => setMenu(!menu)}>
+            {menu ? <X /> : <Menu />}
+          </Button>
         </div>
-      </header>
+        {menu && (
+          <div className="border-t border-[#626880]/50 bg-[#292c3c] p-5 md:hidden">
+            <nav className="grid gap-2">
+              <Link to="/status" onClick={() => setMenu(false)} className="rounded-lg p-3 text-[#b5bfe2]">Status</Link>
+              <a href="/#features" onClick={() => setMenu(false)} className="rounded-lg p-3 text-[#b5bfe2]">For AO crews</a>
+              <a href="/#docks" onClick={() => setMenu(false)} className="rounded-lg p-3 text-[#b5bfe2]">How Docks work</a>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Button asChild variant="secondary"><Link to="/dashboard">Manage Servers</Link></Button>
+                <Button asChild className="bg-[#a6d189] text-[#303446] hover:bg-[#b4dda0]"><a href="/invite">Add to Discord</a></Button>
+              </div>
+            </nav>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+export function Landing() {
+  return (
+    <div className="min-h-screen overflow-hidden bg-[#303446] text-[#c6d0f5]">
+      <PublicHeader />
 
       <main>
         <section className="relative flex min-h-screen items-center overflow-hidden px-5 pb-12 pt-28 text-center sm:px-8">

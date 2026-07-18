@@ -12,6 +12,8 @@ export type Dock = { id: string; name: string; description: string; guildId: str
 export type Follower = Follow & { banReason?: string; bannedAt?: string };
 export type Ban = { targetGuildId: string; targetGuildName: string; reason: string; bannedAt: string | null };
 export type BanCandidate = { id: string; name: string; icon: string | null };
+export type ShardStatus = { id: number; operational: boolean; uptime: number; latency: number | null; servers: number; users: number };
+export type Status = { operational: boolean; shards: ShardStatus[] };
 
 export class ApiError extends Error {
   status: number;
@@ -34,6 +36,7 @@ export async function api<T>(url: string, options: RequestInit = {}): Promise<T>
 }
 
 export const getMe = () => api<{ user: User }>('/api/me');
+export const getStatus = () => api<Status>('/api/status');
 export const getGuilds = () => api<{ guilds: GuildSummary[] }>('/api/guilds');
 export const getGuild = (id: string) => api<GuildData>(`/api/guilds/${id}`);
 export const saveSettings = (id: string, settings: Partial<Settings>) => api<{ settings: Settings }>(`/api/guilds/${id}/settings`, { method: 'PATCH', body: JSON.stringify(settings) });

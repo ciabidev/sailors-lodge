@@ -6,6 +6,7 @@ import {
   Crown,
   Fish,
   Flame,
+  Github,
   Hash,
   Menu,
   Moon,
@@ -23,7 +24,7 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-
+import { ExternalAnchor } from "@/components/ui/external-anchor";
 const features = [
   {
     icon: Network,
@@ -299,15 +300,24 @@ export function PublicHeader() {
       <div className="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-[#626880]/60 bg-[#303446]/90 shadow-[0_18px_50px_-24px_rgba(0,0,0,.9)] backdrop-blur-xl">
         <div className="flex h-16 items-center justify-between px-4 sm:px-6">
           <nav
-            className="hidden items-center gap-8 text-sm text-[#b5bfe2] md:flex"
+            className="hidden items-center gap-5 text-sm text-[#b5bfe2] md:flex"
             aria-label="Main navigation"
           >
             <Brand />
 
-            <Link to="/status" className="hover:text-[#c6d0f5]">Status</Link>
-            <a href="" className="hover:text-[#c6d0f5]">Privacy Policy</a>
-            <a href="" className="hover:text-[#c6d0f5]">TOS</a>
-            <a href="https://discord.gg/C6XGxP4gjs" className="hover:text-[#c6d0f5]">Help</a>
+            <Link to="/status" className="hover:text-[#c6d0f5] font-semibold">Status</Link>
+            <Link to="/privacy" className="hover:text-[#c6d0f5] font-semibold">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-[#c6d0f5] font-semibold">Terms</Link>
+            <a href="https://discord.gg/C6XGxP4gjs" className="hover:text-[#c6d0f5] font-semibold">Help</a>
+              <a
+                href="https://github.com/ciabidev/sailors-lodge"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="View Sailor's Lodge on GitHub"
+                className="hover:text-[#c6d0f5] font-semibold"
+              >
+                GitHub
+              </a>
           </nav>
           <div className="hidden items-center gap-2 md:flex">
             <Button asChild variant="ghost"><Link to="/dashboard">Manage Servers</Link></Button>
@@ -323,8 +333,21 @@ export function PublicHeader() {
           <div className="border-t border-[#626880]/50 bg-[#292c3c] p-5 md:hidden">
             <nav className="grid gap-2">
               <Link to="/status" onClick={() => setMenu(false)} className="rounded-lg p-3 text-[#b5bfe2]">Status</Link>
+              <Link to="/privacy" onClick={() => setMenu(false)} className="rounded-lg p-3 text-[#b5bfe2]">Privacy Policy</Link>
+              <Link to="/terms" onClick={() => setMenu(false)} className="rounded-lg p-3 text-[#b5bfe2]">Terms of Service</Link>
               <a href="/#features" onClick={() => setMenu(false)} className="rounded-lg p-3 text-[#b5bfe2]">For AO crews</a>
               <a href="/#docks" onClick={() => setMenu(false)} className="rounded-lg p-3 text-[#b5bfe2]">How Docks work</a>
+              <Button asChild variant="ghost" className="justify-start">
+                <a
+                  href="https://github.com/ciabidev/sailors-lodge"
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setMenu(false)}
+                >
+                  <Github className="size-4" />
+                  GitHub
+                </a>
+              </Button>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <Button asChild variant="secondary"><Link to="/dashboard">Manage Servers</Link></Button>
                 <Button asChild className="bg-[#a6d189] text-[#303446] hover:bg-[#b4dda0]"><a href="/invite">Add to Discord</a></Button>
@@ -373,22 +396,9 @@ export function Landing() {
               </h1>
               <p className="mt-7 max-w-3xl text-lg leading-8 text-[#b5bfe2] sm:text-xl">
                 you no longer have to join a specific clan or service server to find parties and
-                hunts.
+                hunts. fully <ExternalAnchor href="https://github.com/ciabidev/sailors-lodge">open source</ExternalAnchor>.
               </p>
-              <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs text-[#b5bfe2]">
-                {[
-                  "ping with `/party ping` or keywords",
-                  "discover cross-server party networks",
-                  "organized party coordination with Party Cards",
-                ].map((activity) => (
-                  <span
-                    key={activity}
-                    className="rounded-full border border-[#626880]/70 bg-[#292c3c]/80 px-3 py-1.5"
-                  >
-                    {activity}
-                  </span>
-                ))}
-              </div>
+              
               <div className="mt-9 flex flex-wrap justify-center gap-3">
                 <Button
                   size="lg"
@@ -506,7 +516,13 @@ export function Landing() {
       <footer className="border-t border-[#626880]/50">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-10 text-sm text-[#a5adce] sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <Brand />
-          <p>Sailor’s Lodge is an independent community project for Arcane Odyssey players.</p>
+          <div className="flex flex-col gap-3 sm:items-end">
+            <p>Sailor’s Lodge is an independent community project for Arcane Odyssey players.</p>
+            <nav className="flex gap-5" aria-label="Legal">
+              <Link to="/privacy" className="hover:text-[#c6d0f5]">Privacy</Link>
+              <Link to="/terms" className="hover:text-[#c6d0f5]">Terms</Link>
+            </nav>
+          </div>
         </div>
       </footer>
     </div>

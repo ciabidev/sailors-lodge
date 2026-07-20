@@ -24,8 +24,14 @@ function findMatchingKeyword(text, keywords = []) {
   });
 }
 
+function hasHostRole(member, hostRoleIds) {
+  if (!Array.isArray(hostRoleIds) || hostRoleIds.length === 0) return true;
+  return hostRoleIds.some((roleId) => member?.roles.cache.has(roleId));
+}
+
 module.exports = {
   name: Events.MessageCreate,
+  hasHostRole,
   async execute(message) {
     const devAnnounceMatch = message.content?.trim().match(/^!devannounce(?:\s+(.+))?$/i);
     if (devAnnounceMatch) {
@@ -234,9 +240,11 @@ module.exports = {
                 ? getMessageText(manualSelection)
                 : getMessageText(message);
             const keyword = findMatchingKeyword(dockMessageText, dock.keywords);
+            const userCanHost = hasHostRole(message.member, sendingFollower.hostRoleIds);
 
             if (
               keyword &&
+              userCanHost &&
               (message.client.modules.dockLevels.canPing(sendingFollower.level) ||
                 dock.guildId === message.guildId)
             ) {

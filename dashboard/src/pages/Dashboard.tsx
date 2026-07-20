@@ -916,11 +916,13 @@ function FollowEditor({
 }) {
   const [channelId, setChannelId] = useState("");
   const [pingOwnServer, setPingOwnServer] = useState(true);
+  const [hostRoleIds, setHostRoleIds] = useState<string[]>([]);
   const [pings, setPings] = useState<Record<string, string[]>>({});
   const home = dock?.guildId === guild.id;
   useEffect(() => {
     setChannelId(dock?.follow?.channelIds[0] || "");
     setPingOwnServer(dock?.follow?.pingOwnServer !== false);
+    setHostRoleIds(dock?.follow?.hostRoleIds || []);
     setPings(
       Object.fromEntries(
         (dock?.keywords || []).map((keyword) => [
@@ -932,9 +934,9 @@ function FollowEditor({
   }, [dock, open]);
   const mutation = useMutation({
     mutationFn: () => {
-      const settings = { keywordPings: pings, pingOwnServer };
+      const settings = { keywordPings: pings, hostRoleIds, pingOwnServer };
       return home
-        ? saveHomePings(guild.id, dock!.id, { keywordPings: pings })
+        ? saveHomePings(guild.id, dock!.id, settings)
         : saveFollow(guild.id, dock!.id, {
             ...settings,
             channelIds: [channelId],
@@ -943,7 +945,7 @@ function FollowEditor({
     onSuccess: () => {
       toast.success(
         home
-          ? "Home ping roles saved"
+          ? "Server settings saved"
           : dock?.follow
             ? "Follow settings saved"
             : dock?.accessMode === "request"
@@ -961,11 +963,11 @@ function FollowEditor({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {home ? "Home ping roles" : dock.follow ? "Configure follow" : `Follow ${dock.name}`}
+            {dock.follow ? "Server settings" : `Follow ${dock.name}`}
           </DialogTitle>
           <DialogDescription>
             {home
-              ? "Choose which local roles are pinged when this server publishes matching keywords."
+              ? "Choose who can trigger keyword pings and which local roles are pinged."
               : "Choose where messages arrive and which local roles each keyword should ping."}
           </DialogDescription>
         </DialogHeader>
@@ -981,6 +983,17 @@ function FollowEditor({
               multiple={false}
             />
           )}
+          <TagPicker
+            label="Host roles"
+            options={guild.roles.map((role) => ({ value: role.id, label: role.name }))}
+            values={hostRoleIds}
+            onChange={setHostRoleIds}
+            placeholder="Everyone can trigger keyword pings"
+            emptyText="No roles matched"
+          />
+          <p className="-mt-2 text-xs text-[#a5adce]">
+            Members need one of these roles to trigger Dock keyword pings. Leave empty for everyone.
+          </p>
           {dock.keywords.map((keyword) => (
             <TagPicker
               key={keyword}
@@ -1019,7 +1032,7 @@ function FollowEditor({
           </Button>
           <Button onClick={() => mutation.mutate()} disabled={(!home && !channelId) || mutation.isPending}>
             {mutation.isPending && <LoaderCircle className="size-4 animate-spin" />}
-            {home ? "Save ping roles" : "Save follow"}
+            {dock.follow ? "Save settings" : "Save follow"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1532,7 +1545,7 @@ function DockCard({
                 </Button>
                 <Button size="sm" variant="outline" onClick={follow}>
                   <BellRing className="size-4" />
-                  Home pings
+                  Server settings
                 </Button>
                 <Button size="sm" variant="outline" onClick={followers}>
                   <Users className="size-4" />
@@ -1554,7 +1567,7 @@ function DockCard({
             ) : dock.follow ? (
               <>
                 <Button size="sm" variant="secondary" onClick={follow}>
-                  Configure
+                  Server settings
                 </Button>
                 <Button size="sm" variant="destructive" onClick={() => setConfirming("unfollow")}>
                   {pending ? "Cancel request" : "Unfollow"}

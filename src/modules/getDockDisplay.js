@@ -54,6 +54,9 @@ module.exports = async function getDockDisplay(
       ? displayedChannelIds.map((channelId) => `<#${channelId}>`).join(", ")
       : client.modules.escapeMarkdown(channelNames);
   const keywordPings = follower?.keywordPings ?? {};
+  const hostRoles = Array.isArray(follower?.hostRoleIds)
+    ? follower.hostRoleIds.map((roleId) => `<@&${roleId}>`).join(" ")
+    : "";
   const visibleKeywords = (keywords ?? []).slice(0, 5);
   const hiddenKeywordCount = Math.max((keywords ?? []).length - visibleKeywords.length, 0);
   const pingKeywords = visibleKeywords.map((keyword) => {
@@ -107,6 +110,7 @@ module.exports = async function getDockDisplay(
     details.push(
       `✅ **Default Level:** ${client.modules.dockLevels.get(defaultLevel).label}`,
       `🔒 **Access:** ${dock.accessMode === "request" ? "Request To Join" : "Open to all"}`,
+      `🎤 **Host Roles:** ${hostRoles || "Everyone"}`,
       `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`,
       `**Gatekeeper Role:** ${dock.gatekeeperRoleId ? `<@&${dock.gatekeeperRoleId}>` : "None"}`,
     );
@@ -117,6 +121,7 @@ module.exports = async function getDockDisplay(
 
     details.push(
       `✅ **${mode === "following" ? "Current" : "Default"} Level:** ${levelLabel}`,
+      ...(mode === "following" ? [`🎤 **Host Roles:** ${hostRoles || "Everyone"}`] : []),
       `🔑 ${mode !== "following" ? `**Keywords:** ${browseKeywords || "None"}${hiddenKeywordCount ? ` · +${hiddenKeywordCount} more` : ""}` : `🔔 **Ping Keywords**\n${pingKeywords.join("\n") || "- *None*"}${hiddenKeywordCount ? `\n- *+${hiddenKeywordCount} more*` : ""}`}`,
     );
   }

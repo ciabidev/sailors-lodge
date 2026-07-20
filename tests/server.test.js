@@ -344,9 +344,15 @@ test('dashboard follow requests notify Discord gatekeepers with approval actions
   }))
     .put(`/api/guilds/${server.id}/docks/${dockId}/follow`)
     .set('Cookie', sessionCookie())
-    .send({ channelIds: ['channel-1'], keywordPings: {}, pingOwnServer: true });
+    .send({
+      channelIds: ['channel-1'],
+      keywordPings: {},
+      hostRoleIds: ['role-1'],
+      pingOwnServer: true,
+    });
   assert.equal(response.status, 200);
   assert.equal(response.body.follow.level, 'no-access');
+  assert.deepEqual(response.body.follow.hostRoleIds, ['role-1']);
   assert.equal(notices.length, 1);
   assert.deepEqual(notices[0].guildIds, ['publisher']);
   assert.equal(notices[0].components[1].components.length, 2);

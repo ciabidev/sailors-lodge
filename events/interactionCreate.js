@@ -63,8 +63,8 @@ module.exports = {
           "dock-ban-modal:",
           "dock-publish-modal",
           "dock-follow-modal:",
-          "dock-configure-follower:",
-          "dock-home-ping-roles:",
+          "dock-server-settings-followed:",
+          "dock-server-settings-home:",
           "dock-default-level:",
         ].some((prefix) => interaction.customId.startsWith(prefix)) &&
         !interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)
@@ -364,8 +364,8 @@ module.exports = {
       }
 
       [modalId, dockId] = interaction.customId.split(":");
-      if (modalId === "dock-follow-modal" || modalId === "dock-configure-follower") {
-        const isManagingDocks = modalId === "dock-configure-follower";
+      if (modalId === "dock-follow-modal" || modalId === "dock-server-settings-followed") {
+        const isEditingSettings = modalId === "dock-server-settings-followed";
         const channels = interaction.fields.getSelectedChannels("dock-follow-channel", true, [
           ChannelType.GuildText,
           ChannelType.GuildAnnouncement,
@@ -378,7 +378,8 @@ module.exports = {
           : [];
         const selectedRoles = hasKeywordField ? interaction.fields.getSelectedRoles("roles", false) : null;
         const roleIds = selectedRoles ? Array.from(selectedRoles.keys()) : [];
-
+        const selectedHostRoles = interaction.fields.getSelectedRoles("host-roles", false);
+        const hostRoleIds = selectedHostRoles ? Array.from(selectedHostRoles.keys()) : [];
         if (!(await interaction.client.modules.dockBotPerms.check(interaction, channel))) {
           return;
         }
@@ -416,7 +417,7 @@ module.exports = {
         }
 
         if (
-          !isManagingDocks &&
+          !isEditingSettings &&
           interaction.client.modules.dockLevels.canRead(existingFollower)
         ) {
           return interaction.reply({
@@ -425,7 +426,7 @@ module.exports = {
           });
         }
 
-        if (isManagingDocks && !existingFollower) {
+        if (isEditingSettings && !existingFollower) {
           return interaction.reply({
             content: "This server is not following that Dock anymore.",
             flags: MessageFlags.Ephemeral,
@@ -444,13 +445,14 @@ module.exports = {
           guildName: interaction.guild.name,
           channelIds: [channelId],
           keywordPings: currentKeywordPings,
-          level: isManagingDocks
+          hostRoleIds,
+          level: isEditingSettings
             ? undefined
             : dock.accessMode === "request"
               ? "no-access"
               : interaction.client.modules.dockLevels.normalize(dock.defaultLevel),
         });
-        if (!isManagingDocks) {
+        if (!isEditingSettings) {
            await interaction.client.modules.updateDockBrowsePage(interaction);
         } else {
           await interaction.client.modules.updateDockManagePage(interaction)
@@ -466,7 +468,7 @@ module.exports = {
                 `**${escapedGuildName}** is now following **${escapedDockName}**.\n-# Access level: ${defaultLevel.label}. ${interaction.client.modules.dockLevels.explain(dock.defaultLevel)}`,
               ),
             );
-            if (!isManagingDocks) {
+            if (!isEditingSettings) {
               const adminGuildIds = (await interaction.client.modules.db.getDockFollowers(dockId))
                 .filter(
                   (follower) =>
@@ -485,7 +487,7 @@ module.exports = {
               
             }
 
-          } else if (!isManagingDocks && dock.accessMode === "request") {
+          } else if (!isEditingSettings && dock.accessMode === "request") {
             const gatekeeperRoleId = dock.gatekeeperRoleId;
             const requester = `${interaction.user} [${interaction.client.modules.escapeMarkdown(interaction.user.username)}]`;
             
@@ -543,7 +545,7 @@ module.exports = {
       }
 
       [modalId, dockId] = interaction.customId.split(":");
-      if (modalId === "dock-home-ping-roles") {
+      if (modalId === "dock-server-settings-home") {
         const dock = await interaction.client.modules.db.getDock(dockId);
 
         if (!dock || dock.guildId !== interaction.guildId) {
@@ -561,6 +563,8 @@ module.exports = {
 
         const pingOwnServer =
           interaction.fields.getStringSelectValues("ping-own-server")[0] !== "off";
+        const selectedHostRoles = interaction.fields.getSelectedRoles("host-roles", false);
+        const hostRoleIds = selectedHostRoles ? [...selectedHostRoles.keys()] : [];
 
         // set keyword pings
         const channelIds = selfFollow?.channelIds?.length ? selfFollow.channelIds : dock.channelIds;
@@ -570,6 +574,7 @@ module.exports = {
           guildName: interaction.guild.name,
           channelIds,
           pingOwnServer,
+          hostRoleIds,
         };
         if (dock.keywords?.length > 0) {
           keywords = interaction.fields.getStringSelectValues("keyword", false);
@@ -961,7 +966,7 @@ module.exports = {
         }
       }
 
-      if (buttonId.startsWith("dock-configure-owner")) {
+      if (buttonId.startsWith("dock-edit-published")) {
         const [, dockId] = buttonId.split(":");
         const dock = await interaction.client.modules.db.getDock(dockId);
 
@@ -979,14 +984,15 @@ module.exports = {
         );
       }
 
-      if (buttonId.startsWith("dock-configure-follower")) {
+      if (buttonId.startsWith("dock-edit-server-settings")) {
         const [, dockId] = buttonId.split(":");
+        const dock = await interaction.client.modules.db.getDock(dockId);
         const follower = await interaction.client.modules.db.getDockFollower(
           dockId,
           interaction.guildId,
         );
 
-        if (!follower) {
+        if (!dock || !follower) {
           return interaction.reply({
             content: "This server is not following that Dock anymore.",
             flags: MessageFlags.Ephemeral,
@@ -996,31 +1002,8 @@ module.exports = {
         return interaction.client.modules.dockFollowModal(
           interaction,
           dockId,
-          "dock-configure-follower",
+          "settings",
           follower,
-        );
-      }
-
-      if (buttonId.startsWith("dock-home-ping-roles")) {
-        const [, dockId] = buttonId.split(":");
-        const dock = await interaction.client.modules.db.getDock(dockId);
-
-        if (!dock || dock.guildId !== interaction.guildId) {
-          return interaction.reply({
-            content: "I couldn't find that Dock in this Discord server.",
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-        const selfFollow = await interaction.client.modules.db.getDockFollower(
-          dockId,
-          interaction.guildId,
-        );
-
-        return interaction.client.modules.dockFollowModal(
-          interaction,
-          dockId,
-          "dock-home-ping-roles",
-          selfFollow,
         );
       }
 

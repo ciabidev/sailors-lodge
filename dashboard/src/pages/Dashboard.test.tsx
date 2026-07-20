@@ -333,8 +333,9 @@ describe('Dashboard Docks', () => {
     renderDashboard();
     fireEvent.click(await screen.findByRole('link', { name: 'Published' }));
     expect(await screen.findByRole('heading', { name: 'Published Docks' })).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: 'Home pings' }));
-    expect(await screen.findByRole('heading', { name: 'Home ping roles' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Server settings' }));
+    expect(await screen.findByRole('heading', { name: 'Server settings' })).toBeInTheDocument();
+    expect(screen.getByText('Host roles')).toBeInTheDocument();
     expect(screen.queryByRole('switch', { name: 'Ping roles for local messages' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 

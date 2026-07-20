@@ -191,6 +191,7 @@ function followerJson(follow, client = null) {
     guildIconURL: guild?.iconURL({ size: 128 }) || follow.guildIconURL || null,
     channelIds: follow.channelIds || [],
     keywordPings: isRecord(follow.keywordPings) ? follow.keywordPings : {},
+    hostRoleIds: Array.isArray(follow.hostRoleIds) ? follow.hostRoleIds : [],
     pingOwnServer: follow.pingOwnServer !== false,
     level: follow.level || 'passive',
     banned: Boolean(follow.banned),
@@ -509,6 +510,10 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
     if ('pingOwnServer' in body && typeof body.pingOwnServer !== 'boolean') {
       return { error: 'Own-server pings must be on or off.' };
     }
+    const hostRoleIds = cleanStrings(body.hostRoleIds ?? [], 25, 32);
+    if (!hostRoleIds || hostRoleIds.some((id) => !guild.roles.cache.has(id))) {
+      return { error: 'A selected Host Role no longer exists.' };
+    }
     const input = body.keywordPings ?? {};
     if (!isRecord(input)) return { error: 'Keyword pings must be an object.' };
     const keywordPings = Object.create(null);
@@ -522,7 +527,9 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
       }
       keywordPings[keyword] = roles;
     }
-    return { value: { keywordPings, pingOwnServer: body.pingOwnServer !== false } };
+    return {
+      value: { keywordPings, hostRoleIds, pingOwnServer: body.pingOwnServer !== false },
+    };
   }
 
   async function managedDock(req, res, access) {
@@ -791,7 +798,7 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
       await db.setDockFollower(dock._id, access.guild.id, {
         guildName: access.guild.name,
         channelIds: existing?.channelIds?.length ? existing.channelIds : dock.channelIds,
-        keywordPings: validation.value.keywordPings,
+        ...validation.value,
       });
       return res.json({ follow: followerJson(await db.getDockFollower(dock._id, access.guild.id), client) });
     } catch (error) {

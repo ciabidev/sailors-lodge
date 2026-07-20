@@ -89,21 +89,25 @@ module.exports = async function dockManagePage({ client, state }) {
     const follower = await client.modules.db.getDockFollower(dock._id, state.guildId);
     const canManageFollowers =
       fromThisGuild || client.modules.dockLevels.canManage(follower?.level);
-    const buttons = [
-      new ButtonBuilder()
-        .setCustomId(`dock-configure-${fromThisGuild ? "owner" : "follower"}:${dock._id}`)
-        .setLabel(`${fromThisGuild ? "Edit Dock" : "Edit Pings and Channels"}`)
-        .setStyle(ButtonStyle.Primary),
-    ];
+    const buttons = [];
 
     if (fromThisGuild) {
       buttons.push(
         new ButtonBuilder()
-          .setCustomId(`dock-home-ping-roles:${dock._id}`)
-          .setLabel("Set Ping Roles")
-          .setStyle(ButtonStyle.Secondary),
+          .setCustomId(`dock-edit-published:${dock._id}`)
+          .setLabel("Edit Dock")
+          .setStyle(ButtonStyle.Primary),
       );
-      
+    }
+
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId(`dock-edit-server-settings:${dock._id}`)
+        .setLabel("Server Settings")
+        .setStyle(fromThisGuild ? ButtonStyle.Secondary : ButtonStyle.Primary),
+    );
+
+    if (fromThisGuild) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`dock-manage-followers:${dock._id}`)

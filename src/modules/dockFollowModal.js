@@ -12,7 +12,7 @@ const {
 module.exports = async function dockFollowModal(
   interaction,
   dockId,
-  customId = "dock-follow-modal",
+  mode = "follow",
   defaults = {},
 ) {
   const channelSelect = new ChannelSelectMenuBuilder()
@@ -22,6 +22,11 @@ module.exports = async function dockFollowModal(
     .setMaxValues(1);
 
   const dock = await interaction.client.modules.db.getDock(dockId);
+  const isHome = mode === "settings" && dock?.guildId === interaction.guildId;
+  const customId =
+    mode === "follow"
+      ? "dock-follow-modal"
+      : `dock-server-settings-${isHome ? "home" : "followed"}`;
   const keywords = [...new Set((dock?.keywords ?? []).filter(Boolean))].slice(0, 25);
   const keywordSelect =
     keywords?.length > 0
@@ -46,7 +51,7 @@ module.exports = async function dockFollowModal(
     channelSelect.setDefaultChannels(defaults.channelIds.slice(0, 1));
   }
   const modal = new ModalBuilder()
-    .setTitle(customId === "dock-home-ping-roles" ? "Home Ping Roles" : "Dock Follow Settings")
+    .setTitle(mode === "settings" ? "Server Settings" : "Follow Dock")
     .setCustomId(`${customId}:${dockId}`);
 
   const follower = await interaction.client.modules.db.getDockFollower(dockId, interaction.guildId);
@@ -59,24 +64,37 @@ module.exports = async function dockFollowModal(
       flags: MessageFlags.Ephemeral,
     });
   }
-  if (follower) {
-    if (follower.level === "admin" || interaction.guildId === dock.guildId) {
-      modal.addLabelComponents(
-        new LabelBuilder()
-          .setLabel("Set Gatekeeper Role")
-          .setDescription("Deny/Approve Follow Requests")
-          .setRoleSelectMenuComponent(
-            new RoleSelectMenuBuilder()
-              .setCustomId("gatekeeper")
-              .setMaxValues(1)
-              .setRequired(false)
-              .setPlaceholder("Select a role"),
-          ),
-      );
-    }
+  const hostRoleSelect = new RoleSelectMenuBuilder()
+    .setCustomId("host-roles")
+    .setMaxValues(25)
+    .setRequired(false);
+  if (defaults.hostRoleIds?.length) {
+    hostRoleSelect.setDefaultRoles(defaults.hostRoleIds.slice(0, 25));
   }
 
-  if (customId !== "dock-home-ping-roles") {
+  modal.addLabelComponents(
+    new LabelBuilder()
+      .setLabel("Host Roles")
+      .setDescription("Roles allowed to trigger keyword pings; empty allows everyone")
+      .setRoleSelectMenuComponent(hostRoleSelect),
+  );
+
+  if (isHome) {
+    modal.addLabelComponents(
+      new LabelBuilder()
+        .setLabel("Set Gatekeeper Role")
+        .setDescription("Deny/Approve Follow Requests")
+        .setRoleSelectMenuComponent(
+          new RoleSelectMenuBuilder()
+            .setCustomId("gatekeeper")
+            .setMaxValues(1)
+            .setRequired(false)
+            .setPlaceholder("Select a role"),
+        ),
+    );
+  }
+
+  if (!isHome) {
     modal.addLabelComponents(
       new LabelBuilder()
         .setLabel("Set receiving channel")
@@ -109,21 +127,17 @@ module.exports = async function dockFollowModal(
   }
 
   if (keywordSelect) {
-    modal.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        "# Keyword Pings\nConfigure which roles get pinged for each keyword",
-      ),
-    );
+
     modal
       .addLabelComponents(
         new LabelBuilder()
-          .setLabel("Select keywords")
+          .setLabel("[KEYWORD PINGS] Select keywords")
           .setDescription("When any of these keywords appear:")
           .setStringSelectMenuComponent(keywordSelect),
       )
       .addLabelComponents(
         new LabelBuilder()
-          .setLabel("Set ping roles")
+          .setLabel("[KEYWORD PINGS] Ping these roles")
           .setDescription("Ping these roles")
           .setRoleSelectMenuComponent(roleSelect),
       );

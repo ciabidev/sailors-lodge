@@ -108,7 +108,7 @@ Collections:
 - `serverSettings`: per-guild ping groups, keyword toggle, and LFG role.
 - `parties`: active/deleted party documents and tracked party card messages.
 - `docks`: published Dock definitions.
-- `dockFollows`: follower records, receiving channels, keyword ping roles, and follower access levels.
+- `dockFollows`: follower records, receiving channels, Host Roles, keyword ping roles, and follower access levels.
 - `dockWebhooks`: saved Dock relay webhooks per guild/channel.
 - `dockMessages`: root relayed messages and delivery message ids.
 - `dockThreads`: root relayed threads and delivered thread ids.
@@ -258,6 +258,7 @@ Created for both the publishing server and follower servers:
   guildId,
   guildName,
   channelIds,
+  hostRoleIds,
   keywordPings,
   pingOwnServer,
   level,
@@ -847,15 +848,18 @@ Modes:
 Published Dock actions:
 
 - Edit Dock.
-- Set Ping Roles.
+- Server Settings.
 - Manage Followers.
 - Delete.
 
 Followed Dock actions:
 
-- Edit Pings and Channels.
+- Server Settings.
 - Manage Followers if this server has admin access.
 - Unfollow.
+
+Edit Dock changes the shared published Dock. Server Settings changes this server's receiving and
+keyword-ping configuration; publishing servers use it for their own local ping configuration.
 
 Management pages are stored in memory by user id and expire when process memory is lost.
 
@@ -913,15 +917,17 @@ Request-to-join Dock:
 - Approving sets the follower to the Dock default level.
 - Denying removes the follow record.
 
-## Dock Home Ping Roles
+## Dock Server Settings
 
-Publishing servers can configure "home ping roles" from `/dock manage`.
+Publishing and following servers can configure their local Dock settings from `/dock manage`.
 
 This modal can:
 
-- Toggle whether this server pings itself when its own messages match Dock keywords.
+- Select a receiving channel when following another server's Dock.
+- Restrict who can trigger Dock keyword pings to selected Host Roles; an empty selection allows everyone.
 - Map Dock keywords to local roles.
-- Set a gatekeeper role when allowed.
+- Toggle whether a publishing server pings itself when its own messages match Dock keywords.
+- Set the publishing server's gatekeeper role.
 
 Follower servers can configure receiving channel and keyword roles for followed Docks.
 
@@ -1010,6 +1016,7 @@ Server ping group keywords:
 Dock keywords:
 
 - Require the sending follower to be contributor or higher, unless the sender is the Dock publisher.
+- Require one of the sending server's configured Host Roles when that list is not empty.
 - Look up each receiving follower's `keywordPings`.
 - May ping receiving roles when relaying the message.
 - Can create a thread for Dock ping discussion.
@@ -1172,7 +1179,7 @@ The bot checks these when publishing/following Docks and reports missing permiss
 - `dockBrowsePage.js`: builds Dock browse UI.
 - `dockConfig.js`: validates Dock/follow input.
 - `dockDefaultLevelModal.js`: modal for default follower access.
-- `dockFollowModal.js`: modal for receiving channel and keyword roles.
+- `dockFollowModal.js`: modal for receiving channel, Host Roles, and keyword roles.
 - `dockLevels.js`: access-level model and helpers.
 - `dockManagePage.js`: builds Dock management UI.
 - `dockModerationAutocomplete.js`: autocomplete for manageable Docks and ban/unban targets.

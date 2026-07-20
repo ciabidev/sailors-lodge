@@ -169,7 +169,8 @@ module.exports = async function dockManagePage({ client, state }) {
   const pageSelector = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId("docks-manage-prev")
-      .setLabel("Previous")
+      .setLabel(" ")
+      .setEmoji("⬅️")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPages.length <= 1),
     new ButtonBuilder()
@@ -179,7 +180,8 @@ module.exports = async function dockManagePage({ client, state }) {
       .setDisabled(true),
     new ButtonBuilder()
       .setCustomId("docks-manage-next")
-      .setLabel("Next")
+      .setLabel(" ")
+      .setEmoji("➡️")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPages.length <= 1),
   );

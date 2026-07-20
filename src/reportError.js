@@ -7,7 +7,7 @@ function buildReportErrorComponents(eventId) {
       new ButtonBuilder()
         .setCustomId(`report-error:${eventId}`)
         .setLabel("Report error")
-        .setStyle(ButtonStyle.Secondary),
+        .setStyle(ButtonStyle.Success),
     ),
   ];
 }

@@ -1,12 +1,33 @@
 const { SlashCommandSubcommandBuilder, MessageFlags } = require("discord.js");
+// a really messy command, honestly dont know how this still works lol
+function buildPingText({ name, user, party, extra, sendAt }) {
+  const lines = [
+    `**${name}** ping from ${user}${sendAt ? ` **Scheduled** <t:${Math.floor(sendAt.getTime() / 1000)}:R>` : ""}`,
+  ];
+
+  if (party) {
+    lines.push(`\`${party.name}\` is happening!`);
+  }
+
+  if (extra) {
+    lines.push(extra);
+  }
+
+  if (party) {
+    lines.push(`-# Use \`/join ${party.joinCode}\` to join the Discord party`);
+  }
+
+  return lines.join("\n");
+}
+
 module.exports = {
   data: new SlashCommandSubcommandBuilder()
     .setName("ping")
-    .setDescription("Ping one of this server's configured ping groups.")
+    .setDescription("Ping a configured role group or Dock keyword.")
     .addStringOption((option) =>
       option
         .setName("role")
-        .setDescription("The group to ping")
+        .setDescription("The group or ⚓ Dock keyword to ping")
         .setRequired(true)
         .setAutocomplete(true)
     )
@@ -33,10 +54,14 @@ module.exports = {
 
     const settings = await interaction.client.modules.db.getSettings(interaction.guildId);
     const pingGroups = settings.pingGroups ?? [];
-    const filtered = pingGroups
+    const groupChoices = pingGroups
       .filter((group) => group.name.toLowerCase().startsWith(focusedValue.toLowerCase()))
-      .slice(0, 25)
       .map((group) => ({ name: group.name, value: group.name }));
+    const dockChoices = await interaction.client.modules.dockKeywordPings.getChoices(
+      interaction,
+      focusedValue,
+    );
+    const filtered = [...groupChoices, ...dockChoices].slice(0, 25);
 
     return interaction.respond(filtered);
   },
@@ -48,14 +73,109 @@ module.exports = {
         flags: MessageFlags.Ephemeral,
       });
     }
-    const groupName = interaction.options.getString("role");
+    const roleValue = interaction.options.getString("role");
     const extra = interaction.options.getString("extra") ?? "";
     const party = await interaction.client.modules.db.getCurrentParty(interaction.user.id);
+    const timeInput = interaction.options.getString("time");
+    const dockPings = interaction.client.modules.dockKeywordPings;
+
+    const dockPing = await dockPings.resolveChoice(interaction, roleValue);
+    if (dockPing) {
+      if (dockPing.error) {
+        return interaction.reply({
+          content: dockPing.error,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const { dock, sendingFollower, keyword } = dockPing;
+      const dockEntries = [{ dock, sendingFollower, keyword }];
+      const escapedExtra = extra;
+      const content = buildPingText({
+        name: interaction.client.modules.escapeMarkdown(dock.name),
+        user: interaction.user,
+        party,
+        extra: escapedExtra,
+      });
+
+      const roleIds = dockPings.getRoleIds(interaction.client, dockEntries);
+      const pingOwnServer = dockPings.shouldPingOwnServer(dockEntries);
+      const roleMentions =
+        pingOwnServer ? interaction.client.modules.mentions.formatRoleMentions(roleIds) : "";
+      const allowedRoleIds = pingOwnServer ? roleIds : [];
+      const pingContent = `${roleMentions} ${content}`.trim();
+
+      if (timeInput) {
+        const sendAt = interaction.client.modules.timeFiltering.parseTimeInput(timeInput);
+
+        if (!sendAt || Number.isNaN(sendAt.getTime())) {
+          return interaction.reply({
+            content: "I couldn't understand that scheduled time.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        try {
+          interaction.client.modules.schedulePing(interaction.client, {
+            channelId: interaction.channelId,
+            content: pingContent,
+            roleIds: allowedRoleIds,
+            sendAt,
+            afterSend: async (message) => {
+              dockPings.remember(interaction.client, message.id, dockEntries);
+              await interaction.client.modules.dockRelay.relayMessage(
+                message,
+                { content, sendAsBot: true },
+                sendingFollower,
+              );
+            },
+          });
+        } catch (error) {
+          return interaction.reply({
+            content: error.message,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        const scheduledContent = buildPingText({
+          name: interaction.client.modules.escapeMarkdown(dock.name),
+          user: interaction.user,
+          party,
+          extra: escapedExtra,
+          sendAt,
+        });
+
+        await interaction.reply({
+          content: `${roleMentions} ${scheduledContent}`.trim(),
+          allowedMentions: { roles: allowedRoleIds },
+        });
+
+        const message = await interaction.fetchReply();
+        if (message.crosspostable) {
+          await message.crosspost();
+        }
+        return;
+      }
+
+      await interaction.reply({
+        content: pingContent,
+        allowedMentions: { roles: allowedRoleIds },
+      });
+
+      const message = await interaction.fetchReply();
+      dockPings.remember(interaction.client, message.id, dockEntries);
+      await interaction.client.modules.dockRelay.relayMessage(
+        message,
+        { content, sendAsBot: true },
+        sendingFollower,
+      );
+      return;
+    }
 
     const settings = await interaction.client.modules.db.getSettings(interaction.guildId);
     const pingGroups = settings.pingGroups ?? [];
     const pingGroup = pingGroups.find(
-      (group) => group.name.toLowerCase() === groupName.toLowerCase(),
+      (group) => group.name.toLowerCase() === roleValue.toLowerCase(),
     );
 
     if (!pingGroup) {
@@ -65,12 +185,12 @@ module.exports = {
       });
     }
 
-    let roleMention = interaction.guild.roles.cache.get(pingGroup.roleId) ?? `<@&${pingGroup.roleId}>`;
+    const roleMention = interaction.guild.roles.cache.get(pingGroup.roleId) ?? `<@&${pingGroup.roleId}>`;
 
     const allowedRoles = pingGroup.allowedRoles ?? [];
     const hasAllowedRole =
       allowedRoles.length === 0 ||
-      allowedRoles.some((roleId) => interaction.member.roles.cache.has(roleId));
+      dockPings.hasHostRole(interaction.member, allowedRoles);
 
     if (!hasAllowedRole) {
       return interaction.reply({
@@ -78,21 +198,13 @@ module.exports = {
         flags: MessageFlags.Ephemeral,
       });
     }
-    const timeInput = interaction.options.getString("time");
     const escapedExtra = extra;
-    let content = `${pingGroup.name} ping from ${interaction.user}`;
-
-    if (party) {
-      content = `(${pingGroup.name}) \`${party.name}\` is happening!`;
-    }
-
-    if (escapedExtra) {
-      content += `\n${escapedExtra}`;
-    }
-
-    if (party) {
-      content += `\n-# Use \`/join ${party.joinCode}\` to join the Discord party`;
-    }
+    const content = buildPingText({
+      name: interaction.client.modules.escapeMarkdown(pingGroup.name),
+      user: interaction.user,
+      party,
+      extra: escapedExtra,
+    });
 
     if (timeInput) {
       const sendAt = interaction.client.modules.timeFiltering.parseTimeInput(timeInput);
@@ -105,9 +217,9 @@ module.exports = {
       }
 
       try {
-        interaction.client.modules.scheduleRolePing(interaction.client, {
+        interaction.client.modules.schedulePing(interaction.client, {
           channelId: interaction.channelId,
-          content,
+          content: `${roleMention} ${content}`,
           roleId: pingGroup.roleId,
           sendAt,
         });
@@ -118,20 +230,13 @@ module.exports = {
         });
       }
 
-      const unixTime = Math.floor(sendAt.getTime() / 1000); // the schedule message will always be a reply to the user so we dont need to mention them
-      let scheduledContent = `${pingGroup.name} **Scheduled** <t:${unixTime}:R>`;
-
-      if (party) {
-        scheduledContent = `(${pingGroup.name}) \`${party.name}\` **Scheduled** <t:${unixTime}:R>`;
-      }
-
-      if (escapedExtra) {
-        scheduledContent += `\n${escapedExtra}`;
-      }
-
-      if (party) {
-        scheduledContent += `\n-# Use \`/join ${party.joinCode}\` to join the Discord party`;
-      }
+      const scheduledContent = buildPingText({
+        name: interaction.client.modules.escapeMarkdown(pingGroup.name),
+        user: interaction.user,
+        party,
+        extra: escapedExtra,
+        sendAt,
+      });
 
       await interaction.reply({
         content: `${roleMention} ${scheduledContent}`,
@@ -150,19 +255,5 @@ module.exports = {
       content: `${roleMention} ${content}`,
       allowedMentions: { roles: [pingGroup.roleId] },
     });
-
-    const message = await interaction.fetchReply();
-
-      if (!interaction.client.dockPingMetadata) {
-        interaction.client.dockPingMetadata = new Map();
-      }
-
-      interaction.client.dockPingMetadata.set(message.id, {
-        content: `${content}`,
-      })
-      setTimeout(() => {
-        interaction.client.dockPingMetadata.delete(message.id);
-      }, 60 * 60 * 1000);
-    
   },
 };

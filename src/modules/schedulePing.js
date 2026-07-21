@@ -1,7 +1,7 @@
 const MAX_DELAY_MS = 2_147_483_647;
 
-function scheduleRolePing(client, options) {
-  const { channelId, content, roleId, sendAt } = options;
+function schedulePing(client, options) {
+  const { channelId, content, roleId, roleIds, sendAt, afterSend } = options;
   const delay = sendAt.getTime() - Date.now();
 
   if (delay <= 0) {
@@ -19,11 +19,15 @@ function scheduleRolePing(client, options) {
 
       const message = await channel.send({
         content,
-        allowedMentions: { roles: [roleId] },
+        allowedMentions: { roles: roleIds ?? [roleId].filter(Boolean) },
       });
 
       if (message.crosspostable) {
         await message.crosspost();
+      }
+
+      if (typeof afterSend === "function") {
+        await afterSend(message);
       }
     } catch (error) {
       console.error("[scheduled-role-ping] Failed to send scheduled ping:", error);
@@ -33,4 +37,4 @@ function scheduleRolePing(client, options) {
   return timeout;
 }
 
-module.exports = scheduleRolePing;
+module.exports = schedulePing;

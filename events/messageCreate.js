@@ -1,6 +1,7 @@
 const { EmbedBuilder, Events, MessageType } = require("discord.js");
 const { ObjectId } = require("mongodb");
 const { reportError } = require("../src/reportError");
+const dockKeywordPings = require("../src/modules/dockKeywordPings");
 
 const configuredDeveloperIds = (process.env.DEV_IDS ?? "")
   .split(",")
@@ -12,26 +13,9 @@ function getMessageText(message) {
   return message?.content || snapshot?.content || "";
 }
 
-function findMatchingKeyword(text, keywords = []) {
-  const normalizedText = text.toLowerCase();
-
-  return keywords.find((keyword) => {
-    const normalizedKeyword = keyword.toLowerCase().trim();
-    if (!normalizedKeyword) return false;
-
-    const escapedKeyword = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(^|\\s)${escapedKeyword}(?=\\s|$)`).test(normalizedText);
-  });
-}
-
-function hasHostRole(member, hostRoleIds) {
-  if (!Array.isArray(hostRoleIds) || hostRoleIds.length === 0) return true;
-  return hostRoleIds.some((roleId) => member?.roles.cache.has(roleId));
-}
-
 module.exports = {
   name: Events.MessageCreate,
-  hasHostRole,
+  hasHostRole: dockKeywordPings.hasHostRole,
   async execute(message) {
     const devAnnounceMatch = message.content?.trim().match(/^!devannounce(?:\s+(.+))?$/i);
     if (devAnnounceMatch) {
@@ -171,6 +155,8 @@ module.exports = {
 
     try {
       const { formatRoleMentions } = message.client.modules.mentions;
+      const dockPings = message.client.modules.dockKeywordPings ?? dockKeywordPings;
+      const annotateMentions = message.client.modules.annotateMentions;
       const uniqueItems = message.client.modules.uniqueItems;
 
       // Threads are connected through their dockThreads record, not as channel followers.
@@ -239,14 +225,13 @@ module.exports = {
               dock.publishMode === "manual"
                 ? getMessageText(manualSelection)
                 : getMessageText(message);
-            const keyword = findMatchingKeyword(dockMessageText, dock.keywords);
-            const userCanHost = hasHostRole(message.member, sendingFollower.hostRoleIds);
+            const keyword = dockPings.findMatchingKeyword(dockMessageText, dock.keywords);
+            const userCanHost = dockPings.hasHostRole(message.member, sendingFollower.hostRoleIds);
 
             if (
               keyword &&
               userCanHost &&
-              (message.client.modules.dockLevels.canPing(sendingFollower.level) ||
-                dock.guildId === message.guildId)
+              dockPings.canTrigger(message.client, dock, message.guildId, sendingFollower)
             ) {
               dockFollowsToPing.push({
                 dock,
@@ -258,7 +243,7 @@ module.exports = {
 
           const matchedKeywords = [...new Set(dockFollowsToPing.map(({ keyword }) => keyword))];
           const matchedPingGroups = (settings.pingGroups ?? []).filter(
-            (group) => group.roleId && findMatchingKeyword(serverPingText, group.keywords),
+            (group) => group.roleId && dockPings.findMatchingKeyword(serverPingText, group.keywords),
           );
 
           if (matchedKeywords.length > 0 || matchedPingGroups.length > 0) {
@@ -268,17 +253,11 @@ module.exports = {
             let pingMessage = null;
 
             if (matchedKeywords.length > 0) {
-              roleIds = uniqueItems(
-                dockFollowsToPing.flatMap(
-                  ({ sendingFollower, keyword }) => sendingFollower.keywordPings?.[keyword] ?? [],
-                ).filter(Boolean),
-              );
+              roleIds = dockPings.getRoleIds(message.client, dockFollowsToPing);
               const dockNames = dockFollowsToPing
                 .map(({ dock }) => message.client.modules.escapeMarkdown(dock.name))
                 .join(", ");
-              const shouldPingOwnServer = dockFollowsToPing.some(
-                ({ sendingFollower }) => sendingFollower.pingOwnServer !== false,
-              ); // By now there are multiple follow objects, so we have to check “Do any of the matched Dock follows enable own-server pings?”
+              const shouldPingOwnServer = dockPings.shouldPingOwnServer(dockFollowsToPing);
               let pingText =
                 `${formatRoleMentions(roleIds)} **${dockNames}** ping triggered by <@${message.author.id}>!`.trim();;
               if (!shouldPingOwnServer) {
@@ -286,8 +265,7 @@ module.exports = {
               }
               pingMessage = await message
                 .reply({
-                  content:
-                    `${pingText}`,
+                  content: annotateMentions(message.client, pingText),
                   allowedMentions: { roles: roleIds, repliedUser: false },
                 })
                 .catch(async (error) => {
@@ -305,8 +283,10 @@ module.exports = {
           
               pingMessage = await message
                 .reply({
-                  content:
+                  content: annotateMentions(
+                    message.client,
                     `${formatRoleMentions(roleIds)} **${label}** ping triggered by <@${message.author.id}>!`.trim(),
+                  ),
                   allowedMentions: { roles: roleIds, repliedUser: false },
                 })
                 .catch(async (error) => {
@@ -321,37 +301,14 @@ module.exports = {
             }
 
             if (matchedKeywords.length > 0 && pingMessage) {
-              if (!message.client.dockPingMetadata) {
-                message.client.dockPingMetadata = new Map();
-              }
-
               // relayMessage checks this map by message id when it adds follower ping roles
               const messageIdToRelay = publishEntries[0]?.messageToPublish.id;
 
               if (messageIdToRelay) {
-                const keywordsByDockId = {};
-                for (const { dock, keyword } of dockFollowsToPing) {
-                  const dockId = dock._id.toString();
-                  keywordsByDockId[dockId] = uniqueItems([
-                    ...(keywordsByDockId[dockId] ?? []),
-                    keyword,
-                  ]);
-                }
-
-                message.client.dockPingMetadata.set(messageIdToRelay, {
-                  username: message.author.username,
-                  keywordsByDockId,
-                });
+                dockPings.remember(message.client, messageIdToRelay, dockFollowsToPing);
                 dockPingThreadMessage = publishEntries[0]?.messageToPublish ?? null;
                 dockPingThreadName =
                   `${dockFollowsToPing.map(({ dock }) => dock.name).join(", ")} ping from ${message.guild?.name ?? "server"}`;
-
-                setTimeout(
-                  () => {
-                    message.client.dockPingMetadata.delete(messageIdToRelay);
-                  },
-                  60 * 60 * 1000,
-                );
               }
             }
           }

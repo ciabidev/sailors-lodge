@@ -1201,7 +1201,7 @@ The bot checks these when publishing/following Docks and reports missing permiss
 - `mentions.js`: formats role mentions.
 - `partyConfigModal.js`: party create/edit modal.
 - `renderPartyCard.js`: party card renderer.
-- `scheduleRolePing.js`: memory-only scheduled role pings.
+- `schedulePing.js`: memory-only scheduled role pings.
 - `sendPartyNotification.js`: DMs party state notifications.
 - `sendPartyTip.js`: DMs the `!a` tip.
 - `serverSettings.js`: validates and updates ping group/settings data.

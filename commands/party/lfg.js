@@ -86,7 +86,7 @@ module.exports = {
       }
 
       try {
-        interaction.client.modules.scheduleRolePing(interaction.client, {
+        interaction.client.modules.schedulePing(interaction.client, {
           channelId: interaction.channelId,
           content,
           roleId: lfgRoleId,

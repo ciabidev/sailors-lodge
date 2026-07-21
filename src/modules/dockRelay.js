@@ -6,6 +6,7 @@ const {
   EmbedBuilder,
 } = require("discord.js");
 const { reportError } = require("../reportError");
+const annotateMentions = require("./annotateMentions");
 const RELAY_CONCURRENCY = 4;
 const WEBHOOK_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -91,7 +92,9 @@ async function repliedToReference({
       name: `Reply to ${original.author.username}`,
       iconURL: original.author.displayAvatarURL(),
     })
-    .setDescription(original.content?.slice(0, 4096) || "*No text content*");
+    .setDescription(
+      annotateMentions(message.client, original.content)?.slice(0, 4096) || "*No text content*",
+    );
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setURL(jumpUrl).setLabel(jumpLabel).setStyle(ButtonStyle.Link),
   );
@@ -143,7 +146,7 @@ async function reportDockRelayError(
     const thread = threadId ? await client.modules.fetchChannel(client, threadId) : null;
     const channel = channelId
       ? await client.modules.fetchChannel(client, channelId)
-      : thread?.parent ?? null;
+      : (thread?.parent ?? null);
 
     await client.modules.dockBotPerms.sendMissingPermissionNotice(client, channel, {
       thread,
@@ -301,7 +304,8 @@ function getForwardedSnapshot(message) {
 
 function getRelayContent(message, options = {}) {
   const snapshot = getForwardedSnapshot(message);
-  const content = options.content || message.content || snapshot?.content || null;
+  const rawContent = options.content || message.content || snapshot?.content || null;
+  const content = annotateMentions(message.client, rawContent);
 
   if (!snapshot || !content) return content;
   // append a > to the beginning of the content. the quote should encapsulate the entire message
@@ -725,15 +729,30 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           : username;
       const components = getRelayComponents(message);
       const content = components.length ? "" : getRelayContent(message, options);
+      const pingRoles = relayDockPing
+        ? uniqueItems(
+            dockPingKeywords
+              .flatMap((keyword) => receivingFollower.keywordPings?.[keyword] ?? [])
+              .filter(Boolean),
+          )
+        : [];
+      const relayContent =
+        relayDockPing && options.sendAsBot && pingRoles.length
+          ? `${formatRoleMentions(pingRoles)} ${content}`.trim()
+          : content;
+      const allowedMentions = { users: [message.author.id] };
+      if (options.sendAsBot) {
+        allowedMentions.roles = pingRoles;
+      }
 
       const messagePayload = {
         username: formattedUsername,
         avatarURL: message.author.displayAvatarURL(),
-        content,
-        embeds: getRelayEmbeds(message, content),
+        content: relayContent,
+        embeds: getRelayEmbeds(message, relayContent),
         files: getRelayFiles(message),
         components,
-        allowedMentions: { users: [message.author.id] },
+        allowedMentions,
         flags: components.length ? [MessageFlags.IsComponentsV2] : undefined,
       };
 
@@ -745,27 +764,39 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           messagePayload.components = [reply.row];
         }
       }
-      const relayedMessage = await sendWithDockWebhook({
-        client: message.client,
-        channel,
-        dockFollower: receivingFollower,
-        payload: messagePayload,
-        source: "dock-relay-message",
-      });
+      let relayedMessage;
+      if (relayDockPing && options.sendAsBot) {
+        const botPayload = { ...messagePayload };
+        delete botPayload.username;
+        delete botPayload.avatarURL;
+        relayedMessage = await channel.send(botPayload).catch(async (error) => {
+          await reportDockRelayError(error, {
+            client: message.client,
+            channelId: channel.id,
+            source: "dock-relay-inline-ping",
+          });
+          return null;
+        });
+      } else {
+        relayedMessage = await sendWithDockWebhook({
+          client: message.client,
+          channel,
+          dockFollower: receivingFollower,
+          payload: messagePayload,
+          source: "dock-relay-message",
+        });
+      }
       if (!relayedMessage) return;
-      let pingRoles = [];
 
-      if (relayDockPing) {
-        pingRoles = uniqueItems(
-          dockPingKeywords
-            .flatMap((keyword) => receivingFollower.keywordPings?.[keyword] ?? [])
-            .filter(Boolean),
-        );
+      if (relayDockPing && !options.sendAsBot) {
         const dockName = message.client.modules.escapeMarkdown(dock.name);
-        const pingContent = `${dockName} ping triggered by ${dockPing.username}!`;
+        const pingNotice = annotateMentions(
+          message.client,
+          `**${dockName}** ping triggered by <@${message.author.id}>!`,
+        );
         messagePayload.content = pingRoles.length
-          ? `${formatRoleMentions(pingRoles)} ${pingContent}`
-          : pingContent;
+          ? `${formatRoleMentions(pingRoles)} ${pingNotice}`
+          : pingNotice;
 
         messagePayload.allowedMentions.roles = pingRoles;
         delete messagePayload.username;

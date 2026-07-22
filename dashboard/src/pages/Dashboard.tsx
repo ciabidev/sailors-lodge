@@ -964,9 +964,7 @@ function FollowEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {dock.follow ? "Server settings" : `Follow ${dock.name}`}
-          </DialogTitle>
+          <DialogTitle>{dock.follow ? "Server settings" : `Follow ${dock.name}`}</DialogTitle>
           <DialogDescription>
             {home
               ? "Choose who can trigger keyword pings and which local roles are pinged."
@@ -977,7 +975,10 @@ function FollowEditor({
           {!home && (
             <TagPicker
               label="Receiving channel"
-              options={guild.channels.map((channel) => ({ value: channel.id, label: `#${channel.name}` }))}
+              options={guild.channels.map((channel) => ({
+                value: channel.id,
+                label: `#${channel.name}`,
+              }))}
               values={channelId ? [channelId] : []}
               onChange={(values) => setChannelId(values[0] || "")}
               placeholder="Search channels…"
@@ -990,12 +991,15 @@ function FollowEditor({
             options={guild.roles.map((role) => ({ value: role.id, label: role.name }))}
             values={hostRoleIds}
             onChange={setHostRoleIds}
-            placeholder="Everyone can trigger keyword pings"
+            placeholder="Search roles…"
             emptyText="No roles matched"
           />
           <p className="-mt-2 text-xs text-[#a5adce]">
             Members need one of these roles to trigger Dock keyword pings. Leave empty for everyone.
           </p>
+          <h3 id="keyword-pings" className="mb-0 text-base font-semibold text-[#c6d0f5]">
+            Keyword ping mappings
+          </h3>
           {dock.keywords.map((keyword) => (
             <TagPicker
               key={keyword}
@@ -1012,6 +1016,9 @@ function FollowEditor({
               This Dock has no keywords, so no ping roles can be assigned.
             </p>
           )}
+          <h3 id="misc-follow-settings" className="text-base font-semibold text-[#c6d0f5]">
+            Misc
+          </h3>
           {!home && (
             <div className="flex items-center justify-between rounded-lg border border-[#626880]/70 p-4">
               <div>
@@ -1046,7 +1053,10 @@ function FollowEditor({
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={() => mutation.mutate()} disabled={(!home && !channelId) || mutation.isPending}>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={(!home && !channelId) || mutation.isPending}
+          >
             {mutation.isPending && <LoaderCircle className="size-4 animate-spin" />}
             {dock.follow ? "Save settings" : "Save follow"}
           </Button>

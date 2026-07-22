@@ -804,7 +804,7 @@ function DockEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{dock ? "Edit Dock" : "Publish a Dock"}</DialogTitle>
+          <DialogTitle>{dock ? `Edit Dock: ${dock.name}` : "Publish a Dock"}</DialogTitle>
           <DialogDescription>
             Choose source channels, forwarding behavior, and follower access.
           </DialogDescription>
@@ -964,7 +964,9 @@ function FollowEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{dock.follow ? "Server settings" : `Follow ${dock.name}`}</DialogTitle>
+          <DialogTitle>
+            {dock.follow ? `Server Settings for ${dock.name}` : `Follow ${dock.name}`}
+          </DialogTitle>
           <DialogDescription>
             {home
               ? "Choose who can trigger keyword pings and which local roles are pinged."
@@ -1145,7 +1147,7 @@ function FollowersDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-w-3xl flex-col gap-6">
         <DialogHeader className="mb-0">
-          <DialogTitle>Manage followers</DialogTitle>
+          <DialogTitle>Manage Followers for {dock?.name}</DialogTitle>
           <DialogDescription>
             Approve requests and manage access to {dock?.name}.
           </DialogDescription>

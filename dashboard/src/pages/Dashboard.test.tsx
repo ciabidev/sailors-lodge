@@ -334,7 +334,9 @@ describe('Dashboard Docks', () => {
     fireEvent.click(await screen.findByRole('link', { name: 'Published' }));
     expect(await screen.findByRole('heading', { name: 'Published Docks' })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Server settings' }));
-    expect(await screen.findByRole('heading', { name: 'Server settings' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: `Server Settings for ${dock.name}` }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Host roles')).toBeInTheDocument();
     const voiceInvites = screen.getByRole('switch', { name: 'Share voice invite links' });
     expect(voiceInvites).not.toBeChecked();
@@ -357,7 +359,9 @@ describe('Dashboard Docks', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Manage Followers' }));
 
-    expect(await screen.findByRole('heading', { name: 'Manage followers' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: `Manage Followers for ${dock.name}` }),
+    ).toBeInTheDocument();
     expect(await screen.findByText('Follower Harbor')).toBeInTheDocument();
     expect(screen.getByText('Requesting Harbor')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Access level for Follower Harbor'), {

@@ -916,12 +916,14 @@ function FollowEditor({
 }) {
   const [channelId, setChannelId] = useState("");
   const [pingOwnServer, setPingOwnServer] = useState(true);
+  const [shareVoiceInvites, setShareVoiceInvites] = useState(false);
   const [hostRoleIds, setHostRoleIds] = useState<string[]>([]);
   const [pings, setPings] = useState<Record<string, string[]>>({});
   const home = dock?.guildId === guild.id;
   useEffect(() => {
     setChannelId(dock?.follow?.channelIds[0] || "");
     setPingOwnServer(dock?.follow?.pingOwnServer !== false);
+    setShareVoiceInvites(dock?.follow?.shareVoiceInvites === true);
     setHostRoleIds(dock?.follow?.hostRoleIds || []);
     setPings(
       Object.fromEntries(
@@ -934,7 +936,7 @@ function FollowEditor({
   }, [dock, open]);
   const mutation = useMutation({
     mutationFn: () => {
-      const settings = { keywordPings: pings, hostRoleIds, pingOwnServer };
+      const settings = { keywordPings: pings, hostRoleIds, pingOwnServer, shareVoiceInvites };
       return home
         ? saveHomePings(guild.id, dock!.id, settings)
         : saveFollow(guild.id, dock!.id, {
@@ -1025,6 +1027,20 @@ function FollowEditor({
               />
             </div>
           )}
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-[#626880]/70 p-4">
+            <div>
+              <p className="text-sm font-medium text-[#c6d0f5]">Share voice invite links</p>
+              <p className="mt-1 text-xs text-[#a5adce]">
+                When someone triggers this Dock's ping from voice chat, create a temporary invite
+                for receiving servers. Requires the bot to have Create Invite permission.
+              </p>
+            </div>
+            <Switch
+              aria-label="Share voice invite links"
+              checked={shareVoiceInvites}
+              onCheckedChange={setShareVoiceInvites}
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>

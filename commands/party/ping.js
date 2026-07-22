@@ -1,20 +1,16 @@
 const { SlashCommandSubcommandBuilder, MessageFlags } = require("discord.js");
 // a really messy command, honestly dont know how this still works lol
-function buildPingText({ name, user, party, extra, sendAt }) {
+function buildPingText({ name, user, voiceChannel, party, extra, sendAt }) {
   const lines = [
-    `**${name}** ping from ${user}${sendAt ? ` **Scheduled** <t:${Math.floor(sendAt.getTime() / 1000)}:R>` : ""}`,
+    `**${name}** ping from ${user}${voiceChannel ? ` in **${voiceChannel}**` : ""}${sendAt ? ` **Scheduled** <t:${Math.floor(sendAt.getTime() / 1000)}:R>` : ""}`,
   ];
-
-  if (party) {
-    lines.push(`\`${party.name}\` is happening!`);
-  }
 
   if (extra) {
     lines.push(extra);
   }
 
   if (party) {
-    lines.push(`-# Use \`/join ${party.joinCode}\` to join the Discord party`);
+    lines.push(`-# Use \`/join ${party.joinCode}\` to join **${party.name}** (Discord party)`);
   }
 
   return lines.join("\n");
@@ -78,6 +74,12 @@ module.exports = {
     const party = await interaction.client.modules.db.getCurrentParty(interaction.user.id);
     const timeInput = interaction.options.getString("time");
     const dockPings = interaction.client.modules.dockKeywordPings;
+    const voiceChannel = interaction.client.modules.voiceChannelLabel(
+      interaction.client,
+      interaction.member,
+      interaction.guildId,
+    );
+    const voiceChannelId = interaction.member?.voice?.channelId;
 
     const dockPing = await dockPings.resolveChoice(interaction, roleValue);
     if (dockPing) {
@@ -94,6 +96,7 @@ module.exports = {
       const content = buildPingText({
         name: interaction.client.modules.escapeMarkdown(dock.name),
         user: interaction.user,
+        voiceChannel,
         party,
         extra: escapedExtra,
       });
@@ -125,7 +128,7 @@ module.exports = {
               dockPings.remember(interaction.client, message.id, dockEntries);
               await interaction.client.modules.dockRelay.relayMessage(
                 message,
-                { content, sendAsBot: true },
+                { content, sendAsBot: true, voiceChannelId },
                 sendingFollower,
               );
             },
@@ -140,6 +143,7 @@ module.exports = {
         const scheduledContent = buildPingText({
           name: interaction.client.modules.escapeMarkdown(dock.name),
           user: interaction.user,
+          voiceChannel,
           party,
           extra: escapedExtra,
           sendAt,
@@ -166,7 +170,7 @@ module.exports = {
       dockPings.remember(interaction.client, message.id, dockEntries);
       await interaction.client.modules.dockRelay.relayMessage(
         message,
-        { content, sendAsBot: true },
+        { content, sendAsBot: true, voiceChannelId },
         sendingFollower,
       );
       return;
@@ -202,6 +206,7 @@ module.exports = {
     const content = buildPingText({
       name: interaction.client.modules.escapeMarkdown(pingGroup.name),
       user: interaction.user,
+      voiceChannel,
       party,
       extra: escapedExtra,
     });
@@ -233,6 +238,7 @@ module.exports = {
       const scheduledContent = buildPingText({
         name: interaction.client.modules.escapeMarkdown(pingGroup.name),
         user: interaction.user,
+        voiceChannel,
         party,
         extra: escapedExtra,
         sendAt,

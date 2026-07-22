@@ -158,6 +158,11 @@ module.exports = {
       const dockPings = message.client.modules.dockKeywordPings ?? dockKeywordPings;
       const annotateMentions = message.client.modules.annotateMentions;
       const uniqueItems = message.client.modules.uniqueItems;
+      const voiceChannel = message.client.modules.voiceChannelLabel(
+        message.client,
+        message.member,
+        message.guildId,
+      );
 
       // Threads are connected through their dockThreads record, not as channel followers.
       // Route them before the normal channel lookup or they will have no relay jobs.
@@ -259,7 +264,7 @@ module.exports = {
                 .join(", ");
               const shouldPingOwnServer = dockPings.shouldPingOwnServer(dockFollowsToPing);
               let pingText =
-                `${formatRoleMentions(roleIds)} **${dockNames}** ping triggered by <@${message.author.id}>!`.trim();;
+                `${formatRoleMentions(roleIds)} **${dockNames}** ping triggered by <@${message.author.id}>${voiceChannel ? ` in ${voiceChannel}` : ""}!`.trim();;
               if (!shouldPingOwnServer) {
                 pingText = `Dock ping relayed`.trim();
               }
@@ -285,7 +290,7 @@ module.exports = {
                 .reply({
                   content: annotateMentions(
                     message.client,
-                    `${formatRoleMentions(roleIds)} **${label}** ping triggered by <@${message.author.id}>!`.trim(),
+                    `${formatRoleMentions(roleIds)} **${label}** ping triggered by <@${message.author.id}>${voiceChannel ? ` in **${voiceChannel}**` : ""}!`.trim(),
                   ),
                   allowedMentions: { roles: roleIds, repliedUser: false },
                 })

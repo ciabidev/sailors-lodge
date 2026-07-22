@@ -349,10 +349,12 @@ test('dashboard follow requests notify Discord gatekeepers with approval actions
       keywordPings: {},
       hostRoleIds: ['role-1'],
       pingOwnServer: true,
+      shareVoiceInvites: true,
     });
   assert.equal(response.status, 200);
   assert.equal(response.body.follow.level, 'no-access');
   assert.deepEqual(response.body.follow.hostRoleIds, ['role-1']);
+  assert.equal(response.body.follow.shareVoiceInvites, true);
   assert.equal(notices.length, 1);
   assert.deepEqual(notices[0].guildIds, ['publisher']);
   assert.equal(notices[0].components[1].components.length, 2);

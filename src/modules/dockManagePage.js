@@ -25,6 +25,15 @@ async function matchesSearch(client, search, dock) {
 }
 
 module.exports = async function dockManagePage({ client, state }) {
+  const dashboardBase = (
+    process.env.PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    ""
+  ).replace(/\/+$/, "");
+  const dashboardUrl = dashboardBase
+    ? `${dashboardBase}/dashboard/${state.guildId}/docks`
+    : null;
   let followedDocks = await client.modules.db.getFollowedDocksForGuild(state.guildId);
   let publishedDocks = await client.modules.db.getPublishedDocksForGuild(state.guildId);
 
@@ -79,7 +88,7 @@ module.exports = async function dockManagePage({ client, state }) {
 
   const container = new ContainerBuilder().addTextDisplayComponents((text) =>
     text.setContent(
-      `## ${title}${state.search ? `\n-# Results for **${client.modules.escapeMarkdown(state.search)}**` : ""}`,
+      `## ${title}\n-# To manage more server settings, use the ${dashboardUrl ? `[dashboard](${dashboardUrl})` : "dashboard"}.${state.search ? `\n-# Results for **${client.modules.escapeMarkdown(state.search)}**` : ""}`,
     ),
   );
 

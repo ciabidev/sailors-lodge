@@ -14,6 +14,7 @@ const {
   PermissionFlagsBits,
 } = require("discord.js");
 const Sentry = require("@sentry/node");
+const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL;
 const { ObjectId } = require("mongodb");
 const {
   buildReportErrorComponents,
@@ -358,7 +359,7 @@ module.exports = {
             .map((channel) => `<#${channel.id}>`)
             .join(
               ", ",
-            )}. \nPlease use \`/dock manage\` to configure your Home Ping Roles, Default Permission Levels and more. `,
+            )}. \n**Next step:** Please configure your server settings and roles in [your dashboard](${dashboardUrl}) or with \`/dock manage.\``,
           flags: MessageFlags.Ephemeral,
         });
       }

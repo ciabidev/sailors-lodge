@@ -336,7 +336,23 @@ describe('Dashboard Docks', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Server settings' }));
     expect(await screen.findByRole('heading', { name: 'Server settings' })).toBeInTheDocument();
     expect(screen.getByText('Host roles')).toBeInTheDocument();
+    const voiceInvites = screen.getByRole('switch', { name: 'Share voice invite links' });
+    expect(voiceInvites).not.toBeChecked();
     expect(screen.queryByRole('switch', { name: 'Ping roles for local messages' })).not.toBeInTheDocument();
+    fireEvent.click(voiceInvites);
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: `/api/guilds/guild-1/docks/${dock.id}/home-pings`,
+        method: 'PUT',
+        body: {
+          keywordPings: { 'dark sea': [] },
+          hostRoleIds: [],
+          pingOwnServer: true,
+          shareVoiceInvites: true,
+        },
+      });
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     fireEvent.click(await screen.findByRole('button', { name: 'Manage Followers' }));

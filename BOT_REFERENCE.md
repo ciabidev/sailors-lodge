@@ -261,6 +261,7 @@ Created for both the publishing server and follower servers:
   hostRoleIds,
   keywordPings,
   pingOwnServer,
+  shareVoiceInvites,
   level,
   banned,
   banReason,
@@ -1019,6 +1020,7 @@ Dock keywords:
 - Require one of the sending server's configured Host Roles when that list is not empty.
 - Look up each receiving follower's `keywordPings`.
 - May ping receiving roles when relaying the message.
+- May include a one-hour voice-channel invite for other servers when the sending server enables `shareVoiceInvites` in the dashboard.
 - Can create a thread for Dock ping discussion.
 
 ### Replies

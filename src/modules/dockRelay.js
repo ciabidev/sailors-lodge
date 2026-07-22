@@ -693,6 +693,17 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
     dockPingKeywords.length > 0 &&
     (dock.guildId === sendingFollower.guildId ||
       message.client.modules.dockLevels.canPing(sendingFollower.level));
+  const voiceChannelId = options.voiceChannelId ?? message.member?.voice?.channelId;
+  const voiceInviteUrl =
+    relayDockPing &&
+    sendingFollower.shareVoiceInvites === true &&
+    receivingFollowers.some((follower) => follower.guildId !== message.guildId)
+      ? await message.client.modules.voiceChannelInvite(
+          message.client,
+          message.guildId,
+          voiceChannelId,
+        )
+      : null;
   const { formatRoleMentions } = message.client.modules.mentions;
   const uniqueItems = message.client.modules.uniqueItems;
 
@@ -728,7 +739,12 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
           ? Array.from(username).slice(0, 76).join("") + "..."
           : username;
       const components = getRelayComponents(message);
-      const content = components.length ? "" : getRelayContent(message, options);
+      let content = components.length ? "" : getRelayContent(message, options);
+      const externalVoiceInvite =
+        receivingFollower.guildId !== message.guildId ? voiceInviteUrl : null;
+      if (externalVoiceInvite && content) {
+        content = `${content}[ ٰ](${externalVoiceInvite})`;
+      }
       const pingRoles = relayDockPing
         ? uniqueItems(
             dockPingKeywords
@@ -790,9 +806,18 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
 
       if (relayDockPing && !options.sendAsBot) {
         const dockName = message.client.modules.escapeMarkdown(dock.name);
+        const voiceChannel = voiceChannelId
+          ? `<#${voiceChannelId}>`
+          : message.client.modules.voiceChannelLabel(
+              message.client,
+              message.member,
+              message.guildId,
+            );
+        const voiceSuffix = voiceChannel ? ` in ${voiceChannel}` : "";
+        const inviteSuffix = externalVoiceInvite ? `[ ٰ](${externalVoiceInvite})` : ""; // invisible invite link for aesthetics
         const pingNotice = annotateMentions(
           message.client,
-          `**${dockName}** ping triggered by <@${message.author.id}>!`,
+          `**${dockName}** ping triggered by <@${message.author.id}>${voiceSuffix}${inviteSuffix}`,
         );
         messagePayload.content = pingRoles.length
           ? `${formatRoleMentions(pingRoles)} ${pingNotice}`

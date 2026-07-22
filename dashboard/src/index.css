@@ -57,7 +57,10 @@ button, select { cursor: pointer; }
 .hero-copy > :nth-child(3) { animation-delay: 160ms; }
 .hero-copy > :nth-child(4) { animation-delay: 240ms; }
 .hero-copy > :nth-child(5) { animation-delay: 320ms; }
-.scroll-cue svg { animation: cue 1.8s ease-in-out infinite; }
+.server-marquee-mask { width: 100%; overflow: hidden; mask-image: linear-gradient(to right, transparent, black 7%, black 93%, transparent); }
+.server-marquee-track { display: flex; width: max-content; animation: server-marquee 38s linear infinite; will-change: transform; }
+.server-marquee-reverse { animation-direction: reverse; animation-duration: 44s; }
+.server-marquee-group { display: flex; gap: .75rem; padding-right: .75rem; }
 .reveal { opacity: 0; transform: translateY(2rem); filter: blur(4px); transition: opacity .7s ease, transform .7s ease, filter .7s ease; }
 .reveal[data-visible="true"] { opacity: 1; transform: translateY(0); filter: blur(0); }
 .reveal .feature-card { opacity: 0; }
@@ -75,8 +78,25 @@ button, select { cursor: pointer; }
 .select-field option { background: var(--ctp-mantle); color: var(--ctp-text); }
 
 @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes cue { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(.45rem); } }
+@keyframes server-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @keyframes grid-drift { to { background-position: 72px 72px; } }
 @keyframes orbit { from { transform: translate3d(-2rem, -1rem, 0) scale(.9); } to { transform: translate3d(2rem, 1rem, 0) scale(1.08); } }
 @keyframes chart-route { to { stroke-dashoffset: -1; } }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } .reveal, .reveal .feature-card { opacity: 1; transform: none; filter: none; } }
+@media (max-height: 720px) and (max-width: 639px) {
+  .landing-hero { padding-top: 5.5rem; padding-bottom: .5rem; }
+  .landing-hero .hero-copy h1 { font-size: 1.75rem; }
+  .landing-hero .hero-subtitle { margin-top: .75rem; font-size: .875rem; line-height: 1.35; }
+  .landing-hero .hero-actions { margin-top: 1rem; }
+  .landing-hero .hero-assurances { display: none; }
+  .landing-hero .server-marquee { margin-top: 1rem; }
+  .landing-hero .server-marquee > p { margin-bottom: .5rem; }
+  .landing-hero .server-marquee-group > div { height: 2.25rem; min-width: 11rem; }
+  .landing-hero .server-marquee-group img,
+  .landing-hero .server-marquee-group div > span:first-child { width: 1.75rem; height: 1.75rem; }
+}
+@media (max-height: 640px) and (max-width: 639px) {
+  .landing-hero .hero-copy h1 { font-size: 1.5rem; }
+  .landing-hero .hero-subtitle { display: none; }
+  .landing-hero .hero-actions a { height: 2.25rem; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } .reveal, .reveal .feature-card { opacity: 1; transform: none; filter: none; } .server-marquee-track { animation: none !important; transform: none !important; } }

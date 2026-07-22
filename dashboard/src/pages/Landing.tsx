@@ -1,6 +1,5 @@
 import {
   Anchor,
-  ArrowDown,
   ArrowRight,
   BellRing,
   Crown,
@@ -25,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ExternalAnchor } from "@/components/ui/external-anchor";
+import { getPublicServers, type PublicServer } from "@/lib/api";
 const features = [
   {
     icon: Network,
@@ -94,7 +94,7 @@ function Reveal({ children, className = "" }: { children: ReactNode; className?:
         element.dataset.visible = "true";
         observer.disconnect();
       },
-      { threshold: 0.12, rootMargin: "0px 0px -8%" },
+      { threshold: 0.10, rootMargin: "0px 0px -3%" },
     );
     observer.observe(element);
     return () => observer.disconnect();
@@ -360,13 +360,110 @@ export function PublicHeader() {
   );
 }
 
+const memberFormatter = new Intl.NumberFormat("en-US");
+
+function ServerCard({ server }: { server: PublicServer }) {
+  return (
+    <div className="flex h-15 min-w-52 max-w-64 items-center gap-3 rounded-xl border border-[#626880]/60 bg-[#292c3c]/90 px-3 text-left shadow-sm backdrop-blur-sm">
+      {server.iconURL ? (
+        <img
+          src={server.iconURL}
+          alt=""
+          className="size-10 shrink-0 rounded-lg bg-[#414559] object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#414559] text-[#8caaee]">
+          <Users className="size-4" aria-hidden="true" />
+        </span>
+      )}
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-[#c6d0f5]">{server.name}</span>
+        <span className="block text-xs text-[#a5adce]">
+          {memberFormatter.format(server.memberCount)} members
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function ServerRow({ servers, reverse = false }: { servers: PublicServer[]; reverse?: boolean }) {
+  const count = Math.max(servers.length, 6);
+  const cards = Array.from({ length: count }, (_, index) => servers[index % servers.length]);
+
+  return (
+    <div className="server-marquee-mask">
+      <div className={`server-marquee-track${reverse ? " server-marquee-reverse" : ""}`}>
+        {[0, 1].map((copy) => (
+          <div key={copy} className="server-marquee-group" aria-hidden={copy === 1}>
+            {cards.map((server, index) => (
+              <ServerCard key={`${copy}-${server.name}-${index}`} server={server} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ServerMarquee({ servers }: { servers: PublicServer[] | null }) {
+  if (!servers) {
+    return (
+      <div className="server-marquee mt-7 w-full" aria-hidden="true">
+        {[0, 1].map((row) => (
+          <div key={row} className="mb-2 flex justify-center gap-3 overflow-hidden">
+            {Array.from({ length: 5 }, (_, index) => (
+              <div key={index} className="h-12 min-w-52 animate-pulse rounded-xl bg-[#414559]/60" />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (!servers.length) return null;
+
+  const first = servers.filter((_, index) => index % 2 === 0);
+  const second = servers.filter((_, index) => index % 2 === 1);
+
+  return (
+    <section
+      className="server-marquee mt-7 w-full"
+      aria-label="Discord communities using Sailor's Lodge"
+    >
+      <p className="mb-3 text-xs font-semibold uppercase tracking-[.16em]">
+        trusted by your favorite communities
+      </p>
+      <div className="space-y-2">
+        <ServerRow servers={first.length ? first : servers} />
+        <ServerRow servers={second.length ? second : servers} reverse />
+      </div>
+    </section>
+  );
+}
+
 export function Landing() {
+  const [servers, setServers] = useState<PublicServer[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getPublicServers()
+      .then((response) => {
+        if (active) setServers(response.servers);
+      })
+      .catch(() => {
+        if (active) setServers([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen overflow-hidden bg-[#303446] text-[#c6d0f5]">
       <PublicHeader />
 
       <main>
-        <section className="relative flex min-h-screen items-center overflow-hidden px-5 pb-12 pt-28 text-center sm:px-8">
+        <section className="landing-hero relative flex min-h-[100svh] items-center overflow-hidden px-0 pb-5 pt-24 text-center sm:pt-28">
           <div className="hero-grid absolute inset-0 -z-10 opacity-45" />
           <div aria-hidden="true" className="hero-orb hero-orb-one" />
           <div aria-hidden="true" className="hero-orb hero-orb-two" />
@@ -389,17 +486,16 @@ export function Landing() {
               <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="5" />
             ))}
           </svg>
-          <div className="mx-auto flex w-full max-w-5xl flex-col items-center">
-            <div className="hero-copy flex max-w-4xl flex-col items-center">
-              <h1 className="font-display text-5xl font-semibold leading-[1.02] text-[#c6d0f5] sm:text-7xl lg:text-8xl">
+          <div className="mx-auto flex w-full max-w-7xl flex-col items-center">
+            <div className="hero-copy flex max-w-4xl flex-col items-center px-5 sm:px-8">
+              <h1 className="font-display font-semibold leading-[1.02] text-[#c6d0f5] sm:text-6xl lg:text-7xl xl:text-7xl">
                 for arcane odyssey communities, parties and hunts
               </h1>
-              <p className="mt-7 max-w-3xl text-lg leading-8 text-[#b5bfe2] sm:text-xl">
-                you no longer have to join a specific clan or service server to find parties and
-                hunts. fully <ExternalAnchor href="https://github.com/ciabidev/sailors-lodge">open source</ExternalAnchor>.
+              <p className="hero-subtitle mt-5 max-w-3xl text-base leading-7 text-[#b5bfe2] sm:text-xl sm:leading-8">
+                you no longer have to join a specific server or guild/clan to find parties and hunts. fully <ExternalAnchor href="https://github.com/ciabidev/sailors-lodge">open source</ExternalAnchor>.
               </p>
               
-              <div className="mt-9 flex flex-wrap justify-center gap-3">
+              <div className="hero-actions mt-7 flex flex-wrap justify-center gap-3">
                 <Button
                   size="lg"
                   asChild
@@ -413,21 +509,14 @@ export function Landing() {
                   <Link to="/dashboard">Manage Servers</Link>
                 </Button>
               </div>
-              <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-[#a5adce]">
+              <div className="hero-assurances mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-[#a5adce]">
                 <span className="flex items-center gap-1.5">
                   <ShieldCheck className="size-4 text-[#8caaee]" /> Every server keeps control
                 </span>
                 <span>Local roles, channels, and approvals</span>
               </div>
             </div>
-            <a
-              href="#features"
-              className="scroll-cue mt-16 inline-flex flex-col items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-[#a5adce] transition hover:text-[#c6d0f5]"
-              aria-label="Scroll to explore features"
-            >
-              Explore
-              <ArrowDown className="size-5" />
-            </a>
+            <ServerMarquee servers={servers} />
           </div>
         </section>
 

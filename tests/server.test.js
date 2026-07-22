@@ -101,6 +101,19 @@ test('public status reports shard usage and connection health', async () => {
   });
 });
 
+test('public server list exposes display details without requiring a session', async () => {
+  const response = await request(app({ server: guild() })).get('/api/servers');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['cache-control'], 'public, max-age=300');
+  assert.deepEqual(response.body, {
+    servers: [{
+      name: 'Test Harbor',
+      iconURL: 'https://cdn.discordapp.com/icons/guild-1/icon.png',
+      memberCount: 12,
+    }],
+  });
+});
+
 test('protected API routes reject anonymous requests', async () => {
   const response = await request(app()).get('/api/me');
   assert.equal(response.status, 401);

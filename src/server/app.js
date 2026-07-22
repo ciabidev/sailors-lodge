@@ -352,6 +352,18 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
     res.json({ operational: shards.length > 0 && shards.every((shard) => shard.operational), shards });
   });
 
+  app.get('/api/servers', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=300');
+    const servers = [...client.guilds.cache.values()]
+      .map((guild) => ({
+        name: guild.name,
+        iconURL: guild.iconURL?.({ extension: 'webp', size: 64 }) || null,
+        memberCount: Math.max(0, Number(guild.memberCount) || 0),
+      }))
+      .sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
+    res.json({ servers });
+  });
+
   app.get('/invite', (req, res) => {
     const clientId = process.env.DEV_MODE === 'true' ? process.env.DEV_CLIENT_ID : process.env.PRODUCTION_CLIENT_ID;
     if (!clientId) return jsonError(res, 503, 'The bot invite is not configured.');

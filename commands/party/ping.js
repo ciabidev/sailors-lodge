@@ -44,7 +44,10 @@ module.exports = {
     const focusedValue = interaction.options.getFocused();
 
     if (focusedOption.name === "time") {
-      const choices = interaction.client.modules.timeFiltering.filterTimeChoices(focusedValue);
+      const timeZone = await interaction.client.modules.db.getUserTimezone(interaction.user.id);
+      const choices = timeZone
+        ? interaction.client.modules.timeFiltering.filterTimeChoices(focusedValue, timeZone)
+        : [{ name: "Set your timezone with /timezone set first", value: "TIMEZONE_REQUIRED" }];
       return interaction.respond(choices);
     }
 
@@ -80,6 +83,15 @@ module.exports = {
       interaction.guildId,
     );
     const voiceChannelId = interaction.member?.voice?.channelId;
+    const timeZone = timeInput
+      ? await interaction.client.modules.db.getUserTimezone(interaction.user.id)
+      : null;
+    if (timeInput && !timeZone) {
+      return interaction.reply({
+        content: "Set your timezone with `/timezone set` before scheduling a ping.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
 
     const dockPing = await dockPings.resolveChoice(interaction, roleValue);
     if (dockPing) {
@@ -109,7 +121,11 @@ module.exports = {
       const pingContent = `${roleMentions} ${content}`.trim();
 
       if (timeInput) {
-        const sendAt = interaction.client.modules.timeFiltering.parseTimeInput(timeInput);
+        const sendAt = interaction.client.modules.timeFiltering.parseTimeInput(
+          timeInput,
+          new Date(),
+          timeZone,
+        );
 
         if (!sendAt || Number.isNaN(sendAt.getTime())) {
           return interaction.reply({
@@ -212,7 +228,11 @@ module.exports = {
     });
 
     if (timeInput) {
-      const sendAt = interaction.client.modules.timeFiltering.parseTimeInput(timeInput);
+      const sendAt = interaction.client.modules.timeFiltering.parseTimeInput(
+        timeInput,
+        new Date(),
+        timeZone,
+      );
 
       if (!sendAt || Number.isNaN(sendAt.getTime())) {
         return interaction.reply({

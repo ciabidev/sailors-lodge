@@ -65,7 +65,7 @@ Bot variables:
 - `ISSUES` or `ISSUES_URL`: issue board URL shown in command error replies.
 - `SENTRY_DSN`: Sentry project DSN.
 - `SENTRY_ENVIRONMENT`: Sentry environment name.
-- `SCHEDULE_TIME_ZONE`: optional timezone for scheduled ping parsing, default `America/New_York`.
+- `SCHEDULE_TIME_ZONE`: fallback timezone for internal scheduled-time formatting, default `America/New_York`. User-created schedules require a timezone saved with `/timezone set`.
 
 Deployment:
 
@@ -106,6 +106,7 @@ Connection module: `src/modules/db.js`
 Collections:
 
 - `serverSettings`: per-guild ping groups, keyword toggle, and LFG role.
+- `userSettings`: per-user timezone used for scheduled pings.
 - `parties`: active/deleted party documents and tracked party card messages.
 - `docks`: published Dock definitions.
 - `dockFollows`: follower records, receiving channels, Host Roles, keyword ping roles, and follower access levels.
@@ -127,6 +128,7 @@ Startup migrations:
 Indexes:
 
 - `serverSettings.guildId`
+- `userSettings.userId` (unique)
 - `parties.members.id`
 - `parties.deleted, parties.createdAt`
 - `docks.guildId`
@@ -400,6 +402,10 @@ Shows:
 
 It pings MongoDB with `{ ping: 1 }`.
 
+### `/timezone set timezone:<zone>`
+
+Saves an IANA timezone on the Discord user, such as `America/Chicago`. A saved timezone is required before using scheduled `/party ping` or `/party lfg` times. Natural-language clock times and autocomplete are interpreted in that timezone.
+
 ### `/reload`
 
 Developer-only command.
@@ -609,6 +615,8 @@ Content:
 
 Scheduling:
 
+- Requires the user to configure `/timezone set` first.
+- Natural-language times are parsed in the user's saved timezone.
 - If `time` is supplied, schedules a role ping with `setTimeout`.
 - Scheduled pings must be in the future.
 - Scheduled pings must be within 24 days.

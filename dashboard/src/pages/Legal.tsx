@@ -42,7 +42,7 @@ function LegalPage({
           </div>
         </div>
         <p className="mt-6 max-w-3xl text-base leading-7 text-[#a5adce] sm:text-lg">{intro}</p>
-        <p className="mt-3 text-sm text-[#838ba7]">Last updated July 19, 2026</p>
+        <p className="mt-3 text-sm text-[#838ba7]">Last updated July 21, 2026</p>
 
         <Card className="mt-10 border-[#626880]/60 bg-[#292c3c] p-6 sm:p-10">{children}</Card>
       </main>
@@ -79,6 +79,7 @@ export function PrivacyPolicy() {
         <p>To make its Discord features work, it may process:</p>
         <ul className="list-disc space-y-2 pl-6 marker:text-[#8caaee]">
           <li>Discord user IDs, usernames, display names, and avatars.</li>
+          <li>Your saved timezone when you configure scheduled pings.</li>
           <li>
             Server names and IDs, channel and thread IDs, role IDs, permissions, and server
             settings.

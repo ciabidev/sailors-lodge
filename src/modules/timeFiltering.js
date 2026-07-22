@@ -45,12 +45,28 @@ function getTimeZoneOffsetMinutes(date = new Date(), timeZone = scheduleTimeZone
   return Math.round((zonedTimeAsUtc - date.getTime()) / 60000);
 }
 
-function getParsingReference(now = new Date()) {
+function getParsingReference(now = new Date(), timeZone = scheduleTimeZone) {
   const instant = now instanceof Date ? now : new Date(now);
   return {
     instant,
-    timezone: getTimeZoneOffsetMinutes(instant),
+    timezone: getTimeZoneOffsetMinutes(instant, timeZone),
   };
+}
+
+function fromWallTime(date, referenceOffset, timeZone) {
+  const wallTime = date.getTime() + referenceOffset * 60_000;
+  let instant = wallTime;
+
+  // Timezone offsets can change between the parsing reference and the target
+  // date because of daylight saving time. Re-evaluate until the instant settles.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const offset = getTimeZoneOffsetMinutes(new Date(instant), timeZone);
+    const next = wallTime - offset * 60_000;
+    if (next === instant) break;
+    instant = next;
+  }
+
+  return new Date(instant);
 }
 
 function getRelativeTimeString(targetDate, now = Date.now()) {
@@ -77,12 +93,12 @@ function getRelativeTimeString(targetDate, now = Date.now()) {
   return `${absMinutes} minute${absMinutes > 1 ? "s" : ""} ago`;
 }
 
-function filterTimeChoices(focusedValue) {
+function filterTimeChoices(focusedValue, timeZone = scheduleTimeZone) {
   const search = String(focusedValue ?? "").trim();
   let targetDate = new Date();
 
   if (search.length > 0) {
-    const parsedDate = parseTimeInput(search, targetDate);
+    const parsedDate = parseTimeInput(search, targetDate, timeZone);
     if (!parsedDate) {
       return [{ name: `Searching/Parsing: "${search}"...`.slice(0, 100), value: "INVALID" }];
     }
@@ -91,13 +107,17 @@ function filterTimeChoices(focusedValue) {
   }
 
   const timestamp = targetDate.getTime().toString();
-  const formatTimeOnly = targetDate.toLocaleTimeString("en-US", timeOptions);
+  const options = { ...timeOptions, timeZone };
+  const formatTimeOnly = targetDate.toLocaleTimeString("en-US", options);
   const formatMedium = targetDate.toLocaleString("en-US", {
     dateStyle: "long",
     timeStyle: "short",
-    timeZone: scheduleTimeZone,
+    timeZone,
   });
-  const longDateStr = targetDate.toLocaleDateString("en-US", dateOptionsLong);
+  const longDateStr = targetDate.toLocaleDateString("en-US", {
+    ...dateOptionsLong,
+    timeZone,
+  });
   const formatLongComplete = `${longDateStr} at ${formatTimeOnly}`;
   const formatRelative = getRelativeTimeString(targetDate);
 
@@ -113,7 +133,7 @@ function filterTimeChoices(focusedValue) {
     .slice(0, 25);
 }
 
-function parseTimeInput(value, now = new Date()) {
+function parseTimeInput(value, now = new Date(), timeZone = scheduleTimeZone) {
   const input = String(value ?? "").trim();
   if (!input) return null;
 
@@ -124,7 +144,14 @@ function parseTimeInput(value, now = new Date()) {
     }
   }
 
-  return chrono.parseDate(input, getParsingReference(now), { forwardDate: true });
+  const reference = getParsingReference(now, timeZone);
+  const [result] = chrono.parse(input, reference, { forwardDate: true });
+  if (!result) return null;
+
+  const parsed = result.date();
+  return result.start.isCertain("timezoneOffset")
+    ? parsed
+    : fromWallTime(parsed, reference.timezone, timeZone);
 }
 
 module.exports = {

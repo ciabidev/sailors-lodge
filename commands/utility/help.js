@@ -22,7 +22,7 @@ module.exports = {
           ),
         (text) =>
           text.setContent(
-            "### Pinging players\n- `/party ping role:<group> [extra] [time]` — Ping a Ping Group from this server for your party (or at a scheduled time)\n- `/party lfg extra:<text> [time]` — Ping this server's Looking For Group role now or later.\n-# Server admins configure these with `/settings help`.",
+            "### Pinging players\n- `/party ping role:<group> [extra] [time]` — Ping a Ping Group from this server for your party (or at a scheduled time)\n- `/party lfg extra:<text> [time]` — Ping this server's Looking For Group role now or later.\n- `/timezone set timezone:<zone>` — Set your timezone before using scheduled pings.\n-# Server admins configure these with `/settings help`.",
           ),
         (text) =>
           text.setContent(

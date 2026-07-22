@@ -210,6 +210,7 @@ async function migrateDockDefaultLevels() {
 async function ensureIndexes() {
   await Promise.all([
     getCollection("serverSettings").createIndex({ guildId: 1 }),
+    getCollection("userSettings").createIndex({ userId: 1 }, { unique: true }),
     getCollection("parties").createIndex({ "members.id": 1 }),
     getCollection("parties").createIndex({ deleted: 1, createdAt: 1 }),
     getCollection("docks").createIndex({ guildId: 1 }),
@@ -267,6 +268,20 @@ async function setSettings(guildId, settings) {
   );
 
   return serverSettings.findOne({ guildId });
+}
+
+async function getUserTimezone(userId) {
+  const settings = await getCollection("userSettings").findOne({ userId });
+  return settings?.timeZone ?? null;
+}
+
+async function setUserTimezone(userId, timeZone) {
+  await getCollection("userSettings").updateOne(
+    { userId },
+    { $set: { timeZone, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
+    { upsert: true },
+  );
+  return timeZone;
 }
 
 // create party
@@ -954,6 +969,8 @@ async function addDockThreadDeliveries(dockId, rootThreadId, deliveries) {
 module.exports = {
   getSettings,
   setSettings,
+  getUserTimezone,
+  setUserTimezone,
   getParties,
   initDb,
   ready,

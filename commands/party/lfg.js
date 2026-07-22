@@ -22,7 +22,10 @@ module.exports = {
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
-    const choices = interaction.client.modules.timeFiltering.filterTimeChoices(focusedValue);
+    const timeZone = await interaction.client.modules.db.getUserTimezone(interaction.user.id);
+    const choices = timeZone
+      ? interaction.client.modules.timeFiltering.filterTimeChoices(focusedValue, timeZone)
+      : [{ name: "Set your timezone with /timezone set first", value: "TIMEZONE_REQUIRED" }];
 
     await interaction.respond(choices);
   },
@@ -76,7 +79,18 @@ module.exports = {
     }
 
     if (timeInput) {
-      const sendAt = interaction.client.modules.timeFiltering.parseTimeInput(timeInput);
+      const timeZone = await interaction.client.modules.db.getUserTimezone(interaction.user.id);
+      if (!timeZone) {
+        return interaction.reply({
+          content: "Set your timezone with `/timezone set` before scheduling a ping.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+      const sendAt = interaction.client.modules.timeFiltering.parseTimeInput(
+        timeInput,
+        new Date(),
+        timeZone,
+      );
 
       if (!sendAt || Number.isNaN(sendAt.getTime())) {
         return interaction.reply({

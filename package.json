@@ -19,7 +19,7 @@
     "start": "node index.js",
     "postinstall": "node deploy-commands.js",
     "dev": "concurrently -n bot,web -c blue,cyan \"npm:dev:bot\" \"npm:dev:web\"",
-    "dev:bot": "nodemon index.js",
+    "dev:bot": "node deploy-commands.js && nodemon index.js",
     "dev:web": "vite --config dashboard/vite.config.ts",
     "build": "vite build --config dashboard/vite.config.ts",
     "test": "node --test tests/*.test.js && vitest run --config dashboard/vite.config.ts",

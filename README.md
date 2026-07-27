@@ -29,7 +29,7 @@ After adding the bot:
 - Send party announcements and notifications directly to party members.
 - Recruit immediately or schedule a ping for later with server-configured ping groups and Looking For Group roles.
 - Connect your community or personal server to live boards from other Discord servers through Docks.
-- Configure ping roles, allowed roles, and optional keyword triggers specifically for your server.
+- Configure ping roles, allowed roles, allowed channels, and optional keyword triggers specifically for your server.
 
 ## Party cards
 

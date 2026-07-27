@@ -62,8 +62,7 @@ async function getChoices(interaction, focusedValue = "") {
   return dockChoices
     .filter(({ dock, sendingFollower }) =>
       dock &&
-      canTrigger(interaction.client, dock, interaction.guildId, sendingFollower) &&
-      hasHostRole(interaction.member, sendingFollower.hostRoleIds)
+      canTrigger(interaction.client, dock, interaction.guildId, sendingFollower)
     )
     .flatMap(({ dock }) =>
       (dock.keywords ?? []).map((keyword, index) => ({

@@ -162,6 +162,19 @@ function cleanStrings(values, max = 25, maxLength = 100) {
   return cleaned.length <= max ? cleaned : null;
 }
 
+function settingsJson(settings) {
+  return {
+    lfgRoleId: settings.lfgRoleId || null,
+    keywordPingsEnabled: settings.keywordPingsEnabled !== false,
+    pingGroups: (Array.isArray(settings.pingGroups) ? settings.pingGroups : []).map((group) => ({
+      ...group,
+      allowedRoles: Array.isArray(group.allowedRoles) ? group.allowedRoles : [],
+      allowedChannels: Array.isArray(group.allowedChannels) ? group.allowedChannels : [],
+      keywords: Array.isArray(group.keywords) ? group.keywords : [],
+    })),
+  };
+}
+
 function shardStatus(client) {
   const guilds = [...client.guilds.cache.values()];
   const shards = client.ws?.shards?.size
@@ -611,11 +624,7 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
             .sort((a, b) => a.rawPosition - b.rawPosition)
             .map((channel) => ({ id: channel.id, name: channel.name })),
         },
-        settings: {
-          lfgRoleId: settings.lfgRoleId || null,
-          keywordPingsEnabled: settings.keywordPingsEnabled !== false,
-          pingGroups: settings.pingGroups || [],
-        },
+        settings: settingsJson(settings),
         counts: {
           published: published.length,
           following: follows.filter(isActiveFollow).length,
@@ -652,18 +661,20 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
           const name = typeof group.name === 'string' ? group.name.trim() : '';
           const key = name.toLowerCase();
           const allowedRoles = cleanStrings(group.allowedRoles || [], 25, 32);
+          const allowedChannels = cleanStrings(group.allowedChannels || [], 25, 32);
           const keywords = cleanStrings(group.keywords || [], 25, 100);
           if (!name || name.length > 100 || seen.has(key)) return jsonError(res, 400, 'Every ping group needs a unique name up to 100 characters.');
           if (typeof group.roleId !== 'string') return jsonError(res, 400, `Choose a ping role for “${name}”.`);
           if (!access.guild.roles.cache.has(group.roleId)) return jsonError(res, 400, `The ping role for “${name}” no longer exists.`);
           if (!allowedRoles || allowedRoles.some((id) => !access.guild.roles.cache.has(id))) return jsonError(res, 400, `An allowed role for “${name}” no longer exists.`);
+          if (!allowedChannels || allowedChannels.some((id) => ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(access.guild.channels.cache.get(id)?.type))) return jsonError(res, 400, `An allowed channel for “${name}” no longer exists.`);
           if (!keywords) return jsonError(res, 400, `“${name}” has too many keywords.`);
           seen.add(key);
-          update.pingGroups.push({ name, roleId: group.roleId, allowedRoles, keywords });
+          update.pingGroups.push({ name, roleId: group.roleId, allowedRoles, allowedChannels, keywords });
         }
       }
       const settings = await db.setSettings(access.guild.id, update);
-      return res.json({ settings: { lfgRoleId: settings.lfgRoleId || null, keywordPingsEnabled: settings.keywordPingsEnabled !== false, pingGroups: settings.pingGroups || [] } });
+      return res.json({ settings: settingsJson(settings) });
     } catch (error) {
       return next(error);
     }

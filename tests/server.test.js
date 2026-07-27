@@ -210,6 +210,35 @@ test('direct guild API access requires a Discord management permission', async (
   assert.equal(response.status, 403);
 });
 
+test('ping group settings persist allowed channels', async () => {
+  const server = guild({ permissions: [PermissionFlagsBits.ManageGuild] });
+  let savedSettings = { lfgRoleId: null, keywordPingsEnabled: true, pingGroups: [] };
+  const response = await request(app({
+    server,
+    db: {
+      setSettings: async (_guildId, update) => {
+        savedSettings = { ...savedSettings, ...update };
+        return savedSettings;
+      },
+    },
+  }))
+    .patch('/api/guilds/guild-1/settings')
+    .set('Cookie', sessionCookie())
+    .send({
+      pingGroups: [{
+        name: 'Boss hunts',
+        roleId: 'role-1',
+        allowedRoles: [],
+        allowedChannels: ['channel-1'],
+        keywords: ['dragon'],
+      }],
+    });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(savedSettings.pingGroups[0].allowedChannels, ['channel-1']);
+  assert.deepEqual(response.body.settings.pingGroups[0].allowedChannels, ['channel-1']);
+});
+
 test('Dock cards refresh missing guild banners from Discord', async () => {
   const server = guild({ permissions: [PermissionFlagsBits.ManageChannels] });
   const dockId = new ObjectId();

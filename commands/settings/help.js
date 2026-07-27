@@ -9,21 +9,21 @@ module.exports = {
     const container = new ContainerBuilder()
       .addTextDisplayComponents((text) =>
         text.setContent(
-          "# Server settings help\nThese settings apply **only to this Discord server**. Ping groups, allowed roles, keywords, and the LFG role are not shared with other servers or Docks.",
+          "# Server settings help\nThese settings apply **only to this Discord server**. Ping groups, allowed roles, allowed channels, keywords, and the LFG role are not shared with other servers or Docks.",
         ),
       )
       .addTextDisplayComponents(
         (text) =>
           text.setContent(
-            "## Ping-group glossary\n- **Ping group:** A server-specific group that can be pigned by `/party ping` or keywords.\n- **Ping role:** The role mentioned when the group is used.\n- **Allowed roles:** Roles allowed to ping that group; leave this empty to allow everyone.\n- **Keywords:** Comma-separated words or phrases that can trigger the group's ping from messages in this server. No keywords are added automatically.",
+            "## Ping-group glossary\n- **Ping group:** A server-specific group that can be pigned by `/party ping` or keywords.\n- **Ping role:** The role mentioned when the group is used.\n- **Allowed roles:** Roles allowed to ping that group; leave this empty to allow everyone.\n- **Allowed channels:** Channels where `/party ping` and keyword pings can trigger the group; leave this empty to allow every text channel.\n- **Keywords:** Comma-separated words or phrases that can trigger the group's ping from messages in this server. No keywords are added automatically.",
           ),
         (text) =>
           text.setContent(
-            "### `/settings ping add`\nCreate a ping group for this server and choose its name, ping role, optional allowed role, and optional keywords.",
+            "### `/settings ping add`\nCreate a ping group for this server and choose its name, ping role, optional allowed role, optional allowed channel, and optional keywords.",
           ),
         (text) =>
           text.setContent(
-            "### `/settings ping edit`\nUpdate a group from this server. You can rename it, change its ping role, add an allowed role, or replace its keywords.",
+            "### `/settings ping edit`\nUpdate a group from this server. You can rename it, change its ping role, add an allowed role or channel, or replace its keywords.",
           ),
         (text) =>
           text.setContent(
@@ -31,7 +31,7 @@ module.exports = {
           ),
         (text) =>
           text.setContent(
-            "### `/settings ping list`\nShow this server's ping groups, ping roles, allowed roles, and keywords.",
+            "### `/settings ping list`\nShow this server's ping groups, ping roles, allowed roles, allowed channels, and keywords.",
           ),
         (text) =>
           text.setContent(

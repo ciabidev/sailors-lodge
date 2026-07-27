@@ -2,6 +2,7 @@ const {
   SlashCommandSubcommandGroupBuilder,
   MessageFlags,
   PermissionsBitField,
+  ChannelType,
   ContainerBuilder,
   TextDisplayBuilder,
 } = require("discord.js");
@@ -31,6 +32,13 @@ module.exports = {
           option
             .setName("allowedroles")
             .setDescription("The roles allowed to ping this group.")
+            .setRequired(false),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName("allowedchannel")
+            .setDescription("A channel where this group can be pinged.")
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
             .setRequired(false),
         )
         .addStringOption((option) =>
@@ -75,6 +83,13 @@ module.exports = {
           option
             .setName("pingrole")
             .setDescription("The role pinged when this group is pinged")
+            .setRequired(false),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName("allowedchannel")
+            .setDescription("Add a channel where this group can be pinged.")
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
             .setRequired(false),
         )
         .addRoleOption((option) =>
@@ -138,6 +153,7 @@ module.exports = {
       const name = interaction.options.getString("name")?.trim();
       const role = interaction.options.getRole("pingrole");
       const allowedRole = interaction.options.getRole("allowedroles");
+      const allowedChannel = interaction.options.getChannel("allowedchannel");
       const keywordsRaw = interaction.options.getString("keywords");
 
       if (!name || !role) {
@@ -165,6 +181,7 @@ module.exports = {
         name,
         roleId: role.id,
         allowedRoles: allowedRole ? [allowedRole.id] : [],
+        allowedChannels: allowedChannel ? [allowedChannel.id] : [],
         keywords,
       };
 
@@ -211,6 +228,7 @@ module.exports = {
       const newname = interaction.options.getString("newname")?.trim();
       const role = interaction.options.getRole("pingrole");
       const allowedRole = interaction.options.getRole("allowedroles");
+      const allowedChannel = interaction.options.getChannel("allowedchannel");
       const keywordsRaw = interaction.options.getString("keywords");
 
       const index = pingGroups.findIndex((group) => group.name === name);
@@ -221,7 +239,7 @@ module.exports = {
         });
       }
 
-      if (!role && !allowedRole && !keywordsRaw && !newname) {
+      if (!role && !allowedRole && !allowedChannel && !keywordsRaw && !newname) {
         return interaction.reply({
           content: "Provide at least one field to update.",
           flags: MessageFlags.Ephemeral,
@@ -253,6 +271,9 @@ module.exports = {
         ...(allowedRole && {
           allowedRoles: [...new Set([...(pingGroups[index].allowedRoles ?? []), allowedRole.id])],
         }),
+        ...(allowedChannel && {
+          allowedChannels: [...new Set([...(pingGroups[index].allowedChannels ?? []), allowedChannel.id])],
+        }),
         ...(keywords && { keywords }),
       };
 
@@ -263,12 +284,15 @@ module.exports = {
         const none = (value) => value || "None";
         const role = (id) => (id ? `<@&${id}>` : "None");
         const roles = (ids = []) => (ids.length ? ids.map(role).join(", ") : "None");
+        const channel = (id) => (id ? `<#${id}>` : "None");
+        const channels = (ids = []) => (ids.length ? ids.map(channel).join(", ") : "None");
         const list = (items = []) => (items.length ? items.join(", ") : "None");
 
         [
           ["Name", oldGroup.name, updatedGroup.name, none],
           ["Ping role", oldGroup.roleId, updatedGroup.roleId, role],
           ["Allowed roles", oldGroup.allowedRoles ?? [], updatedGroup.allowedRoles ?? [], roles],
+          ["Allowed channels", oldGroup.allowedChannels ?? [], updatedGroup.allowedChannels ?? [], channels],
           ["Keywords", oldGroup.keywords ?? [], updatedGroup.keywords ?? [], list],
         ]
           .filter(([, oldValue, newValue]) => JSON.stringify(oldValue) !== JSON.stringify(newValue))
@@ -316,10 +340,14 @@ module.exports = {
           Array.isArray(group.keywords) && group.keywords.length
             ? group.keywords.join(", ")
             : "None";
+        const allowedChannels =
+          Array.isArray(group.allowedChannels) && group.allowedChannels.length
+            ? group.allowedChannels.map((channelId) => `<#${channelId}>`).join(", ")
+            : "Any channel";
 
         container.addTextDisplayComponents((t) =>
           t.setContent(
-            `## ${interaction.client.modules.escapeMarkdown(group.name)}\nPing role: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nKeywords: ${interaction.client.modules.escapeMarkdown(keywords)}`,
+            `## ${interaction.client.modules.escapeMarkdown(group.name)}\nPing role: <@&${group.roleId}>\nAllowed Roles: ${allowedRoles}\nAllowed channels: ${allowedChannels}\nKeywords: ${interaction.client.modules.escapeMarkdown(keywords)}`,
           ),
         );
       }

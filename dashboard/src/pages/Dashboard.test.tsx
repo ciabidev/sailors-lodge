@@ -76,11 +76,15 @@ describe('Dashboard Docks', () => {
     const configuredGuild = {
       ...guild,
       roles: [{ id: 'role-1', name: 'Hunters', color: '#ffffff' }],
+      channels: [
+        ...guild.channels,
+        { id: 'boss-channel', name: 'boss-hunts' },
+      ],
     };
     const settings = {
       lfgRoleId: null,
       keywordPingsEnabled: true,
-      pingGroups: [{ name: 'Boss hunts', roleId: 'role-1', allowedRoles: [], keywords: ['dragon'] }],
+      pingGroups: [{ name: 'Boss hunts', roleId: 'role-1', allowedRoles: [], allowedChannels: [], keywords: ['dragon'] }],
     };
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -107,12 +111,16 @@ describe('Dashboard Docks', () => {
     fireEvent.change(screen.getByLabelText('Ping keywords'), {
       target: { value: 'dragon,\nluck party\ndragon' },
     });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Allowed channels' }), {
+      target: { value: 'boss' },
+    });
+    fireEvent.click(await screen.findByRole('option', { name: '#boss-hunts' }));
 
     expect(screen.getByText(/2\/25/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save group' }));
 
     await waitFor(() => expect(saved).toMatchObject({
-      pingGroups: [{ keywords: ['dragon', 'luck party'] }],
+      pingGroups: [{ allowedChannels: ['boss-channel'], keywords: ['dragon', 'luck party'] }],
     }));
   });
 

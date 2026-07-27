@@ -248,7 +248,11 @@ module.exports = {
 
           const matchedKeywords = [...new Set(dockFollowsToPing.map(({ keyword }) => keyword))];
           const matchedPingGroups = (settings.pingGroups ?? []).filter(
-            (group) => group.roleId && dockPings.findMatchingKeyword(serverPingText, group.keywords),
+            (group) =>
+              group.roleId &&
+              (!(group.allowedChannels ?? []).length || group.allowedChannels.includes(message.channelId)) &&
+              dockPings.hasHostRole(message.member, group.allowedRoles) &&
+              dockPings.findMatchingKeyword(serverPingText, group.keywords),
           );
 
           if (matchedKeywords.length > 0 || matchedPingGroups.length > 0) {

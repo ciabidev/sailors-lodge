@@ -173,6 +173,7 @@ Ping group shape:
   name,
   roleId,
   allowedRoles: [],
+  allowedChannels: [],
   keywords: []
 }
 ```
@@ -605,6 +606,7 @@ Rules:
 - Ping group must exist.
 - If `allowedRoles` is empty, anyone can ping it.
 - If `allowedRoles` is set, the user must have at least one allowed role.
+- If `allowedChannels` is set, the command must be used in one of those channels.
 
 Content:
 
@@ -685,6 +687,7 @@ Explains server-only settings:
 - Ping groups.
 - Ping role.
 - Allowed roles.
+- Allowed channels.
 - Keywords.
 - Keyword ping toggle.
 - LFG role.

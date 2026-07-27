@@ -518,13 +518,32 @@ function ServerSettings({ data, refresh }: { data: GuildData; refresh: () => voi
   );
 }
 
-const emptyGroup: PingGroup = { name: "", roleId: "", allowedRoles: [], keywords: [] };
+const emptyGroup: PingGroup = {
+  name: "",
+  roleId: "",
+  allowedRoles: [],
+  allowedChannels: [],
+  keywords: [],
+};
+
+function normalizePingGroup(group: PingGroup): PingGroup {
+  return {
+    ...group,
+    allowedRoles: group.allowedRoles ?? [],
+    allowedChannels: group.allowedChannels ?? [],
+    keywords: group.keywords ?? [],
+  };
+}
+
 function PingGroups({ data, refresh }: { data: GuildData; refresh: () => void }) {
-  const [groups, setGroups] = useState(data.settings.pingGroups);
+  const [groups, setGroups] = useState(data.settings.pingGroups.map(normalizePingGroup));
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState<PingGroup>(emptyGroup);
   const [keywordsText, setKeywordsText] = useState("");
-  useEffect(() => setGroups(data.settings.pingGroups), [data.settings.pingGroups]);
+  useEffect(
+    () => setGroups(data.settings.pingGroups.map(normalizePingGroup)),
+    [data.settings.pingGroups],
+  );
   const save = useMutation({
     mutationFn: (next: PingGroup[]) => saveSettings(data.guild.id, { pingGroups: next }),
     onSuccess: ({ settings }) => {
@@ -544,12 +563,18 @@ function PingGroups({ data, refresh }: { data: GuildData; refresh: () => void })
       />
     );
   function open(group?: PingGroup, index?: number) {
+    const normalizedGroup = group && normalizePingGroup(group);
     setDraft(
-      group
-        ? { ...group, allowedRoles: [...group.allowedRoles], keywords: [...group.keywords] }
+      normalizedGroup
+        ? {
+            ...normalizedGroup,
+            allowedRoles: [...normalizedGroup.allowedRoles],
+            allowedChannels: [...normalizedGroup.allowedChannels],
+            keywords: [...normalizedGroup.keywords],
+          }
         : emptyGroup,
     );
-    setKeywordsText(group?.keywords.join("\n") || "");
+    setKeywordsText(normalizedGroup?.keywords.join("\n") || "");
     setEditing(index ?? -1);
   }
   function commit() {
@@ -625,6 +650,16 @@ function PingGroups({ data, refresh }: { data: GuildData; refresh: () => void })
                     <span className="text-sm text-[#a5adce]">No keyword triggers</span>
                   )}
                 </div>
+                <p className="mb-5 text-sm text-[#a5adce]">
+                  Allowed channels: {group.allowedChannels.length
+                    ? group.allowedChannels
+                        .map(
+                          (channelId) =>
+                            `#${data.guild.channels.find((channel) => channel.id === channelId)?.name || channelId}`,
+                        )
+                        .join(", ")
+                    : "Any channel"}
+                </p>
                 <div className="flex gap-2">
                   <Button size="sm" variant="secondary" onClick={() => open(group, index)}>
                     Edit
@@ -691,6 +726,16 @@ function PingGroups({ data, refresh }: { data: GuildData; refresh: () => void })
               placeholder="Search roles to allow…"
               emptyText="No roles matched"
               hint="Leave empty to let anyone use this group."
+            />
+            <TagPicker
+              label="Allowed channels"
+              options={data.guild.channels.map((channel) => ({ value: channel.id, label: `#${channel.name}` }))}
+              values={draft.allowedChannels}
+              onChange={(allowedChannels) => setDraft({ ...draft, allowedChannels })}
+              placeholder="Search channels to allow…"
+              emptyText="No channels matched"
+              hint="Leave empty to allow this group in any text channel."
+              max={25}
             />
             <div className="space-y-2">
               <Label htmlFor="group-keywords">Ping keywords</Label>

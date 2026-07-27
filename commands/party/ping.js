@@ -54,7 +54,11 @@ module.exports = {
     const settings = await interaction.client.modules.db.getSettings(interaction.guildId);
     const pingGroups = settings.pingGroups ?? [];
     const groupChoices = pingGroups
-      .filter((group) => group.name.toLowerCase().startsWith(focusedValue.toLowerCase()))
+      .filter(
+        (group) =>
+          (!(group.allowedChannels ?? []).length || group.allowedChannels.includes(interaction.channelId)) &&
+          group.name.toLowerCase().startsWith(focusedValue.toLowerCase()),
+      )
       .map((group) => ({ name: group.name, value: group.name }));
     const dockChoices = await interaction.client.modules.dockKeywordPings.getChoices(
       interaction,
@@ -201,6 +205,14 @@ module.exports = {
     if (!pingGroup) {
       return interaction.reply({
         content: "That ping group does not exist.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    const allowedChannels = pingGroup.allowedChannels ?? [];
+    if (allowedChannels.length && !allowedChannels.includes(interaction.channelId)) {
+      return interaction.reply({
+        content: `This ${pingGroup.name} ping can only be used in: ${allowedChannels.map((channelId) => `<#${channelId}>`).join(", ")}`,
         flags: MessageFlags.Ephemeral,
       });
     }

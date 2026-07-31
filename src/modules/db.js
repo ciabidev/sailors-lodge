@@ -1,7 +1,7 @@
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const dockLevels = require("./dockLevels");
 const mongoUri = process.env.MONGO_URI;
-const devMode = process.env.DEV_MODE === 'true';
+const environment = process.env.ENVIRONMENT ?? "production";
 
 const mongoClient = new MongoClient(mongoUri, {
   serverApi: {
@@ -24,8 +24,7 @@ async function initDb() {
 
   initPromise = (async () => {
     await mongoClient.connect();
-    const mongoDbName = devMode ? "development" : "production";
-    db = mongoClient.db(mongoDbName);
+    db = mongoClient.db(environment);
     // await migrateServerSettings();
     await deleteExpiredParties();
     if (!cleanupSchedulerStarted) {

@@ -378,7 +378,7 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
   });
 
   app.get('/invite', (req, res) => {
-    const clientId = process.env.DEV_MODE === 'true' ? process.env.DEV_CLIENT_ID : process.env.PRODUCTION_CLIENT_ID;
+    const clientId = client.user?.id;
     if (!clientId) return jsonError(res, 503, 'The bot invite is not configured.');
     const query = new URLSearchParams({ client_id: clientId, scope: 'bot applications.commands' });
     if (/^\d{17,20}$/.test(String(req.query.guild_id || ''))) {
@@ -394,7 +394,7 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
   });
 
   app.get('/auth/discord', (_req, res) => {
-    const clientId = process.env.AUTH_DISCORD_ID;
+    const clientId = client.user?.id;
     if (!clientId || !process.env.AUTH_DISCORD_SECRET || !secret()) {
       return jsonError(res, 503, 'Discord sign-in is not configured.');
     }
@@ -412,6 +412,8 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
 
   app.get('/auth/discord/callback', async (req, res, next) => {
     try {
+      const clientId = client.user?.id;
+      if (!clientId) return jsonError(res, 503, 'Discord sign-in is not configured.');
       const saved = cookies(req)[STATE_COOKIE];
       const [savedState, signature] = (saved || '').split('.');
       if (!hasValidSignature(savedState, signature) || savedState !== req.query.state) {
@@ -424,7 +426,7 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
         body: new URLSearchParams({
           grant_type: 'authorization_code',
           code: String(req.query.code || ''),
-          client_id: process.env.AUTH_DISCORD_ID,
+          client_id: clientId,
           client_secret: process.env.AUTH_DISCORD_SECRET,
           redirect_uri: `${appUrl()}/auth/discord/callback`,
         }),

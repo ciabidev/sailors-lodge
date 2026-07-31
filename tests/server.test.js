@@ -10,9 +10,7 @@ const { ObjectId } = require('mongodb');
 process.env.NODE_ENV = 'test';
 process.env.AUTH_SECRET = 'test-secret-long-enough-for-signing';
 process.env.PUBLIC_APP_URL = 'http://localhost:3002';
-process.env.AUTH_DISCORD_ID = '123456789';
 process.env.AUTH_DISCORD_SECRET = 'oauth-secret';
-process.env.PRODUCTION_CLIENT_ID = '987654321098765432';
 
 const { createApp, encodeDiscordToken, encodeSession } = require('../src/server/app');
 
@@ -56,6 +54,7 @@ function app({ ready = true, staticDir = 'missing-test-static-dir', server = nul
   const cache = new Collection();
   if (server) cache.set(server.id, server);
   const client = {
+    user: { id: '987654321098765432' },
     isReady: () => ready,
     uptime: 90_000,
     ws: { status: ready ? 0 : 5, ping: 42 },
@@ -136,6 +135,7 @@ test('OAuth uses PUBLIC_APP_URL for the Discord callback', async () => {
   assert.equal(response.status, 302);
   const authorize = new URL(response.headers.location);
   assert.equal(authorize.origin, 'https://discord.com');
+  assert.equal(authorize.searchParams.get('client_id'), '987654321098765432');
   assert.equal(authorize.searchParams.get('redirect_uri'), 'http://localhost:3002/auth/discord/callback');
   assert.equal(authorize.searchParams.get('scope'), 'identify guilds');
 });
@@ -144,6 +144,7 @@ test('bot setup invite targets the selected server', async () => {
   const response = await request(app()).get('/invite?guild_id=123456789012345678');
   assert.equal(response.status, 302);
   const authorize = new URL(response.headers.location);
+  assert.equal(authorize.searchParams.get('client_id'), '987654321098765432');
   assert.equal(authorize.searchParams.get('guild_id'), '123456789012345678');
   assert.equal(authorize.searchParams.get('disable_guild_select'), 'true');
 });

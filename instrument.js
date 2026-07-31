@@ -7,7 +7,7 @@ const sentryDsn = process.env.SENTRY_DSN;
 Sentry.init({
   dsn: sentryDsn,
   enabled: Boolean(sentryDsn) && process.env.NODE_ENV !== "test",
-  environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? "production",
+  environment: process.env.ENVIRONMENT ?? "production",
   sendDefaultPii: false,
   tracePropagationTargets: [],
   integrations: [
@@ -16,7 +16,7 @@ Sentry.init({
   ],
   tracesSampler: ({ name, inheritOrSampleWith }) => {
     if (name === "GET /" || name.includes("health")) return 0;
-    return inheritOrSampleWith(process.env.NODE_ENV === "development" ? 1 : 0.1);
+    return inheritOrSampleWith(process.env.ENVIRONMENT === "development" ? 1 : 0.1);
   },
   beforeSend(event) {
     // Discord and HTTP payloads may contain message text, tokens, or user data.

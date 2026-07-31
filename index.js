@@ -1,3 +1,4 @@
+require("dotenv").config();
 require("./instrument");
 const Sentry = require("@sentry/node");
 const { reportError } = require("./src/reportError");
@@ -6,7 +7,6 @@ const { startServer } = require("./src/server/app");
 // INDEX.JS COPY PASTE TEMPLATE
 
 // Require the necessary discord.js classes
-require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
 const {
@@ -18,8 +18,7 @@ const {
   Partials,
   DefaultWebSocketManagerOptions,
 } = require("discord.js");
-const devMode = process.env.DEV_MODE === 'true';
-const token = devMode === true ? process.env.DEV_TOKEN : process.env.PRODUCTION_TOKEN;
+const token = process.env.DISCORD_TOKEN;
 
 // Create a new client instance
 const client = new Client({

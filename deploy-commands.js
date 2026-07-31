@@ -1,28 +1,18 @@
 // Make sure to run node deploy-commands.js in the same directory as your bot's source code!
 
 require('dotenv').config();
-const { REST, Routes, SlashCommandSubcommandBuilder, SlashCommandBuilder } = require("discord.js");
+const {
+  Client,
+  REST,
+  Routes,
+  SlashCommandSubcommandBuilder,
+  SlashCommandBuilder,
+} = require("discord.js");
 
-const guildId = process.env.GUILD_ID;
-const devMode = process.env.DEV_MODE === 'true';
-const productionToken = process.env.PRODUCTION_TOKEN;
-const devToken = process.env.DEV_TOKEN;
-const productionClientId = process.env.PRODUCTION_CLIENT_ID;
-const devClientId = process.env.DEV_CLIENT_ID;
+const token = process.env.DISCORD_TOKEN;
 
-console.log("dev mode: " + devMode);
-
-const token = devMode === true ? devToken : productionToken;
-const clientId = devMode === true ? devClientId : productionClientId;
-const effectiveGuildId = devMode === true ? guildId : undefined;
-const missingVars = [];
-
-if (!token) missingVars.push(devMode ? "DEV_TOKEN" : "PRODUCTION_TOKEN");
-if (!clientId) missingVars.push(devMode ? "DEV_CLIENT_ID" : "PRODUCTION_CLIENT_ID");
-if (devMode && !effectiveGuildId) missingVars.push("GUILD_ID");
-
-if (missingVars.length > 0) {
-  console.error(`Missing required env var(s): ${missingVars.join(", ")}`);
+if (!token) {
+  console.error("Missing required env var: DISCORD_TOKEN");
   process.exit(1);
 }
 const fs = require("node:fs");
@@ -58,23 +48,26 @@ for (const folder of commandFolders) {
   }
 }
 
-// Construct and prepare an instance of the REST module
-const rest = new REST().setToken(token);
-
 // and deploy your commands!
 (async () => {
+  const client = new Client({ intents: [] });
+
   try {
+    await client.login(token);
+    const clientId = client.user?.id;
+    if (!clientId) throw new Error("Discord did not return the bot application id.");
+
     console.log(`Started refreshing ${commands.length} application (/) commands.`);
 
-    const route = effectiveGuildId
-      ? Routes.applicationGuildCommands(clientId, effectiveGuildId)
-      : Routes.applicationCommands(clientId);
-
-    const data = await rest.put(route, { body: commands });
+    const rest = new REST().setToken(token);
+    const data = await rest.put(Routes.applicationCommands(clientId), { body: commands });
 
     console.log(`Successfully reloaded ${data.length} application (/) commands.`);
   } catch (error) {
     // And of course, make sure you catch and log any errors!
     console.error(error);
+    process.exitCode = 1;
+  } finally {
+    client.destroy();
   }
 })();

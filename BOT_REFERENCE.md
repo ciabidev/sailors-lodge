@@ -54,17 +54,12 @@ The bot reads configuration from environment variables. Do not commit real value
 
 Bot variables:
 
-- `PRODUCTION_TOKEN`: production bot token.
-- `DEV_TOKEN`: development bot token.
-- `PRODUCTION_CLIENT_ID`: production application/client id.
-- `DEV_CLIENT_ID`: development application/client id.
+- `DISCORD_TOKEN`: bot token for the current environment.
+- `ENVIRONMENT`: runtime environment and MongoDB database name, such as `development` or `production`.
 - `DEV_IDS`: comma-separated Discord user ids with developer permissions.
-- `GUILD_ID`: dev guild id, required for dev command deployment.
-- `DEV_MODE`: `true` uses dev token/client/database, otherwise production.
 - `MONGO_URI`: MongoDB connection string.
 - `ISSUES` or `ISSUES_URL`: issue board URL shown in command error replies.
 - `SENTRY_DSN`: Sentry project DSN.
-- `SENTRY_ENVIRONMENT`: Sentry environment name.
 - `SCHEDULE_TIME_ZONE`: fallback timezone for internal scheduled-time formatting, default `America/New_York`. User-created schedules require a timezone saved with `/timezone set`.
 
 Deployment:
@@ -78,8 +73,8 @@ Command deployment:
 
 - `deploy-commands.js` loads top-level slash commands only.
 - Subcommand files are skipped during deployment.
-- In dev mode, commands require `GUILD_ID` but are currently still deployed with `Routes.applicationCommands(clientId)`.
-- Missing token/client/guild env vars stop deployment with a clear error.
+- Commands are deployed globally with the application id inferred from the logged-in bot.
+- A missing bot token stops deployment with a clear error.
 
 ## Dependencies Used by the Bot
 
@@ -96,8 +91,7 @@ Main bot dependencies:
 
 Database selection:
 
-- `development` when `DEV_MODE=true`.
-- `production` otherwise.
+- The database name is read from `ENVIRONMENT`, defaulting to `production`.
 
 Connection module: `src/modules/db.js`
 

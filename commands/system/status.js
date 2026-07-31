@@ -11,7 +11,7 @@ module.exports = {
 
   async execute(interaction) {
     
-    const SITE_URL = process.env.NEXT_PUBLIC_APP_URL;
+    const SITE_URL = process.env.PUBLIC_APP_URL;
     await interaction.reply({
       content: `${SITE_URL}/status`,
       flags: MessageFlags.Ephemeral,

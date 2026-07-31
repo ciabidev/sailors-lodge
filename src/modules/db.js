@@ -155,7 +155,7 @@ async function migrateDockFollowsCollection() {
   try {
     await migrationClient.connect();
 
-    const database = migrationClient.db(devMode ? "development" : "production");
+    const database = migrationClient.db(environment);
 
     const oldExists = await database
       .listCollections({ name: "dockServers" }, { nameOnly: true })

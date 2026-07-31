@@ -492,7 +492,7 @@ export function Landing() {
                 for arcane odyssey communities, parties and hunts
               </h1>
               <p className="hero-subtitle mt-5 max-w-3xl text-base leading-7 text-[#b5bfe2] sm:text-xl sm:leading-8">
-                you no longer have to join a specific server or guild/clan to find parties and hunts. fully <ExternalAnchor href="https://github.com/ciabidev/sailors-lodge">open source</ExternalAnchor>.
+                find parties and hunts easily without joining another server. fully <ExternalAnchor href="https://github.com/ciabidev/sailors-lodge">open source</ExternalAnchor>.
               </p>
               
               <div className="hero-actions mt-7 flex flex-wrap justify-center gap-3">

@@ -19,12 +19,7 @@ function isActiveFollow(follow) {
 }
 
 function appUrl() {
-  return (
-    process.env.PUBLIC_APP_URL
-    || process.env.APP_URL
-    || process.env.NEXT_PUBLIC_APP_URL
-    || 'http://localhost:3002'
-  ).replace(/\/$/, '');
+  return (process.env.PUBLIC_APP_URL || 'http://localhost:3002').replace(/\/$/, '');
 }
 
 function secret() {

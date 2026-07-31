@@ -1,6 +1,6 @@
 const { AuditLogEvent, ContainerBuilder, Events, MessageFlags } = require("discord.js");
 
-const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL;
+const dashboardUrl = process.env.PUBLIC_APP_URL;
 const WELCOME_COMPONENT = new ContainerBuilder().addTextDisplayComponents(
   (text) =>
     text.setContent(

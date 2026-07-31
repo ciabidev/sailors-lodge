@@ -14,7 +14,7 @@ const {
   PermissionFlagsBits,
 } = require("discord.js");
 const Sentry = require("@sentry/node");
-const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL;
+const dashboardUrl = process.env.PUBLIC_APP_URL;
 const { ObjectId } = require("mongodb");
 const {
   buildReportErrorComponents,

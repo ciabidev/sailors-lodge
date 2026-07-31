@@ -25,12 +25,7 @@ async function matchesSearch(client, search, dock) {
 }
 
 module.exports = async function dockManagePage({ client, state }) {
-  const dashboardBase = (
-    process.env.PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    ""
-  ).replace(/\/+$/, "");
+  const dashboardBase = (process.env.PUBLIC_APP_URL || "").replace(/\/+$/, "");
   const dashboardUrl = dashboardBase
     ? `${dashboardBase}/dashboard/${state.guildId}/docks`
     : null;

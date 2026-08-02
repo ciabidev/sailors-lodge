@@ -93,7 +93,7 @@ async function repliedToReference({
       iconURL: original.author.displayAvatarURL(),
     })
     .setDescription(
-      annotateMentions(message.client, original.content)?.slice(0, 4096) || "*No text content*",
+      annotateMentions(message.client, original.content)?.slice(0, 450) || "*No text content*",
     );
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setURL(jumpUrl).setLabel(jumpLabel).setStyle(ButtonStyle.Link),

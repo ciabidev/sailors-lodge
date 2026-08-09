@@ -84,17 +84,18 @@ async function repliedToReference({
     if (!linkedMessage) return null;
   }
 
-  const jumpUrl = linkedMessage?.url ?? original.url;
-  const jumpLabel = linkedMessage ? "Jump to reply" : "Jump to reply (in original server)";
+  const jumpUrl = linkedMessage?.url ?? original.url;   
+  const jumpLabel = linkedMessage ? "Jump to reply" : "Jump to reply (in original server) ";
+  const replyContent = annotateMentions(message.client, original.content);
+  const replyDescription =
+    replyContent?.length > 150 ? `${replyContent.slice(0, 150)}...` : replyContent;
 
   const embed = new EmbedBuilder()
     .setAuthor({
       name: `Reply to ${original.author.username}`,
       iconURL: original.author.displayAvatarURL(),
     })
-    .setDescription(
-      annotateMentions(message.client, original.content)?.slice(0, 4096) || "*No text content*",
-    );
+    .setDescription(replyDescription || "*No text content*");
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setURL(jumpUrl).setLabel(jumpLabel).setStyle(ButtonStyle.Link),
   );

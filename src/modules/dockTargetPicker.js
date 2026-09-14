@@ -7,8 +7,8 @@ const {
   StringSelectMenuOptionBuilder,
 } = require("discord.js");
 
-const EXPIRES_AFTER_MS = 5 * 60 * 1000;
-const MAX_DOCK_OPTIONS = 24;
+const EXPIRES_AFTER_MS = 60 * 60 * 1000;
+const MAX_DOCK_OPTIONS = 24; 
 
 function getSelections(client) {
   if (!client.dockTargetSelections) {
@@ -210,7 +210,7 @@ async function handleSelect(interaction) {
     .map(({ dock }) => interaction.client.modules.escapeMarkdown(dock.name))
     .join(", ");
   const selectedContent = selection.selectedContent ??
-    ((names) => `Sent to ${names}. I'll keep sending your messages here to those Docks for 5 minutes.`);
+    ((names) => `Sent to ${names}. I'll keep sending your messages here to those Docks for 1 hour`);
   await interaction.editReply({
     content: selectedContent(dockNames),
     components: [

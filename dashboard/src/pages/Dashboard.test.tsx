@@ -349,6 +349,9 @@ describe('Dashboard Docks', () => {
     const voiceInvites = screen.getByRole('switch', { name: 'Share voice invite links' });
     expect(voiceInvites).not.toBeChecked();
     expect(screen.queryByRole('switch', { name: 'Ping roles for local messages' })).not.toBeInTheDocument();
+    const botMessages = screen.getByRole('switch', { name: 'Include Bot Messages' });
+    expect(botMessages).not.toBeChecked();
+    fireEvent.click(botMessages);
     fireEvent.click(voiceInvites);
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     await waitFor(() => {
@@ -360,6 +363,7 @@ describe('Dashboard Docks', () => {
           hostRoleIds: [],
           pingOwnServer: true,
           shareVoiceInvites: true,
+          includeBotMessages: true,
         },
       });
     });

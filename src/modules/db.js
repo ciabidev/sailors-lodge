@@ -707,6 +707,7 @@ async function setDockFollower(dockId, guildId, changes = {}) {
     createdAt: new Date(),
   };
   if (!("level" in fields)) setOnInsert.level = dockLevels.DEFAULT_LEVEL;
+  if (!("includeBotMessages" in fields)) setOnInsert.includeBotMessages = false;
 
   const update = { $setOnInsert: setOnInsert };
   if (Object.keys(fields).length) update.$set = fields;

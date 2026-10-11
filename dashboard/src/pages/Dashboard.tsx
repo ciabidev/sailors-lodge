@@ -962,6 +962,7 @@ function FollowEditor({
   const [channelId, setChannelId] = useState("");
   const [pingOwnServer, setPingOwnServer] = useState(true);
   const [shareVoiceInvites, setShareVoiceInvites] = useState(false);
+  const [includeBotMessages, setIncludeBotMessages] = useState(false);
   const [hostRoleIds, setHostRoleIds] = useState<string[]>([]);
   const [pings, setPings] = useState<Record<string, string[]>>({});
   const home = dock?.guildId === guild.id;
@@ -969,6 +970,7 @@ function FollowEditor({
     setChannelId(dock?.follow?.channelIds[0] || "");
     setPingOwnServer(dock?.follow?.pingOwnServer !== false);
     setShareVoiceInvites(dock?.follow?.shareVoiceInvites === true);
+    setIncludeBotMessages(dock?.follow?.includeBotMessages === true);
     setHostRoleIds(dock?.follow?.hostRoleIds || []);
     setPings(
       Object.fromEntries(
@@ -981,7 +983,7 @@ function FollowEditor({
   }, [dock, open]);
   const mutation = useMutation({
     mutationFn: () => {
-      const settings = { keywordPings: pings, hostRoleIds, pingOwnServer, shareVoiceInvites };
+      const settings = { keywordPings: pings, hostRoleIds, pingOwnServer, shareVoiceInvites, includeBotMessages };
       return home
         ? saveHomePings(guild.id, dock!.id, settings)
         : saveFollow(guild.id, dock!.id, {
@@ -1066,6 +1068,20 @@ function FollowEditor({
           <h3 id="misc-follow-settings" className="text-base font-semibold text-[#c6d0f5]">
             Misc
           </h3>
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-[#626880]/70 p-4">
+            <div>
+              <p className="text-sm font-medium text-[#c6d0f5]">Include Bot Messages</p>
+              <p className="mt-1 text-xs text-[#a5adce]">
+                Relay messages from other bots in this server, alongside user messages.
+                Sailor's Lodge messages are always excluded.
+              </p>
+            </div>
+            <Switch
+              aria-label="Include Bot Messages"
+              checked={includeBotMessages}
+              onCheckedChange={setIncludeBotMessages}
+            />
+          </div>
           {!home && (
             <div className="flex items-center justify-between rounded-lg border border-[#626880]/70 p-4">
               <div>

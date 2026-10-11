@@ -140,7 +140,7 @@ module.exports = {
 
     if (!message.guildId || !message.channel?.id) return;
     if (message.webhookId && !partyCardId) return;
-    if (message.author.bot && message.author.id !== message.client.user.id) return;
+    if (message.author.id === message.client.user.id && !partyCardId) return;
     // Party cards created by interactions have a webhook ID. Copies created by
     // relayAlert use channel.send(), so ignore them before they can relay again.
     if (partyCardId && message.author.id === message.client.user.id && !message.webhookId) return;
@@ -212,7 +212,12 @@ module.exports = {
           }),
         ))
           .filter(({ dock }) => Boolean(dock))
-          .filter(({ messageToPublish }) => Boolean(messageToPublish));
+          .filter(({ messageToPublish }) => Boolean(messageToPublish))
+          .filter(({ sendingFollower, messageToPublish }) =>
+            !messageToPublish.author.bot ||
+            (messageToPublish.author.id !== message.client.user.id && sendingFollower.includeBotMessages === true) ||
+            (messageToPublish.author.id === message.client.user.id && partyCardId),
+          );
       }
 
       async function publishToSelectedDocks(selectedDockFollows) {

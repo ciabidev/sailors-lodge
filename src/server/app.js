@@ -202,6 +202,7 @@ function followerJson(follow, client = null) {
     hostRoleIds: Array.isArray(follow.hostRoleIds) ? follow.hostRoleIds : [],
     pingOwnServer: follow.pingOwnServer !== false,
     shareVoiceInvites: follow.shareVoiceInvites === true,
+    includeBotMessages: follow.includeBotMessages === true,
     level: follow.level || 'passive',
     banned: Boolean(follow.banned),
     ...(follow.banReason ? { banReason: follow.banReason } : {}),
@@ -536,6 +537,9 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
     if ('shareVoiceInvites' in body && typeof body.shareVoiceInvites !== 'boolean') {
       return { error: 'Voice invite sharing must be on or off.' };
     }
+    if ('includeBotMessages' in body && typeof body.includeBotMessages !== 'boolean') {
+      return { error: 'Include Bot Messages must be on or off.' };
+    }
     const hostRoleIds = cleanStrings(body.hostRoleIds ?? [], 25, 32);
     if (!hostRoleIds || hostRoleIds.some((id) => !guild.roles.cache.has(id))) {
       return { error: 'A selected Host Role no longer exists.' };
@@ -559,6 +563,7 @@ function createApp({ client, db, staticDir = path.join(__dirname, '../../dist/da
         hostRoleIds,
         pingOwnServer: body.pingOwnServer !== false,
         shareVoiceInvites: body.shareVoiceInvites === true,
+        includeBotMessages: body.includeBotMessages === true,
       },
     };
   }

@@ -484,6 +484,7 @@ async function relayThread(thread, sendingFollower = null) {
 }
 
 async function relayThreadMessage(message) {
+  if (message.author.id === message.client.user.id || message.webhookId) return;
   if (isPartyCard(message)) return;
   if (isDockTargetPrompt(message)) return;
 
@@ -510,6 +511,10 @@ async function relayThreadMessage(message) {
   for (const dockThread of dockThreadMap.values()) {
     const dock = await message.client.modules.db.getDock(dockThread.dockId);
     if (!dock) continue;
+    if (message.author.bot) {
+      const sourceFollower = await message.client.modules.db.getDockFollower(dock._id, message.guildId);
+      if (sourceFollower?.includeBotMessages !== true) continue;
+    }
 
     const activeGuildIds = new Set(
       (await message.client.modules.db.getDockFollowers(dock._id))
@@ -654,6 +659,7 @@ async function relayThreadMessage(message) {
 }
 
 async function relayMessage(message, options = {}, sendingFollower = null) {
+  if (message.author.id === message.client.user.id || message.webhookId) return;
   if (isPartyCard(message)) return;
 
   if (!sendingFollower) {
@@ -664,6 +670,8 @@ async function relayMessage(message, options = {}, sendingFollower = null) {
       message.guildId,
     );
   }
+
+  if (message.author.bot && sendingFollower?.includeBotMessages !== true) return;
 
   const dock = await message.client.modules.db.getDock(sendingFollower?.dockId);
   if (!dock) return;
